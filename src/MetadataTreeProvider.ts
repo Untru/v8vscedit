@@ -1,93 +1,15 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
-import { MetadataNode, NodeKind, getIconPath } from './MetadataNode';
-import { ConfigInfo, parseConfigXml, parseObjectXml, resolveObjectXmlPath } from './ConfigParser';
+import { MetadataNode, NodeKind } from './MetadataNode';
+import { getIconPath } from './IconProvider';
+import { COMMON_SUBGROUPS, TOP_GROUPS, MetaGroup } from './MetadataGroups';
+import { ConfigInfo, parseConfigXml, parseObjectXml } from './ConfigParser';
 import { ConfigEntry } from './ConfigFinder';
+import { resolveObjectXmlPath } from './ModulePathResolver';
 
 // ---------------------------------------------------------------------------
 // Группы как в конфигураторе 1С
 // ---------------------------------------------------------------------------
-
-/** Описание группы объектов верхнего уровня */
-interface MetaGroup {
-  label: string;
-  types: string[];
-  kind: NodeKind;
-  isCommon?: boolean;
-}
-
-/** Типы в группе "Общие" */
-const COMMON_TYPES: string[] = [
-  'Subsystem',
-  'CommonModule',
-  'SessionParameter',
-  'Role',
-  'CommonAttribute',
-  'ExchangePlan',
-  'FilterCriterion',
-  'EventSubscription',
-  'ScheduledJob',
-  'FunctionalOption',
-  'FunctionalOptionsParameter',
-  'DefinedType',
-  'CommonCommand',
-  'CommandGroup',
-  'CommonForm',
-  'CommonTemplate',
-  'CommonPicture',
-  'StyleItem',
-  'Language',
-  'XDTOPackage',
-  'Interface',
-  'WSReference',
-  'WebService',
-  'HTTPService',
-];
-
-/** Порядок групп верхнего уровня (без группы Общие) */
-const TOP_GROUPS: MetaGroup[] = [
-  { label: 'Константы', types: ['Constant'], kind: 'Constant' },
-  { label: 'Критерии отбора', types: ['FilterCriterion'], kind: 'FilterCriterion' },
-  { label: 'Подписки на события', types: ['EventSubscription'], kind: 'EventSubscription' },
-  { label: 'Регламентные задания', types: ['ScheduledJob'], kind: 'ScheduledJob' },
-  { label: 'Последовательности', types: ['Sequence'], kind: 'Sequence' },
-  { label: 'Справочники', types: ['Catalog'], kind: 'Catalog' },
-  { label: 'Документы', types: ['Document'], kind: 'Document' },
-  { label: 'Журналы документов', types: ['DocumentJournal'], kind: 'DocumentJournal' },
-  { label: 'Перечисления', types: ['Enum'], kind: 'Enum' },
-  { label: 'Отчёты', types: ['Report'], kind: 'Report' },
-  { label: 'Обработки', types: ['DataProcessor'], kind: 'DataProcessor' },
-  { label: 'Планы видов характеристик', types: ['ChartOfCharacteristicTypes'], kind: 'ChartOfCharacteristicTypes' },
-  { label: 'Планы счетов', types: ['ChartOfAccounts'], kind: 'ChartOfAccounts' },
-  { label: 'Планы видов расчёта', types: ['ChartOfCalculationTypes'], kind: 'ChartOfCalculationTypes' },
-  { label: 'Регистры сведений', types: ['InformationRegister'], kind: 'InformationRegister' },
-  { label: 'Регистры накопления', types: ['AccumulationRegister'], kind: 'AccumulationRegister' },
-  { label: 'Регистры бухгалтерии', types: ['AccountingRegister'], kind: 'AccountingRegister' },
-  { label: 'Регистры расчёта', types: ['CalculationRegister'], kind: 'CalculationRegister' },
-  { label: 'Бизнес-процессы', types: ['BusinessProcess'], kind: 'BusinessProcess' },
-  { label: 'Задачи', types: ['Task'], kind: 'Task' },
-  { label: 'Планы обмена', types: ['ExchangePlan'], kind: 'ExchangePlan' },
-];
-
-/** Подгруппы внутри "Общие" */
-const COMMON_SUBGROUPS: MetaGroup[] = [
-  { label: 'Подсистемы', types: ['Subsystem'], kind: 'Subsystem' },
-  { label: 'Общие модули', types: ['CommonModule'], kind: 'CommonModule' },
-  { label: 'Параметры сеанса', types: ['SessionParameter'], kind: 'SessionParameter' },
-  { label: 'Роли', types: ['Role'], kind: 'Role' },
-  { label: 'Определяемые типы', types: ['DefinedType'], kind: 'DefinedType' },
-  { label: 'Общие команды', types: ['CommonCommand'], kind: 'CommonCommand' },
-  { label: 'Группы команд', types: ['CommandGroup'], kind: 'CommonCommand' },
-  { label: 'Общие формы', types: ['CommonForm'], kind: 'CommonForm' },
-  { label: 'Общие макеты', types: ['CommonTemplate'], kind: 'Template' },
-  { label: 'Общие картинки', types: ['CommonPicture'], kind: 'CommonPicture' },
-  { label: 'Стилевые оформления', types: ['StyleItem'], kind: 'StyleItem' },
-  { label: 'Языки', types: ['Language'], kind: 'Language' },
-  { label: 'Пакеты XDTO', types: ['XDTOPackage'], kind: 'CommonModule' },
-  { label: 'Web-сервисы', types: ['WebService'], kind: 'WebService' },
-  { label: 'HTTP-сервисы', types: ['HTTPService'], kind: 'HTTPService' },
-  { label: 'Внешние источники данных', types: ['ExternalDataSource'], kind: 'CommonModule' },
-];
 
 // ---------------------------------------------------------------------------
 // TreeDataProvider
@@ -125,6 +47,15 @@ export class MetadataTreeProvider implements vscode.TreeDataProvider<MetadataNod
 
   getChildren(element?: MetadataNode): MetadataNode[] {
     if (!element) {
+      if (this.roots.length === 0) {
+        return [
+          new MetadataNode(
+            'Загрузка...',
+            'group-type',
+            vscode.TreeItemCollapsibleState.None
+          ),
+        ];
+      }
       return this.roots;
     }
     if (element.childrenLoader) {

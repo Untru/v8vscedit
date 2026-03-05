@@ -30,6 +30,73 @@ interface ObjectLocation {
   objectDir: string;
 }
 
+/**
+ * Возвращает путь к XML-файлу объекта по каталогу конфигурации, типу и имени.
+ * Например: Documents/ев_Заказ/ев_Заказ.xml или Documents/ев_Заказ.xml
+ */
+export function resolveObjectXmlPath(
+  configRoot: string,
+  objectType: string,
+  objectName: string
+): string | null {
+  const typeToFolder: Record<string, string> = {
+    Catalog: 'Catalogs',
+    Document: 'Documents',
+    Enum: 'Enums',
+    InformationRegister: 'InformationRegisters',
+    AccumulationRegister: 'AccumulationRegisters',
+    AccountingRegister: 'AccountingRegisters',
+    CalculationRegister: 'CalculationRegisters',
+    Report: 'Reports',
+    DataProcessor: 'DataProcessors',
+    BusinessProcess: 'BusinessProcesses',
+    Task: 'Tasks',
+    ExchangePlan: 'ExchangePlans',
+    ChartOfCharacteristicTypes: 'ChartsOfCharacteristicTypes',
+    ChartOfAccounts: 'ChartsOfAccounts',
+    ChartOfCalculationTypes: 'ChartsOfCalculationTypes',
+    DocumentJournal: 'DocumentJournals',
+    Constant: 'Constants',
+    CommonModule: 'CommonModules',
+    Role: 'Roles',
+    CommonForm: 'CommonForms',
+    CommonCommand: 'CommonCommands',
+    CommonPicture: 'CommonPictures',
+    StyleItem: 'StyleItems',
+    DefinedType: 'DefinedTypes',
+    Subsystem: 'Subsystems',
+    ScheduledJob: 'ScheduledJobs',
+    EventSubscription: 'EventSubscriptions',
+    HTTPService: 'HTTPServices',
+    WebService: 'WebServices',
+    Language: 'Languages',
+    FilterCriterion: 'FilterCriteria',
+    Sequence: 'Sequences',
+    SessionParameter: 'SessionParameters',
+    FunctionalOption: 'FunctionalOptions',
+    FunctionalOptionsParameter: 'FunctionalOptionsParameters',
+    XDTOPackage: 'XDTOPackages',
+    Interface: 'Interfaces',
+  };
+
+  const folder = typeToFolder[objectType];
+  if (!folder) {
+    return null;
+  }
+
+  const deepPath = path.join(configRoot, folder, objectName, `${objectName}.xml`);
+  if (fs.existsSync(deepPath)) {
+    return deepPath;
+  }
+
+  const flatPath = path.join(configRoot, folder, `${objectName}.xml`);
+  if (fs.existsSync(flatPath)) {
+    return flatPath;
+  }
+
+  return null;
+}
+
 /** Возвращает корень конфигурации, имя папки, имя объекта и каталог объекта по пути XML */
 export function getObjectLocationFromXml(xmlPath: string): ObjectLocation {
   const normalized = path.normalize(xmlPath);
@@ -198,4 +265,18 @@ export function getCommandModulePathForChild(node: MetadataNode | { xmlPath?: st
 
   return firstExisting(candidates);
 }
+
+export function getCommonModuleCodePath(node: MetadataNode | { xmlPath?: string; nodeKind?: string; label?: string }): string | null {
+  const ctx = toContext(node);
+  if (!ctx) {
+    return null;
+  }
+
+  const location = getObjectLocationFromXml(ctx.xmlPath);
+  const extDir = path.join(location.objectDir, 'Ext');
+  const candidates = [path.join(extDir, 'Module.bsl')];
+
+  return firstExisting(candidates);
+}
+
 
