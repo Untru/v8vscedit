@@ -4,6 +4,16 @@ import * as fs from 'fs';
 import { findConfigurations } from './ConfigFinder';
 import { MetadataTreeProvider } from './MetadataTreeProvider';
 import { MetadataNode } from './MetadataNode';
+import {
+  getCommonCommandModulePath,
+  getCommonFormModulePath,
+  getCommandModulePathForChild,
+  getConstantModulePath,
+  getFormModulePathForChild,
+  getManagerModulePath,
+  getObjectModulePath,
+  getServiceModulePath,
+} from './ModulePathResolver';
 
 let provider: MetadataTreeProvider | undefined;
 let watcher: vscode.FileSystemWatcher | undefined;
@@ -69,6 +79,102 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
           return;
         }
 
+        const uri = vscode.Uri.file(modulePath);
+        await vscode.window.showTextDocument(uri, { preview: true });
+      }
+    )
+  );
+
+  // Команда: открыть модуль объекта
+  context.subscriptions.push(
+    vscode.commands.registerCommand(
+      '1cNavigator.openObjectModule',
+      async (node: MetadataNode | { xmlPath?: string; nodeKind?: string; label?: string }) => {
+        const modulePath = getObjectModulePath(node as any);
+        if (!modulePath) {
+          return;
+        }
+        const uri = vscode.Uri.file(modulePath);
+        await vscode.window.showTextDocument(uri, { preview: true });
+      }
+    )
+  );
+
+  // Команда: открыть модуль менеджера
+  context.subscriptions.push(
+    vscode.commands.registerCommand(
+      '1cNavigator.openManagerModule',
+      async (node: MetadataNode | { xmlPath?: string; nodeKind?: string; label?: string }) => {
+        const modulePath = getManagerModulePath(node as any);
+        if (!modulePath) {
+          return;
+        }
+        const uri = vscode.Uri.file(modulePath);
+        await vscode.window.showTextDocument(uri, { preview: true });
+      }
+    )
+  );
+
+  // Команда: открыть модуль константы
+  context.subscriptions.push(
+    vscode.commands.registerCommand(
+      '1cNavigator.openConstantModule',
+      async (node: MetadataNode | { xmlPath?: string; nodeKind?: string; label?: string }) => {
+        const modulePath = getConstantModulePath(node as any);
+        if (!modulePath) {
+          return;
+        }
+        const uri = vscode.Uri.file(modulePath);
+        await vscode.window.showTextDocument(uri, { preview: true });
+      }
+    )
+  );
+
+  // Команда: открыть модуль сервиса (Web/HTTP)
+  context.subscriptions.push(
+    vscode.commands.registerCommand(
+      '1cNavigator.openServiceModule',
+      async (node: MetadataNode | { xmlPath?: string; nodeKind?: string; label?: string }) => {
+        const modulePath = getServiceModulePath(node as any);
+        if (!modulePath) {
+          return;
+        }
+        const uri = vscode.Uri.file(modulePath);
+        await vscode.window.showTextDocument(uri, { preview: true });
+      }
+    )
+  );
+
+  // Команда: открыть модуль общей формы
+  context.subscriptions.push(
+    vscode.commands.registerCommand(
+      '1cNavigator.openFormModule',
+      async (node: MetadataNode | { xmlPath?: string; nodeKind?: string; label?: string }) => {
+        const modulePath =
+          (node as any)?.nodeKind === 'CommonForm'
+            ? getCommonFormModulePath(node as any)
+            : getFormModulePathForChild(node as any);
+        if (!modulePath) {
+          return;
+        }
+        const uri = vscode.Uri.file(modulePath);
+        await vscode.window.showTextDocument(uri, { preview: true });
+      }
+    )
+  );
+
+  // Команда: открыть модуль команды (общей или объектной)
+  context.subscriptions.push(
+    vscode.commands.registerCommand(
+      '1cNavigator.openCommandModule',
+      async (node: MetadataNode | { xmlPath?: string; nodeKind?: string; label?: string }) => {
+        const modulePath =
+          (node as any)?.nodeKind === 'CommonCommand'
+            ? getCommonCommandModulePath(node as any)
+            : getCommandModulePathForChild(node as any);
+        if (!modulePath) {
+          return;
+        }
         const uri = vscode.Uri.file(modulePath);
         await vscode.window.showTextDocument(uri, { preview: true });
       }

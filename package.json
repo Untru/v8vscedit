@@ -40,6 +40,30 @@
       {
         "command": "1cNavigator.openXmlFile",
         "title": "Открыть XML"
+      },
+      {
+        "command": "1cNavigator.openObjectModule",
+        "title": "Открыть модуль объекта"
+      },
+      {
+        "command": "1cNavigator.openManagerModule",
+        "title": "Открыть модуль менеджера"
+      },
+      {
+        "command": "1cNavigator.openFormModule",
+        "title": "Открыть модуль формы"
+      },
+      {
+        "command": "1cNavigator.openCommandModule",
+        "title": "Открыть модуль команды"
+      },
+      {
+        "command": "1cNavigator.openConstantModule",
+        "title": "Открыть модуль константы"
+      },
+      {
+        "command": "1cNavigator.openServiceModule",
+        "title": "Открыть модуль сервиса"
       }
     ],
     "menus": {
@@ -55,6 +79,36 @@
           "command": "1cNavigator.openXmlFile",
           "when": "view == 1cMetadataTree && viewItem =~ /.*-hasXml$/",
           "group": "navigation@1"
+        },
+        {
+          "command": "1cNavigator.openObjectModule",
+          "when": "view == 1cMetadataTree && viewItem =~ /(Catalog|Document|Report|DataProcessor|InformationRegister|AccumulationRegister|AccountingRegister|CalculationRegister|BusinessProcess|Task|ExchangePlan|ChartOfCharacteristicTypes|ChartOfAccounts|ChartOfCalculationTypes)-hasXml$/",
+          "group": "navigation@2"
+        },
+        {
+          "command": "1cNavigator.openManagerModule",
+          "when": "view == 1cMetadataTree && viewItem =~ /(Catalog|Document|Report|DataProcessor|InformationRegister|AccumulationRegister|AccountingRegister|CalculationRegister|BusinessProcess|Task|ExchangePlan|ChartOfCharacteristicTypes|ChartOfAccounts|ChartOfCalculationTypes|Enum|DocumentJournal)-hasXml$/",
+          "group": "navigation@2"
+        },
+        {
+          "command": "1cNavigator.openConstantModule",
+          "when": "view == 1cMetadataTree && viewItem == Constant-hasXml",
+          "group": "navigation@2"
+        },
+        {
+          "command": "1cNavigator.openFormModule",
+          "when": "view == 1cMetadataTree && (viewItem == CommonForm-hasXml || viewItem == Form-hasXml)",
+          "group": "navigation@3"
+        },
+        {
+          "command": "1cNavigator.openCommandModule",
+          "when": "view == 1cMetadataTree && (viewItem == CommonCommand-hasXml || viewItem == Command-hasXml)",
+          "group": "navigation@3"
+        },
+        {
+          "command": "1cNavigator.openServiceModule",
+          "when": "view == 1cMetadataTree && (viewItem == WebService-hasXml || viewItem == HTTPService-hasXml)",
+          "group": "navigation@3"
         }
       ]
     }
