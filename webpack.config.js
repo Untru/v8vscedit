@@ -8,6 +8,7 @@ module.exports = {
   target: 'node',
   entry: {
     extension: './src/extension.ts',
+    server: './src/language-server/server.ts',
     'test/runTests': './src/test/runTests.ts',
   },
   output: {
@@ -35,7 +36,7 @@ module.exports = {
     new CopyWebpackPlugin({
       patterns: [
         { from: 'node_modules/web-tree-sitter/tree-sitter.wasm', to: '.' },
-        { from: 'node_modules/tree-sitter-bsl/tree-sitter-bsl.wasm', to: '.' },
+        { from: 'grammars/bsl/tree-sitter-bsl.wasm', to: '.' },
       ],
     }),
   ],

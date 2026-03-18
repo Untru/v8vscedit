@@ -1,16 +1,27 @@
 # Провайдеры языка BSL
 
-Детали реализации каждого из шести языковых провайдеров. Все провайдеры принимают `BslParserService` в конструктор и вызывают `parse(document)` для получения AST.
+Детали реализации каждого из семи языковых провайдеров LSP-сервера. Все провайдеры принимают `BslParserService` и `TextDocument` (из `vscode-languageserver-textdocument`), вызывают `parserService.parse(text, uri, version)` для получения AST.
 
 Общий контекст — [bsl-language-support.md](./bsl-language-support.md).
 
 ---
 
-## SemanticTokensProvider
+## semanticTokens.ts
 
-Файл: `src/language/providers/SemanticTokensProvider.ts`
+Файл: `src/language-server/providers/semanticTokens.ts`
 
-Полностью заменяет TextMate-грамматику для открытых документов — нет мерцания при загрузке WASM.
+Возвращает LSP-кодированный массив семантических токенов (`number[]`).
+
+### LspSemanticTokensBuilder
+
+Собственный построитель вместо VS Code `SemanticTokensBuilder`:
+
+```typescript
+push(line, char, length, tokenTypeIndex, tokenModifiers): void
+build(): number[]  // flat array, 5 чисел на токен, отсортировано по (line, char)
+```
+
+Дельта-кодирование LSP: `[deltaLine, deltaChar, length, typeIdx, modBitmask]`.
 
 ### Типы токенов (BSL_TOKEN_TYPES)
 
@@ -20,15 +31,13 @@ function, method, variable, parameter, property,
 class, annotation, preprocessor
 ```
 
-Тип модификатора — один: `declaration`.
-
 ### Алгоритм walkNode()
 
 Рекурсивный обход AST с `emitted: Set<number>` для дедупликации по `node.id`.
 
 **Листовые узлы** — эмитируются и рекурсия останавливается:
 
-| Тип AST-узла | Токен VSCode |
+| Тип AST-узла | Токен |
 |---|---|
 | `line_comment` | `comment` |
 | `string` | `string` |
@@ -51,121 +60,105 @@ class, annotation, preprocessor
 | `var_definition` / `var_statement` | `var_name` (множество) | `variable` + `declaration` |
 | `new_expression` | `type` | `class` |
 
-### Многострочные строки
+---
 
-`multiline_string` в tree-sitter-bsl содержит дочерние `string_content` узлы — каждый из них эмитируется отдельно, так как VS Code Semantic Tokens не поддерживают многострочные диапазоны.
+## diagnostics.ts
+
+Файл: `src/language-server/providers/diagnostics.ts`
+
+Вычисляет диагностики через ERROR-узлы tree-sitter. Возвращает `Diagnostic[]`.
+
+Дебаунс 500 мс управляется в `server.ts`, не в провайдере.
+
+**Правила фильтрации:**
+- Не рекурсирует внутрь ERROR-узла — предотвращает каскад ложных ошибок
+- Однострочные ERROR-узлы длиной ≤ 1 символ игнорируются (артефакты восстановления парсера)
 
 ---
 
-## DocumentSymbolProvider
+## symbols.ts
 
-Файл: `src/language/providers/DocumentSymbolProvider.ts`
+Файл: `src/language-server/providers/symbols.ts`
 
-Отображает процедуры и функции в панели **Outline** и **хлебных крошках** редактора.
+Возвращает `DocumentSymbol[]` для Outline и хлебных крошек.
 
-### Алгоритм extractSymbols()
-
-Проходит по `root.namedChildren` (только верхний уровень):
-1. Отбирает `procedure_definition` и `function_definition`
-2. Для каждой функции извлекает `name` (поле `name`) → `nameRange`
-3. Проверяет предыдущий sibling — если `annotation`, использует его текст как `detail`
-4. Строит `DocumentSymbol` с `SymbolKind.Function`
-5. Добавляет дочерние символы — локальные переменные из `var_statement` / `var_definition`
+**Алгоритм:**
+1. Проходит `root.namedChildren` (только верхний уровень)
+2. Отбирает `procedure_definition` и `function_definition`
+3. Аннотация-сиблинг перед функцией → `detail`
+4. Дочерние символы — локальные переменные из `var_statement` / `var_definition`
 
 ---
 
-## FoldingRangeProvider
+## folding.ts
 
-Файл: `src/language/providers/FoldingRangeProvider.ts`
+Файл: `src/language-server/providers/folding.ts`
 
 Два прохода по AST:
 
-### collectBlockRanges() — структурные блоки
-
-Рекурсивный обход, добавляет `FoldingRange` для узлов из `BLOCK_TYPES`:
-
+**collectBlockRanges()** — рекурсивный обход для структурных блоков (`BLOCK_TYPES`):
 ```
 procedure_definition, function_definition, try_statement,
 if_statement, while_statement, for_statement, for_each_statement
 ```
 
-### collectRegionRanges() — препроцессорные области
-
-Стековый алгоритм для пар `#Область` / `#КонецОбласти`:
-- При `#область` или `#region` (case-insensitive) — пушит строку начала в стек
-- При `#конецобласти` или `#endregion` — попит из стека и создаёт `FoldingRange`
-
-Поддерживает вложенные области.
+**collectRegionRanges()** — стековый алгоритм для пар `#Область` / `#КонецОбласти`.
 
 ---
 
-## CompletionProvider
+## hover.ts
 
-Файл: `src/language/providers/CompletionProvider.ts`
+Файл: `src/language-server/providers/hover.ts`
+
+Показывает сигнатуру процедуры/функции при наведении.
+
+**Алгоритм:**
+1. `getWordAtPosition(text, position, /[\wа-яА-ЯёЁ_]+/)` из `lspUtils.ts`
+2. Ищет определение в `root.namedChildren` (case-insensitive)
+3. Возвращает `{ kind: 'markdown', value: '```bsl\n...\n```' }`
+
+Включает параметры с `Знач`, дефолтными значениями и аннотацию-сиблинг.
+
+---
+
+## completion.ts
+
+Файл: `src/language-server/providers/completion.ts`
 
 Триггеры: `&`, `#`. Также активируется при обычном вводе.
 
-### Режим `&` — директивы компиляции
+**Режим `&`** — 20 аннотаций (двуязычные): `&НаКлиенте`, `&AtClient`, ...
 
-20 вариантов аннотаций (двуязычные):
-`&НаКлиенте`, `&AtClient`, `&НаСервере`, `&AtServer`, `&Перед`, `&Before`, `&После`, `&After`, `&Вместо`, `&Instead`, ...
+**Режим `#`** — 14 директив препроцессора: `#Область`, `#Region`, ...
+`insertText` = значение без символа `#`.
 
-### Режим `#` — директивы препроцессора
+**Обычный ввод — три источника:**
+1. Ключевые слова BSL (32 слова, двуязычные)
+2. Локальные символы из AST: процедуры/функции + переменные
+3. Объекты метаданных из `Configuration.xml` (18 типов, RU+EN варианты)
 
-14 вариантов (двуязычные):
-`#Область`, `#Region`, `#КонецОбласти`, `#EndRegion`, `#Если`, `#If`, `#Вставка`, `#Insert`, `#Удаление`, `#Delete`, ...
-
-`insertText` = значение без символа `#` (символ уже введён как триггер).
-
-### Обычный ввод — три источника
-
-**1. Ключевые слова BSL** — 32 слова (двуязычные): `Если`, `If`, `Тогда`, `Then`, ...
-
-**2. Локальные символы из AST** — `extractLocalSymbols(document)`:
-- `procedure_definition` / `function_definition` → `CompletionItemKind.Function` с деталью `Процедура (param1, param2)`
-- `var_definition` / `var_statement` / `var_name` → `CompletionItemKind.Variable`
-
-**3. Объекты метаданных** — `buildMetaItems()` с кэшем `metaCache: Map<rootPath, items[]>`:
-- Читает `Configuration.xml` каждой конфигурации из `getEntries()`
-- Для каждого типа из `META_PREFIXES` (18 типов) ищет `<TypeName>...</TypeName>` через регулярное выражение
-- Генерирует два варианта: `Справочники.Имя` (RU) и `Catalogs.Имя` (EN)
-
-**META_PREFIXES** — 18 типов: `Catalog`, `Document`, `Enum`, `InformationRegister`, `AccumulationRegister`, `AccountingRegister`, `CalculationRegister`, `Report`, `DataProcessor`, `BusinessProcess`, `Task`, `ExchangePlan`, `ChartOfCharacteristicTypes`, `ChartOfAccounts`, `ChartOfCalculationTypes`, `DocumentJournal`, `Constant`, `CommonModule`.
+Метаданные читаются через `fs.promises.readFile` (без VS Code API).
+Кэш `metaCache` инвалидируется при изменении `Configuration.xml` через `onDidChangeWatchedFiles`.
 
 ---
 
-## HoverProvider
+## definition.ts
 
-Файл: `src/language/providers/HoverProvider.ts`
-
-Показывает сигнатуру процедуры/функции при наведении курсора на её имя.
-
-### Алгоритм
-
-1. `getWordRangeAtPosition` с паттерном `[\wа-яА-ЯёЁ_]+` — извлекает слово под курсором
-2. Ищет в `root.namedChildren` процедуру/функцию с таким именем (case-insensitive) через `findDefinition()`
-3. Строит `MarkdownString` с `appendCodeblock(..., 'bsl')`:
-   - `Процедура/Функция Имя(Знач Параметр1 = Дефолт, Параметр2)`
-   - Если предыдущий sibling — `annotation`, добавляет его текст в конце блока
-
----
-
-## DefinitionProvider
-
-Файл: `src/language/providers/DefinitionProvider.ts`
+Файл: `src/language-server/providers/definition.ts`
 
 Переход к определению процедуры/функции (F12 / Ctrl+Click).
 
-### Трёхступенчатый поиск
+### Четырёхступенчатый поиск
 
-1. **Текущий документ** — `findInDocument(document, word)` → обходит `root.namedChildren`
-2. **Кэш** — `cache: Map<name.toLowerCase(), Location>` — результаты предыдущих поисков по воркспейсу
-3. **Все BSL-файлы воркспейса** — `vscode.workspace.findFiles('**/*.bsl', '**/node_modules/**')`, для каждого файла вызывает `findInDocument`
+1. **Текущий документ** — `findInText(text, uri, name)` без обращения к ФС
+2. **Кэш** `definitionCache: Map<name.toLowerCase(), Location>` — быстрый ответ
+3. **Открытые документы** `documents.all()` — без чтения файлов
+4. **Файловая система** — `findBslFiles(root)` рекурсивно (глубина 10, без `node_modules`)
 
-При нахождении через файловый поиск результат помещается в кэш.
+`findBslFiles()` использует `fs.promises.readdir` — нет зависимости от VS Code API.
 
 ### Инвалидация кэша
 
-`FileSystemWatcher` на `**/*.bsl` — при создании, изменении или удалении любого BSL-файла кэш полностью очищается.
+`invalidateDefinitionCache()` вызывается при любом изменении BSL-файла (`onDidChangeWatchedFiles`).
 
-Поиск ведётся только по `procedure_definition` и `function_definition` — `namedChildren` корня AST (не рекурсивно).
+Поиск ведётся только по `procedure_definition` и `function_definition` на корневом уровне AST.

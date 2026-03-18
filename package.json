@@ -147,10 +147,18 @@
     "configurationDefaults": {
       "editor.semanticTokenColorCustomizations": {
         "rules": {
-          "annotation:bsl":   { "foreground": "#C678DD" },
-          "preprocessor:bsl": { "foreground": "#A07850" },
-          "function:bsl":     { "foreground": "#DCDCAA" },
-          "parameter:bsl":    { "foreground": "#9CDCFE" }
+          "annotation:bsl": {
+            "foreground": "#C678DD"
+          },
+          "preprocessor:bsl": {
+            "foreground": "#A07850"
+          },
+          "function:bsl": {
+            "foreground": "#DCDCAA"
+          },
+          "parameter:bsl": {
+            "foreground": "#9CDCFE"
+          }
         }
       }
     },
@@ -158,19 +166,45 @@
       {
         "language": "bsl",
         "scopes": {
-          "comment":     ["comment.line.double-slash"],
-          "string":      ["string.quoted.double"],
-          "keyword":     ["keyword.control"],
-          "number":      ["constant.numeric"],
-          "operator":    ["keyword.operator"],
-          "function":    ["entity.name.function"],
-          "method":      ["entity.name.function.member"],
-          "variable":    ["variable.other.readwrite"],
-          "parameter":   ["variable.parameter"],
-          "property":    ["variable.other.property"],
-          "class":       ["entity.name.type"],
-          "annotation":  ["support.function"],
-          "preprocessor":["entity.name.type"]
+          "comment": [
+            "comment.line.double-slash"
+          ],
+          "string": [
+            "string.quoted.double"
+          ],
+          "keyword": [
+            "keyword.control"
+          ],
+          "number": [
+            "constant.numeric"
+          ],
+          "operator": [
+            "keyword.operator"
+          ],
+          "function": [
+            "entity.name.function"
+          ],
+          "method": [
+            "entity.name.function.member"
+          ],
+          "variable": [
+            "variable.other.readwrite"
+          ],
+          "parameter": [
+            "variable.parameter"
+          ],
+          "property": [
+            "variable.other.property"
+          ],
+          "class": [
+            "entity.name.type"
+          ],
+          "annotation": [
+            "support.function"
+          ],
+          "preprocessor": [
+            "entity.name.type"
+          ]
         }
       }
     ]
@@ -199,6 +233,9 @@
   },
   "dependencies": {
     "tree-sitter-bsl": "^0.1.6",
+    "vscode-languageclient": "^9.0.1",
+    "vscode-languageserver": "^9.0.1",
+    "vscode-languageserver-textdocument": "^1.0.12",
     "web-tree-sitter": "^0.25.10"
   }
 }

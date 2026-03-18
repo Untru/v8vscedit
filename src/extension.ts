@@ -1,9 +1,11 @@
+import * as path from 'path';
 import * as vscode from 'vscode';
-import { findConfigurations, ConfigEntry } from './ConfigFinder';
+import { LanguageClient, LanguageClientOptions, ServerOptions, TransportKind } from 'vscode-languageclient/node';
+import { findConfigurations } from './ConfigFinder';
 import { MetadataTreeProvider } from './MetadataTreeProvider';
 import { registerCommands } from './CommandRegistry';
-import { BslParserService } from './language/BslParserService';
-import { registerBslLanguage } from './language/BslLanguageRegistrar';
+
+let client: LanguageClient | undefined;
 
 export function activate(context: vscode.ExtensionContext): void {
   const workspaceFolders = vscode.workspace.workspaceFolders;
@@ -14,6 +16,7 @@ export function activate(context: vscode.ExtensionContext): void {
   const workspaceFolder = workspaceFolders[0];
   const rootPath = workspaceFolder.uri.fsPath;
 
+  // ── Навигатор метаданных ────────────────────────────────────────────────
   const provider = new MetadataTreeProvider([], context.extensionUri);
 
   const treeView = vscode.window.createTreeView('1cMetadataTree', {
@@ -22,33 +25,53 @@ export function activate(context: vscode.ExtensionContext): void {
   });
   context.subscriptions.push(treeView);
 
-  // Мутируемый список конфигураций — нужен CompletionProvider
-  let currentEntries: ConfigEntry[] = [];
-
   const reloadEntries = () => {
     findConfigurations(rootPath).then((entries) => {
-      currentEntries = entries;
       provider.updateEntries(entries);
     });
   };
 
   registerCommands(context, provider, workspaceFolder, reloadEntries);
-
   reloadEntries();
 
-  // BSL language support — парсер инициализируется немедленно при активации,
-  // до открытия первого файла, чтобы подсветка появилась сразу без задержки.
-  const parserService = new BslParserService(context);
-  context.subscriptions.push(parserService);
+  // ── LSP-сервер языковой поддержки BSL ──────────────────────────────────
+  const serverModule = context.asAbsolutePath(path.join('dist', 'server.js'));
 
-  parserService.ensureInit()
-    .then(() => registerBslLanguage(context, parserService, () => currentEntries))
-    .catch((err: unknown) => {
-      const msg = err instanceof Error ? err.message : String(err);
-      vscode.window.showErrorMessage(`1С BSL: ошибка инициализации парсера: ${msg}`);
-    });
+  const serverOptions: ServerOptions = {
+    run: {
+      module: serverModule,
+      transport: TransportKind.ipc,
+    },
+    debug: {
+      module: serverModule,
+      transport: TransportKind.ipc,
+      // Порт 6009 для подключения отладчика к серверному процессу
+      options: { execArgv: ['--nolazy', '--inspect=6009'] },
+    },
+  };
+
+  const clientOptions: LanguageClientOptions = {
+    documentSelector: [{ scheme: 'file', language: 'bsl' }],
+    synchronize: {
+      fileEvents: vscode.workspace.createFileSystemWatcher('**/*.bsl'),
+    },
+  };
+
+  client = new LanguageClient(
+    'bsl-language-server',
+    '1C BSL Language Server',
+    serverOptions,
+    clientOptions,
+  );
+
+  client.start().catch((err: unknown) => {
+    const msg = err instanceof Error ? err.message : String(err);
+    vscode.window.showErrorMessage(`1С BSL: ошибка запуска языкового сервера: ${msg}`);
+  });
+
+  context.subscriptions.push({ dispose: () => { client?.stop(); } });
 }
 
-export function deactivate(): void {
-  // Все ресурсы освобождаются через context.subscriptions.
+export function deactivate(): Promise<void> | undefined {
+  return client?.stop();
 }

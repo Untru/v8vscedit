@@ -4,105 +4,133 @@
 
 Обеспечивает полноценную языковую поддержку для файлов `.bsl` и `.os` в VSCode: семантическую подсветку синтаксиса, навигацию, автодополнение и диагностику ошибок на основе парсера [tree-sitter-bsl](https://github.com/nicotine-plus/tree-sitter-bsl).
 
-Связанные модули: `BslParserService.ts`, `BslLanguageRegistrar.ts`, `BslDiagnosticsProvider.ts`, `providers/`.
+Реализована как **LSP-сервер** (`src/language-server/`) — отдельный Node.js процесс, взаимодействующий с VS Code через [Language Server Protocol](https://microsoft.github.io/language-server-protocol/).
+
+## Архитектура: клиент и сервер
+
+```
+VS Code Extension Process (dist/extension.js)
+    │
+    │  IPC (vscode-languageclient)
+    │
+LSP Server Process (dist/server.js)
+    ├── BslParserService  (web-tree-sitter WASM)
+    └── providers/
+        ├── semanticTokens  →  textDocument/semanticTokens
+        ├── diagnostics     →  textDocument/publishDiagnostics
+        ├── symbols         →  textDocument/documentSymbol
+        ├── folding         →  textDocument/foldingRange
+        ├── hover           →  textDocument/hover
+        ├── completion      →  textDocument/completion
+        └── definition      →  textDocument/definition
+```
+
+**Клиент** (`extension.ts`) создаёт `LanguageClient`, который:
+- Порождает дочерний процесс `dist/server.js` через IPC
+- Автоматически маршрутизирует все LSP-запросы VS Code к серверу
+- Синхронизирует открытые документы и изменения файлов
 
 ## Парсер (BslParserService)
 
-Синглтон-сервис на базе `web-tree-sitter`. Управляет жизненным циклом WASM-модуля и кэшем синтаксических деревьев.
+Сервис на базе `web-tree-sitter`. Кэширует деревья по URI + номеру версии документа.
 
 ### Инициализация
 
-`ensureInit()` — ленивая инициализация с кэшированным промисом:
+`ensureInit()` — ленивая инициализация с кэшированным промисом. Вызывается в `onInitialized` сервера до открытия первого файла.
 
+WASM-файлы расположены рядом с `server.js` в `dist/`:
 ```typescript
-ensureInit(): Promise<void> {
-  if (!this.initPromise) {
-    this.initPromise = this.doInit();
-  }
-  return this.initPromise;
-}
+const tsWasm = path.join(__dirname, 'tree-sitter.wasm');
+await Parser.init({ locateFile: () => tsWasm });
+const lang = await Language.load(path.join(__dirname, 'tree-sitter-bsl.wasm'));
 ```
-
-Повторные вызовы возвращают тот же промис — инициализация происходит ровно один раз. В `extension.ts` `ensureInit()` вызывается **немедленно при активации** расширения (до открытия первого файла), чтобы WASM был загружен заранее.
-
-`doInit()` загружает два WASM-модуля из `dist/`:
-1. `tree-sitter.wasm` — рантайм парсера
-2. `tree-sitter-bsl.wasm` — грамматика BSL
-
-WASM-файлы копируются в `dist/` через `CopyWebpackPlugin` во время сборки.
-
-### Инкрементальный парсинг
-
-`parse(document)` передаёт предыдущее дерево как `previous` в `parser.parse()`:
-
-```typescript
-const previous = this.trees.get(uri) ?? undefined;
-const tree = this.parser.parse(document.getText(), previous);
-this.trees.set(uri, tree);
-```
-
-tree-sitter использует предыдущее дерево для инкрементального обновления — повторный парсинг после небольших изменений выполняется значительно быстрее.
 
 ### Кэш и инвалидация
 
-- **`trees: Map<uri, Tree>`** — кэш деревьев по URI документа
-- **`invalidate(uri)`** — удаляет дерево из кэша с явным освобождением памяти `tree.delete()`
-- **`dispose()`** — освобождает все деревья при деактивации расширения
+```typescript
+parse(text: string, uri: string, version: number): Tree
+```
 
-Инвалидация вызывается при каждом изменении документа (`onDidChangeTextDocument`) и при закрытии (`onDidCloseTextDocument`) — оба обработчика зарегистрированы в `BslLanguageRegistrar`.
+- **Кэш** `Map<uri, { version, tree }>` — несколько провайдеров за одну сессию запроса делят одно дерево
+- **Инвалидация** при закрытии документа и при изменении BSL-файлов (`onDidChangeWatchedFiles`)
+- **version = -1** — разовый парсинг без кэширования (используется при кросс-файловом поиске)
 
-## Регистрация провайдеров (BslLanguageRegistrar)
+## Регистрация capabilities
 
-`registerBslLanguage(context, parserService, getEntries)` создаёт и регистрирует все провайдеры. Вызывается **после** `parserService.ensureInit()` — к моменту регистрации WASM уже загружен.
-
-Все провайдеры регистрируются для селектора `{ language: 'bsl', scheme: 'file' }`.
-
-Зарегистрированные провайдеры:
-
-| Провайдер | VSCode API |
-|---|---|
-| `BslSemanticTokensProvider` | `registerDocumentSemanticTokensProvider` |
-| `BslDocumentSymbolProvider` | `registerDocumentSymbolProvider` |
-| `BslFoldingRangeProvider` | `registerFoldingRangeProvider` |
-| `BslCompletionProvider` | `registerCompletionItemProvider` (триггеры: `&`, `#`) |
-| `BslHoverProvider` | `registerHoverProvider` |
-| `BslDefinitionProvider` | `registerDefinitionProvider` |
-| `BslDiagnosticsProvider` | Управляет своими подписками самостоятельно |
-
-`BslDefinitionProvider` добавляется в `context.subscriptions` напрямую (дополнительно к возврату `registerDefinitionProvider`) — для корректного освобождения внутреннего `FileSystemWatcher`.
-
-## Диагностика (BslDiagnosticsProvider)
-
-Провайдер синтаксических ошибок на основе `ERROR`-узлов tree-sitter.
-
-### Алгоритм
-
-1. При изменении документа запускается **дебаунс 500 мс** через `setTimeout`
-2. После дебаунса вызывается `updateDiagnostics(document)` → `parser.parse(document)`
-3. `collectErrors(rootNode, ...)` рекурсивно обходит AST в поиске `node.isError === true`
-4. При нахождении ERROR-узла **рекурсия внутрь не заходит** — предотвращает каскад ложных ошибок для дочерних токенов
-5. Однострочные ERROR-узлы длиной ≤ 1 символ игнорируются (артефакты восстановления парсера)
-6. При закрытии документа диагностики очищаются
-
-### Управление дебаунсом
+В `onInitialize` сервер объявляет поддерживаемые возможности:
 
 ```typescript
-private readonly timers = new Map<string, NodeJS.Timeout>();
-
-private scheduleDiagnostics(document: vscode.TextDocument): void {
-  const key = document.uri.toString();
-  const existing = this.timers.get(key);
-  if (existing) {
-    clearTimeout(existing);   // сброс предыдущего таймера
-  }
-  const handle = setTimeout(() => this.updateDiagnostics(document), 500);
-  this.timers.set(key, handle);
+{
+  textDocumentSync: TextDocumentSyncKind.Incremental,
+  completionProvider: { triggerCharacters: ['&', '#'] },
+  hoverProvider: true,
+  definitionProvider: true,
+  documentSymbolProvider: true,
+  foldingRangeProvider: true,
+  semanticTokensProvider: { legend: { ... }, full: true },
 }
 ```
 
-## Язык BSL (language-configuration.json)
+## Диагностика
 
-Конфигурация языка BSL:
+Вычисляется в `computeDiagnostics()` через ERROR-узлы tree-sitter.
+
+Дебаунс 500 мс реализован в `server.ts` (не в провайдере) — таймеры хранятся в `diagTimers: Map<uri, NodeJS.Timeout>`.
+
+Алгоритм:
+1. ERROR-узел найден → проверяем что не тривиальный (≤1 символ)
+2. **Не рекурсируем внутрь** ERROR-узла — предотвращает каскад ложных ошибок
+3. При закрытии документа → `sendDiagnostics({ diagnostics: [] })`
+
+## Семантические токены
+
+`provideSemanticTokens()` обходит AST и возвращает LSP-кодированный массив.
+
+### LspSemanticTokensBuilder
+
+Собственный построитель дельта-кодирования (LSP требует flat uint32 array):
+
+```
+[deltaLine, deltaChar, length, tokenTypeIndex, tokenModifiersEncoded]  ×N
+```
+
+Токены накапливаются в произвольном порядке, **сортируются** по (line, char) в `build()` — это корректно обрабатывает любой порядок обхода дерева.
+
+13 типов токенов: `comment`, `string`, `keyword`, `number`, `operator`, `function`, `method`, `variable`, `parameter`, `property`, `class`, `annotation`, `preprocessor`.
+
+## Автодополнение
+
+`provideCompletionItems()` использует `workspaceRoots` (из `InitializeParams.workspaceFolders`) для поиска `Configuration.xml` и извлечения имён объектов метаданных.
+
+Чтение XML через `fs.promises.readFile` — нет зависимости от VS Code API.
+
+Кэш метаданных (`metaCache: Map<rootPath, CompletionItem[]>`) инвалидируется через `invalidateMetaCache()` при `onDidChangeWatchedFiles` для `Configuration.xml`.
+
+## Переход к определению
+
+`provideDefinition()` ищет определение в три этапа:
+
+1. **Текущий документ** — поиск в AST без обращения к ФС
+2. **Кэш** `definitionCache: Map<name, Location>` — быстрый ответ для известных символов
+3. **Открытые документы** (`documents.all()`) — без чтения файлов
+4. **Файловая система** — рекурсивный обход `workspaceRoots`, `findBslFiles()` (глубина 10, без `node_modules`)
+
+Кэш сбрасывается при любом изменении BSL-файла (`invalidateDefinitionCache()`).
+
+## Сборка
+
+`webpack.config.js` объявляет два `entry`:
+
+```javascript
+entry: {
+  extension: './src/extension.ts',   // → dist/extension.js
+  server:    './src/language-server/server.ts',  // → dist/server.js
+}
+```
+
+WASM-файлы копируются в `dist/` один раз через `CopyWebpackPlugin` и доступны обоим бандлам.
+
+## Язык BSL (language-configuration.json)
 
 - Расширения файлов: `.bsl`, `.os`
 - Строчный комментарий: `//`
@@ -111,15 +139,7 @@ private scheduleDiagnostics(document: vscode.TextDocument): void {
 - Увеличение отступа: `Тогда`, `Then`, `Цикл`, `Do`, `Попытка`, `Процедура`, `Функция`
 - Уменьшение отступа: `КонецЕсли`, `КонецЦикла`, `Иначе`, `ИначеЕсли` и EN-аналоги
 
-## TextMate-грамматика (syntaxes/bsl.tmLanguage.json)
-
-Резервная (fallback) грамматика — применяется до загрузки WASM. Покрывает базовые конструкции BSL: комментарии `//`, строки `"..."`, аннотации `&`, препроцессор `#`, ключевые слова, константы, числа.
-
-Скоупы намеренно совпадают с `semanticTokenScopes` — не происходит визуального мерцания при переключении с TM- на semantic-подсветку.
-
-## Семантические токены (configurationDefaults)
-
-Дефолтные цвета в `package.json` (совместимы со стилями тёмных тем):
+## Семантические токены — цвета по умолчанию
 
 | Тип токена | Цвет | Применение |
 |---|---|---|

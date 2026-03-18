@@ -5,13 +5,13 @@
 VSCode-расширение (`1c-metadata-navigator`) предоставляет два независимых функциональных блока для работы с 1С:Предприятие:
 
 1. **[Навигатор метаданных](./metadata-navigator.md)** — дерево объектов конфигураций и расширений из XML-выгрузки
-2. **[Языковая поддержка BSL](./bsl-language-support.md)** — подсветка, автодополнение, навигация по коду `.bsl`
+2. **[Языковая поддержка BSL](./bsl-language-support.md)** — подсветка, автодополнение, навигация по коду `.bsl` через LSP-сервер
 
 ## Структура модулей
 
 ```
 src/
-├── extension.ts                  # Точка входа — activate() / deactivate()
+├── extension.ts                  # Точка входа — activate() / deactivate() + запуск LSP-клиента
 │
 ├── ConfigFinder.ts               # Поиск Configuration.xml в воркспейсе
 │
@@ -36,17 +36,20 @@ src/
 │       ├── icon.ts               # getIconUris() — URI иконок light/dark
 │       └── iconMap.ts            # getIconName() — имя SVG по NodeKind
 │
-└── language/
-    ├── BslParserService.ts       # Синглтон tree-sitter, кэш деревьев, инкрементальный парсинг
-    ├── BslLanguageRegistrar.ts   # Регистрация провайдеров в context.subscriptions
-    ├── BslDiagnosticsProvider.ts # Диагностика синтаксических ошибок (дебаунс 500 мс)
+├── language/                     # (legacy) Старые провайдеры через VS Code API — не используются
+│
+└── language-server/              # LSP-сервер языковой поддержки BSL
+    ├── server.ts                 # Точка входа сервера: connection, TextDocuments, регистрация обработчиков
+    ├── BslParserService.ts       # tree-sitter парсер (без vscode API), кэш по URI+версии
+    ├── lspUtils.ts               # Утилиты: nodeToRange, getWordAtPosition, uriToFsPath
     └── providers/
-        ├── SemanticTokensProvider.ts  # Семантическая подсветка (13 типов токенов)
-        ├── DocumentSymbolProvider.ts  # Outline и хлебные крошки
-        ├── FoldingRangeProvider.ts    # Сворачивание блоков и #Область
-        ├── CompletionProvider.ts      # Автодополнение (&, #, ключевые слова, метаданные)
-        ├── HoverProvider.ts           # Подсказка при наведении (сигнатура функции)
-        └── DefinitionProvider.ts      # Переход к определению функции/процедуры
+        ├── semanticTokens.ts     # Семантические токены (LSP SemanticTokens, дельта-кодирование)
+        ├── diagnostics.ts        # Диагностики через ERROR-узлы tree-sitter
+        ├── symbols.ts            # Символы документа (Outline, хлебные крошки)
+        ├── folding.ts            # Сворачивание блоков и #Область
+        ├── hover.ts              # Подсказки при наведении (сигнатуры функций)
+        ├── completion.ts         # Автодополнение (&, #, ключевые слова, метаданные)
+        └── definition.ts         # Переход к определению (текущий файл → открытые → ФС)
 ```
 
 ## Граф зависимостей
@@ -65,38 +68,38 @@ extension.ts
   │     └── nodes/_types.ts
   ├── CommandRegistry.ts
   │     └── ModulePathResolver.ts (все get*Path функции)
-  ├── BslParserService.ts
-  └── BslLanguageRegistrar.ts
-        ├── BslDiagnosticsProvider.ts
-        └── providers/* (6 провайдеров)
-              └── BslParserService.ts (у каждого)
+  └── LanguageClient (vscode-languageclient/node)
+        └── [dist/server.js] — отдельный Node.js процесс
+              ├── BslParserService.ts
+              └── providers/* (7 провайдеров)
 ```
 
 ## Точка входа
 
-`activate()` в `extension.ts` выполняет строго последовательно:
+`activate()` в `extension.ts` выполняет:
 
 1. Создаёт `MetadataTreeProvider` с пустым списком конфигураций
 2. Регистрирует `TreeView` и команды навигатора (`registerCommands`)
-3. Запускает `findConfigurations(rootPath)` → заполняет `currentEntries`
-4. Создаёт `BslParserService` и немедленно вызывает `ensureInit()` (WASM загружается заранее)
-5. После инициализации WASM — вызывает `registerBslLanguage()` с замыканием `() => currentEntries`
+3. Запускает `findConfigurations(rootPath)` → заполняет дерево метаданных
+4. Создаёт и запускает `LanguageClient` → порождает дочерний процесс `dist/server.js`
 
-Замыкание на `currentEntries` позволяет `CompletionProvider` видеть актуальный список конфигураций после `refresh` без перерегистрации.
+`deactivate()` останавливает LSP-клиент (и сервер) через `client.stop()`.
 
 ## Ключевые архитектурные решения
 
 | Решение | Обоснование |
 |---|---|
+| LSP-сервер в отдельном процессе | Изоляция: краш сервера не роняет VS Code; мультиредакторность |
+| `src/language-server/` в монорепо | Один `package.json`, единый `webpack.config.js` с двумя `entry` |
+| Webpack `entry: { extension, server }` | `dist/extension.js` — клиент, `dist/server.js` — сервер; WASM копируется один раз |
+| Кэш деревьев по URI+версии | Несколько провайдеров запрашивают одно дерево за одну сессию — возвращается кэш |
 | Regex-парсинг XML вместо DOM | XML-выгрузка 1С имеет предсказуемую структуру; DOM-парсер — лишняя зависимость |
-| Ленивая загрузка узлов дерева | `childrenLoader()` вызывается только при раскрытии узла, синонимы через `Object.defineProperty` getter |
-| Инициализация WASM до открытия файла | Подсветка появляется без задержки при первом открытии `.bsl` |
-| Дескриптор-ориентированная архитектура | `MetadataTreeProvider` не содержит switch/case по типам — вся логика в дескрипторах |
+| Ленивая загрузка узлов дерева | `childrenLoader()` вызывается только при раскрытии узла |
 | `emitted: Set<number>` в SemanticTokensProvider | Предотвращает двойную эмиссию при пересечении структурных и листовых узлов AST |
 
 ## Подробная документация
 
 - [Навигатор метаданных](./metadata-navigator.md) — дерево, дескрипторы, команды, path resolver
-- [Языковая поддержка BSL](./bsl-language-support.md) — парсер, провайдеры, диагностика
+- [Языковая поддержка BSL](./bsl-language-support.md) — LSP-сервер, парсер, провайдеры
 - [Парсинг XML конфигурации](./metadata-parser.md) — алгоритмы разбора Configuration.xml и объектных XML
 - [Провайдеры BSL](./bsl-providers.md) — детали каждого языкового провайдера

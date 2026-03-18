@@ -61,13 +61,22 @@ export class BslDiagnosticsProvider implements vscode.Disposable {
         node.endPosition.row,
         node.endPosition.column,
       );
-      // Пропускаем однострочные ERROR-узлы длиной 0–1 символ — это артефакты парсера
+
+      // Однострочные ERROR-узлы длиной 0–1 символ — артефакты парсера
       const isTrivial =
         node.startPosition.row === node.endPosition.row &&
         node.endPosition.column - node.startPosition.column <= 1;
-      if (!isTrivial) {
-        out.push(new vscode.Diagnostic(range, 'Синтаксическая ошибка', vscode.DiagnosticSeverity.Error));
+      if (isTrivial) {
+        return;
       }
+
+      // Только закрывающие скобки — артефакт скобочного RHS присвоения,
+      // grammar не поддерживает (expr) как самостоятельное выражение
+      if (/^\)+$/.test(node.text.trim())) {
+        return;
+      }
+
+      out.push(new vscode.Diagnostic(range, 'Синтаксическая ошибка', vscode.DiagnosticSeverity.Error));
       // Не рекурсируем внутрь ERROR-узла — иначе каждый дочерний токен даёт ложную ошибку
       return;
     }
