@@ -81,6 +81,10 @@ export async function provideCompletionItems(
   workspaceRoots: string[],
   contextService?: BslContextService,
 ): Promise<CompletionItem[]> {
+  if (contextService) {
+    await contextService.ensureInitialized();
+  }
+
   const lines = document.getText().split('\n');
   const linePrefix = (lines[position.line] ?? '').slice(0, position.character);
 
@@ -219,9 +223,21 @@ async function buildCommonModuleItems(
  * с управляемым приложением.
  */
 function isModuleAvailableInContext(
-  mod: { server: boolean; clientManagedApplication: boolean; serverCall: boolean },
-  ctx: { isServer: boolean; isClient: boolean },
+  mod: { server: boolean; clientManagedApplication: boolean; serverCall: boolean; configKind: 'cf' | 'cfe'; configRoot: string },
+  ctx: { isServer: boolean; isClient: boolean; configKind: 'cf' | 'cfe' | null; configRoot: string | null },
 ): boolean {
+  // Общие модули расширений не должны попадать в подсказки файлов основной конфигурации.
+  if (ctx.configKind === 'cf' && mod.configKind === 'cfe') {
+    return false;
+  }
+  // В файлах расширений показываем только:
+  // - модули основной конфигурации (cf)
+  // - модули того же расширения (cfe с совпадающим корнем конфигурации)
+  if (ctx.configKind === 'cfe' && mod.configKind === 'cfe') {
+    if (!ctx.configRoot || ctx.configRoot !== mod.configRoot) {
+      return false;
+    }
+  }
   // Сервер видит: серверные модули и ServerCall-модули (они тоже исполняются на сервере)
   if (ctx.isServer && (mod.server || mod.serverCall)) {
     return true;

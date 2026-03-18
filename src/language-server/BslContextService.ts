@@ -2,6 +2,18 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { Node } from 'web-tree-sitter';
 import { BslParserService } from './BslParserService';
+import { findConfigurations } from '../ConfigFinder';
+
+/** Тип конфигурации-источника общих модулей. */
+type ConfigKind = 'cf' | 'cfe';
+
+/** Описание корня конфигурации (основная конфигурация или расширение). */
+interface ConfigRoot {
+  /** Абсолютный путь к каталогу с Configuration.xml. */
+  rootPath: string;
+  /** Тип конфигурации. */
+  kind: ConfigKind;
+}
 
 /** Метаданные общего модуля конфигурации 1С. */
 export interface CommonModuleInfo {
@@ -23,6 +35,10 @@ export interface CommonModuleInfo {
   privileged: boolean;
   /** Путь к Module.bsl для lazy-загрузки экспортных методов */
   bslPath: string | null;
+  /** Тип конфигурации-источника (cf/cfe). */
+  configKind: ConfigKind;
+  /** Корень конфигурации (каталог, где лежит Configuration.xml). */
+  configRoot: string;
 }
 
 /** Экспортный метод общего модуля. */
@@ -44,6 +60,10 @@ export class BslContextService {
   private modulesByLower = new Map<string, CommonModuleInfo>();
   private methodCache = new Map<string, ExportMethod[]>();
   private parserService: BslParserService;
+  /** Найденные корни конфигураций (cf/cfe). */
+  private configRoots: ConfigRoot[] = [];
+  /** Promise выполнения индексации (чтобы completion не обгонял инициализацию). */
+  private initPromise: Promise<void> | null = null;
 
   constructor(parserService: BslParserService) {
     this.parserService = parserService;
@@ -54,13 +74,23 @@ export class BslContextService {
    * и парсит все CommonModules/*.xml.
    */
   async initialize(workspaceRoots: string[]): Promise<void> {
-    this.modules.clear();
-    this.modulesByLower.clear();
-    this.methodCache.clear();
+    this.initPromise = (async () => {
+      this.modules.clear();
+      this.modulesByLower.clear();
+      this.methodCache.clear();
+      this.configRoots = await this.resolveConfigRoots(workspaceRoots);
+      for (const cfg of this.configRoots) {
+        await this.loadCommonModulesFromRoot(cfg);
+      }
+    })();
 
-    const configRoots = await this.resolveConfigRoots(workspaceRoots);
-    for (const cfRoot of configRoots) {
-      await this.loadCommonModulesFromRoot(cfRoot);
+    await this.initPromise;
+  }
+
+  /** Ждет завершения индексации общих модулей. */
+  async ensureInitialized(): Promise<void> {
+    if (this.initPromise) {
+      await this.initPromise;
     }
   }
 
@@ -103,50 +133,22 @@ export class BslContextService {
   }
 
   /**
-   * Находит директории cf/ и cfe/ в корневых папках воркспейса.
-   * Поиск ведётся на двух уровнях глубины:
-   *   <root>/cf/             → cfRoot = <root>/cf
-   *   <root>/<sub>/cf/       → cfRoot = <root>/<sub>/cf   (например, example/cf)
-   *   <root>/Configuration.xml → cfRoot = <root>           (fallback)
+   * Ищет Configuration.xml рекурсивно и возвращает корни cf/cfe.
+   * Важно: cfe обычно содержит дополнительные подпапки с расширениями,
+   * поэтому простой поиск только на 2 уровнях даёт неполный индекс.
    */
-  private async resolveConfigRoots(workspaceRoots: string[]): Promise<string[]> {
-    const result: string[] = [];
+  private async resolveConfigRoots(workspaceRoots: string[]): Promise<ConfigRoot[]> {
+    const result: ConfigRoot[] = [];
     const seen = new Set<string>();
 
-    const addIfConfig = async (dir: string): Promise<void> => {
-      if (seen.has(dir)) {
-        return;
-      }
-      if (await fileExists(path.join(dir, 'Configuration.xml'))) {
-        seen.add(dir);
-        result.push(dir);
-      }
-    };
-
     for (const root of workspaceRoots) {
-      // Уровень 1: <root>/cf/, <root>/cfe/, <root>/
-      for (const sub of ['cf', 'cfe']) {
-        await addIfConfig(path.join(root, sub));
-      }
-      await addIfConfig(root);
-
-      // Уровень 2: <root>/<any>/ и <root>/<any>/cf/, <root>/<any>/cfe/
-      let entries: fs.Dirent[];
-      try {
-        entries = await fs.promises.readdir(root, { withFileTypes: true });
-      } catch {
-        continue;
-      }
-
-      for (const entry of entries) {
-        if (!entry.isDirectory() || entry.name === 'node_modules' || entry.name.startsWith('.')) {
+      const entries = await findConfigurations(root);
+      for (const e of entries) {
+        if (seen.has(e.rootPath)) {
           continue;
         }
-        const subDir = path.join(root, entry.name);
-        for (const cfSub of ['cf', 'cfe']) {
-          await addIfConfig(path.join(subDir, cfSub));
-        }
-        await addIfConfig(subDir);
+        seen.add(e.rootPath);
+        result.push({ rootPath: e.rootPath, kind: e.kind });
       }
     }
 
@@ -154,8 +156,8 @@ export class BslContextService {
   }
 
   /** Читает все CommonModules/*.xml из директории конфигурации. */
-  private async loadCommonModulesFromRoot(cfRoot: string): Promise<void> {
-    const modulesDir = path.join(cfRoot, 'CommonModules');
+  private async loadCommonModulesFromRoot(cfg: ConfigRoot): Promise<void> {
+    const modulesDir = path.join(cfg.rootPath, 'CommonModules');
     let entries: fs.Dirent[];
 
     try {
@@ -170,7 +172,7 @@ export class BslContextService {
       }
 
       const xmlPath = path.join(modulesDir, entry.name);
-      const info = await this.parseCommonModuleXml(xmlPath, cfRoot);
+      const info = await this.parseCommonModuleXml(xmlPath, cfg);
       if (info) {
         this.modules.set(info.name, info);
         this.modulesByLower.set(info.name.toLowerCase(), info);
@@ -184,7 +186,7 @@ export class BslContextService {
    */
   private async parseCommonModuleXml(
     xmlPath: string,
-    cfRoot: string,
+    cfg: ConfigRoot,
   ): Promise<CommonModuleInfo | null> {
     let text: string;
     try {
@@ -202,7 +204,7 @@ export class BslContextService {
     const synonymMatch = /<Synonym[\s\S]*?<v8:content>([\s\S]*?)<\/v8:content>/m.exec(text);
     const synonymRu = synonymMatch ? synonymMatch[1].trim() : name;
 
-    const bslCandidate = path.join(cfRoot, 'CommonModules', name, 'Ext', 'Module.bsl');
+    const bslCandidate = path.join(cfg.rootPath, 'CommonModules', name, 'Ext', 'Module.bsl');
     const bslPath = (await fileExists(bslCandidate)) ? bslCandidate : null;
 
     return {
@@ -215,7 +217,24 @@ export class BslContextService {
       serverCall: extractBool(text, 'ServerCall'),
       privileged: extractBool(text, 'Privileged'),
       bslPath,
+      configKind: cfg.kind,
+      configRoot: cfg.rootPath.replace(/\\/g, '/'),
     };
+  }
+
+  /**
+   * Возвращает конфигурационный корень и его тип для указанного пути к файлу.
+   * Используется для разграничения cf/cfe в подсказках.
+   */
+  getConfigRootForPath(fsPath: string): ConfigRoot | null {
+    const norm = fsPath.replace(/\\/g, '/');
+    for (const cfg of this.configRoots) {
+      const rootNorm = cfg.rootPath.replace(/\\/g, '/');
+      if (norm === rootNorm || norm.startsWith(rootNorm + '/')) {
+        return cfg;
+      }
+    }
+    return null;
   }
 
   /**
@@ -297,6 +316,8 @@ async function fileExists(filePath: string): Promise<boolean> {
     return false;
   }
 }
+
+// detectConfigKind используется внутри ConfigFinder
 
 /** Строит строку параметров из узла параметров AST. */
 function buildParamsString(paramsNode: Node): string {

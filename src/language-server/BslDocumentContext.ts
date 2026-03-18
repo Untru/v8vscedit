@@ -28,6 +28,10 @@ export interface DocumentBslContext {
   moduleName: string | null;
   /** Директива компиляции текущей процедуры/функции, если найдена */
   directive: string | null;
+  /** Тип конфигурации (cf/cfe) для текущего файла, если определён. */
+  configKind: 'cf' | 'cfe' | null;
+  /** Корень конфигурации (каталог с Configuration.xml), если определён. */
+  configRoot: string | null;
 }
 
 /**
@@ -86,6 +90,8 @@ export async function getDocumentContext(
         isClient: (isServer || isClient) ? isClient : dirCtx.isClient,
         moduleName: moduleBase.moduleName,
         directive,
+        configKind: moduleBase.configKind,
+        configRoot: moduleBase.configRoot,
       };
     }
   }
@@ -99,12 +105,17 @@ interface ModuleBaseContext {
   isServer: boolean;
   isClient: boolean;
   moduleName: string | null;
+  configKind: 'cf' | 'cfe' | null;
+  configRoot: string | null;
 }
 
 async function resolveModuleBaseContext(
   fsPath: string,
   service: BslContextService,
 ): Promise<ModuleBaseContext> {
+  const cfg = service.getConfigRootForPath(fsPath);
+  const configKind = cfg ? cfg.kind : null;
+  const configRoot = cfg ? cfg.rootPath.replace(/\\/g, '/') : null;
   // Общий модуль: .../CommonModules/{Name}/Ext/Module.bsl
   const commonModuleMatch = /CommonModules\/([^/]+)\/Ext\/Module\.bsl$/i.exec(fsPath);
   if (commonModuleMatch) {
@@ -120,6 +131,8 @@ async function resolveModuleBaseContext(
         // ClientOrdinaryApplication — отдельный несовместимый контекст, не смешиваем.
         isClient: info.clientManagedApplication,
         moduleName: info.name,
+        configKind,
+        configRoot,
       };
     }
 
@@ -131,20 +144,22 @@ async function resolveModuleBaseContext(
         isServer: props.server || props.privileged || props.serverCall,
         isClient: props.clientManagedApplication,
         moduleName,
+        configKind,
+        configRoot,
       };
     }
 
     // Эвристика по суффиксу имени
-    return { ...heuristicByName(moduleName), moduleName };
+    return { ...heuristicByName(moduleName), moduleName, configKind, configRoot };
   }
 
   // Модуль формы: .../Forms/{FormName}/Ext/Form.bsl — клиент + сервер
   if (/\/Forms\/[^/]+\/Ext\/Form\.bsl$/i.test(fsPath)) {
-    return { isServer: true, isClient: true, moduleName: null };
+    return { isServer: true, isClient: true, moduleName: null, configKind, configRoot };
   }
 
   // ObjectModule, ManagerModule, RecordSetModule и т.д. — только сервер
-  return { isServer: true, isClient: false, moduleName: null };
+  return { isServer: true, isClient: false, moduleName: null, configKind, configRoot };
 }
 
 // ── Поиск директивы компиляции по позиции курсора ───────────────────────────
