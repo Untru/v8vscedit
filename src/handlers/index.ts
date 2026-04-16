@@ -1,12 +1,14 @@
 import { MetadataNode, NodeKind } from '../MetadataNode';
 import { ObjectHandler } from './_types';
 import { commonModuleHandler } from './commonModule';
+import { subsystemHandler } from './subsystem';
 
 /**
  * Реестр обработчиков по типу объекта из ChildObjects в Configuration.xml.
  * По мере реализации сюда добавляются новые типы (Catalog, Document и т.д.).
  */
 const HANDLER_REGISTRY = new Map<string, ObjectHandler>([
+  ['Subsystem', subsystemHandler],
   ['CommonModule', commonModuleHandler],
 ]);
 
