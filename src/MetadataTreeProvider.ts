@@ -3,10 +3,11 @@ import * as path from 'path';
 import { MetadataNode, NodeKind } from './MetadataNode';
 import { getIconUris } from './nodes/presentation/icon';
 import { COMMON_SUBGROUPS, TOP_GROUPS } from './MetadataGroups';
-import { parseConfigXml } from './ConfigParser';
+import { ConfigInfo, parseConfigXml } from './ConfigParser';
 import { ConfigEntry } from './ConfigFinder';
 import { buildNode } from './nodes/_base';
 import { getNodeDescriptor } from './nodes';
+import { getObjectHandler } from './handlers';
 
 export class MetadataTreeProvider implements vscode.TreeDataProvider<MetadataNode> {
   private _onDidChangeTreeData = new vscode.EventEmitter<MetadataNode | undefined | null>();
@@ -83,7 +84,7 @@ export class MetadataTreeProvider implements vscode.TreeDataProvider<MetadataNod
       kind: nodeKind,
       collapsibleState: vscode.TreeItemCollapsibleState.Collapsed,
       xmlPath: configXmlPath,
-      childrenLoader: () => this.buildConfigChildren(),
+      childrenLoader: () => this.buildConfigChildren(entry, info),
       ownershipTag: undefined,
     });
 
@@ -96,9 +97,9 @@ export class MetadataTreeProvider implements vscode.TreeDataProvider<MetadataNod
 
   /**
    * Строит полный набор корневых групп: «Общие» + остальные.
-   * Группы создаются безусловно — наполнение дочерними объектами будет добавлено позже.
+   * Группы создаются безусловно — наполнение реализуется через обработчики.
    */
-  private buildConfigChildren(): MetadataNode[] {
+  private buildConfigChildren(entry: ConfigEntry, info: ConfigInfo): MetadataNode[] {
     const result: MetadataNode[] = [];
 
     const commonDescriptor = getNodeDescriptor('group-common');
@@ -108,7 +109,7 @@ export class MetadataTreeProvider implements vscode.TreeDataProvider<MetadataNod
         kind: 'group-common',
         collapsibleState: vscode.TreeItemCollapsibleState.Collapsed,
         xmlPath: undefined,
-        childrenLoader: () => this.buildCommonSubgroups(),
+        childrenLoader: () => this.buildCommonSubgroups(entry, info),
         ownershipTag: undefined,
       })
     );
@@ -131,17 +132,37 @@ export class MetadataTreeProvider implements vscode.TreeDataProvider<MetadataNod
   }
 
   /** Строит полный набор подгрупп внутри «Общие» */
-  private buildCommonSubgroups(): MetadataNode[] {
+  private buildCommonSubgroups(entry: ConfigEntry, info: ConfigInfo): MetadataNode[] {
     return COMMON_SUBGROUPS.map((sg) => {
       const descriptor = getNodeDescriptor(sg.kind);
+      const handler = getObjectHandler(sg.types[0]);
+      const names = handler ? this.collectNames(info, sg.types) : [];
+      const hasChildren = handler && names.length > 0;
+
       return buildNode(descriptor, {
         label: sg.label,
         kind: sg.kind,
         collapsibleState: vscode.TreeItemCollapsibleState.Collapsed,
         xmlPath: undefined,
-        childrenLoader: undefined,
+        childrenLoader: hasChildren
+          ? () => handler.buildTreeNodes({
+              configRoot: entry.rootPath,
+              configKind: entry.kind,
+              namePrefix: info.namePrefix,
+              names,
+            })
+          : undefined,
         ownershipTag: undefined,
       });
     });
+  }
+
+  /** Собирает имена объектов по нескольким типам из ChildObjects */
+  private collectNames(info: ConfigInfo, types: string[]): string[] {
+    const result: string[] = [];
+    for (const t of types) {
+      result.push(...(info.childObjects.get(t) ?? []));
+    }
+    return result;
   }
 }
