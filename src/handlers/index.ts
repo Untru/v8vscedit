@@ -1,6 +1,7 @@
 import { MetadataNode, NodeKind } from '../MetadataNode';
 import { ObjectHandler } from './_types';
 import { commonModuleHandler } from './commonModule';
+import { roleHandler } from './role';
 import { sessionParameterHandler } from './sessionParameter';
 import { subsystemHandler } from './subsystem';
 
@@ -12,6 +13,7 @@ const HANDLER_REGISTRY = new Map<string, ObjectHandler>([
   ['Subsystem', subsystemHandler],
   ['CommonModule', commonModuleHandler],
   ['SessionParameter', sessionParameterHandler],
+  ['Role', roleHandler],
 ]);
 
 /** Возвращает обработчик для указанного типа объекта или undefined */
