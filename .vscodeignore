@@ -2,9 +2,17 @@
 .vscode-test/**
 out/**
 node_modules/**
+example/**
+.cursor/**
+.cursorignore
+docs/**
+grammars/**
+AGENTS.md
+**/*.log
 .gitignore
 webpack.config.js
 tsconfig.json
 **/*.map
 **/*.ts
 src/test/**
+src/language-server/**
