@@ -1,6 +1,5 @@
 import * as path from 'path';
 import * as vscode from 'vscode';
-import { LanguageClient, LanguageClientOptions, ServerOptions, TransportKind } from 'vscode-languageclient/node';
 import { findConfigurations } from './ConfigFinder';
 import { MetadataTreeProvider } from './MetadataTreeProvider';
 import { registerCommands } from './CommandRegistry';
@@ -8,8 +7,9 @@ import { PropertiesViewProvider } from './views/PropertiesViewProvider';
 import { OnecFileSystemProvider, ONEC_SCHEME } from './OnecFileSystemProvider';
 import { SupportInfoService } from './services/SupportInfoService';
 import { SupportDecorationProvider } from './services/SupportDecorationProvider';
+import { LspManager } from './services/LspManager';
 
-let client: LanguageClient | undefined;
+let lspManager: LspManager | undefined;
 
 export function activate(context: vscode.ExtensionContext): void {
   const workspaceFolders = vscode.workspace.workspaceFolders;
@@ -134,46 +134,12 @@ export function activate(context: vscode.ExtensionContext): void {
 
   reloadEntries();
 
-  // ── LSP-сервер языковой поддержки BSL ──────────────────────────────────
-  const serverModule = context.asAbsolutePath(path.join('dist', 'server.js'));
-
-  const serverOptions: ServerOptions = {
-    run: {
-      module: serverModule,
-      transport: TransportKind.ipc,
-    },
-    debug: {
-      module: serverModule,
-      transport: TransportKind.ipc,
-      options: { execArgv: ['--nolazy', '--inspect=6009'] },
-    },
-  };
-
-  const clientOptions: LanguageClientOptions = {
-    documentSelector: [
-      { scheme: 'file', language: 'bsl' },
-      { scheme: ONEC_SCHEME, language: 'bsl' },
-    ],
-    synchronize: {
-      fileEvents: vscode.workspace.createFileSystemWatcher('**/*.bsl'),
-    },
-  };
-
-  client = new LanguageClient(
-    'bsl-language-server',
-    '1C BSL Language Server',
-    serverOptions,
-    clientOptions,
-  );
-
-  client.start().catch((err: unknown) => {
-    const msg = err instanceof Error ? err.message : String(err);
-    vscode.window.showErrorMessage(`1С BSL: ошибка запуска языкового сервера: ${msg}`);
-  });
-
-  context.subscriptions.push({ dispose: () => { client?.stop(); } });
+  // ── Языковой сервер BSL (переключаемый) ────────────────────────────────
+  lspManager = new LspManager(context, outputChannel, ONEC_SCHEME);
+  lspManager.registerCommands();
+  lspManager.startWithAutoUpdate();
 }
 
 export function deactivate(): Promise<void> | undefined {
-  return client?.stop();
+  return lspManager?.stop();
 }

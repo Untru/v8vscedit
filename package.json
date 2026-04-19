@@ -71,6 +71,22 @@
         "title": "Свойства"
       },
       {
+        "command": "1cNavigator.bslAnalyzer.showMenu",
+        "title": "BSL Analyzer: Меню"
+      },
+      {
+        "command": "1cNavigator.bslAnalyzer.restart",
+        "title": "BSL Analyzer: Перезапустить"
+      },
+      {
+        "command": "1cNavigator.bslAnalyzer.update",
+        "title": "BSL Analyzer: Проверить обновления"
+      },
+      {
+        "command": "1cNavigator.bslAnalyzer.showOutput",
+        "title": "BSL Analyzer: Показать лог"
+      },
+      {
         "command": "1cNavigator.support.none",
         "title": "Не на поддержке",
         "icon": {
@@ -205,6 +221,32 @@
           "parameter:bsl": {
             "foreground": "#9CDCFE"
           }
+        }
+      }
+    },
+    "configuration": {
+      "title": "1С: Навигатор метаданных",
+      "properties": {
+        "1cNavigator.lsp.mode": {
+          "type": "string",
+          "default": "built-in",
+          "enum": ["built-in", "bsl-analyzer", "off"],
+          "enumDescriptions": [
+            "Встроенный LSP-сервер (tree-sitter, базовые возможности)",
+            "BSL Analyzer — внешний Rust-сервер (180+ диагностик, быстрый)",
+            "Языковой сервер отключён"
+          ],
+          "description": "Режим языкового сервера BSL"
+        },
+        "1cNavigator.bslAnalyzer.autoUpdate": {
+          "type": "boolean",
+          "default": true,
+          "description": "Автоматически проверять обновления bsl-analyzer при запуске"
+        },
+        "1cNavigator.bslAnalyzer.path": {
+          "type": "string",
+          "default": "",
+          "description": "Путь к исполняемому файлу bsl-analyzer (если пусто — скачивается автоматически)"
         }
       }
     },

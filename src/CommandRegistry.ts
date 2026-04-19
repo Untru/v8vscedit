@@ -38,9 +38,11 @@ async function openModule(
   const locked = ownerXmlPath ? supportService?.isLocked(ownerXmlPath) : false;
   let editor: vscode.TextEditor;
 
-  if (virtualUri) {
+  const lspMode = vscode.workspace.getConfiguration('1cNavigator.lsp').get<string>('mode', 'built-in');
+  const useVfs = lspMode === 'built-in';
+
+  if (useVfs && virtualUri) {
     fsp.register(virtualUri, modulePath);
-    // Сообщаем FSP о связи модуля с его владельцем для корректного stat()
     if (ownerXmlPath) {
       fsp.registerOwnerXml(virtualUri, ownerXmlPath);
     }
@@ -51,7 +53,6 @@ async function openModule(
     editor = await vscode.window.showTextDocument(vscode.Uri.file(modulePath), { preview });
   }
 
-  // Для обеих схем: если объект заблокирован, ставим readonly через команду
   if (locked) {
     await setEditorReadonly(editor);
   }
