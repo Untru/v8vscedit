@@ -18,7 +18,7 @@ export interface ConfigInfo {
 
 /** Дочерний элемент объекта метаданных */
 export interface MetaChild {
-  /** Тег XML: Attribute, TabularSection, Form, Command, Template, Dimension, Resource, EnumValue */
+  /** Тег XML: Attribute, AddressingAttribute, TabularSection, Form, Command, Template, Dimension, Resource, EnumValue */
   tag: string;
   name: string;
   synonym: string;
@@ -163,6 +163,9 @@ function parseObjectChildObjects(xml: string): MetaChild[] {
   // Command — сложный элемент с uuid, как Attribute
   extractComplexChildren(mainBlock, 'Command', result);
 
+  // Реквизиты адресации (объект «Задача» и др.) — из всего главного блока, не из колонок ТЧ
+  extractComplexChildren(mainBlock, 'AddressingAttribute', result);
+
   return result;
 }
 
@@ -199,6 +202,68 @@ function extractNestingAwareBlock(xml: string, tagName: string): string | null {
     }
   }
   return null;
+}
+
+/**
+ * Возвращает содержимое первого блока {@code ChildObjects} в файле описания объекта
+ * (реквизиты, ТЧ, формы на уровне объекта).
+ */
+export function extractMainChildObjectsInnerXml(xml: string): string | null {
+  return extractNestingAwareBlock(xml, 'ChildObjects');
+}
+
+/**
+ * Ищет в блоке XML полный фрагмент дочернего элемента по тегу и значению {@code Name}.
+ */
+function findChildElementFullXmlInBlock(block: string, childTag: string, elementName: string): string | null {
+  const openRe = new RegExp(`<${childTag}(?=[\\s/>])[^>]*>`, 'g');
+  const closeTag = `</${childTag}>`;
+
+  let m: RegExpExecArray | null;
+  while ((m = openRe.exec(block)) !== null) {
+    const startIdx = m.index;
+    const startContent = m.index + m[0].length;
+    const endIdx = block.indexOf(closeTag, startContent);
+    if (endIdx === -1) {
+      continue;
+    }
+    const inner = block.substring(startContent, endIdx);
+    const elName = extractSimpleTag(inner, 'Name') ?? '';
+    if (elName === elementName) {
+      return block.substring(startIdx, endIdx + closeTag.length);
+    }
+  }
+  return null;
+}
+
+/**
+ * Извлекает XML-фрагмент дочернего объекта из главного {@code ChildObjects} описания метаданных.
+ */
+export function extractChildMetaElementXml(xml: string, childTag: string, elementName: string): string | null {
+  const mainBlock = extractMainChildObjectsInnerXml(xml);
+  if (!mainBlock) {
+    return null;
+  }
+  return findChildElementFullXmlInBlock(mainBlock, childTag, elementName);
+}
+
+/**
+ * XML колонки табличной части по имени ТЧ и колонки.
+ */
+export function extractColumnXmlFromTabularSection(
+  objectXml: string,
+  sectionName: string,
+  columnName: string
+): string | null {
+  const tsXml = extractChildMetaElementXml(objectXml, 'TabularSection', sectionName);
+  if (!tsXml) {
+    return null;
+  }
+  const tsInner = extractNestingAwareBlock(tsXml, 'ChildObjects');
+  if (!tsInner) {
+    return null;
+  }
+  return findChildElementFullXmlInBlock(tsInner, 'Attribute', columnName);
 }
 
 /**

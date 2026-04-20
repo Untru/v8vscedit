@@ -62,7 +62,6 @@ export const TOP_GROUPS: MetaGroup[] = [
   { label: 'Регистры расчёта', types: ['CalculationRegister'], kind: 'CalculationRegister' },
   { label: 'Бизнес-процессы', types: ['BusinessProcess'], kind: 'BusinessProcess' },
   { label: 'Задачи', types: ['Task'], kind: 'Task' },
-  { label: 'Планы обмена', types: ['ExchangePlan'], kind: 'ExchangePlan' },
 ];
 
 /** Подгруппы внутри "Общие" */
@@ -72,6 +71,7 @@ export const COMMON_SUBGROUPS: MetaGroup[] = [
   { label: 'Параметры сеанса', types: ['SessionParameter'], kind: 'SessionParameter' },
   { label: 'Роли', types: ['Role'], kind: 'Role' },
   { label: 'Общие реквизиты', types: ['CommonAttribute'], kind: 'CommonAttribute' },
+  { label: 'Планы обмена', types: ['ExchangePlan'], kind: 'ExchangePlan' },
   { label: 'Определяемые типы', types: ['DefinedType'], kind: 'DefinedType' },
   { label: 'Общие команды', types: ['CommonCommand'], kind: 'CommonCommand' },
   { label: 'Группы команд', types: ['CommandGroup'], kind: 'CommonCommand' },

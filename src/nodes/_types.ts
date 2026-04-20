@@ -22,6 +22,7 @@ export interface NodeDescriptor {
 /** Теги дочерних элементов объектов метаданных */
 export type ChildTag =
   | 'Attribute'
+  | 'AddressingAttribute'
   | 'TabularSection'
   | 'Form'
   | 'Command'
@@ -60,6 +61,11 @@ export const CHILD_TAG_CONFIG: Readonly<Record<ChildTag, ChildTagConfig>> = {
     tag: 'Attribute',
     label: 'Реквизиты',
     kind: 'Attribute',
+  },
+  AddressingAttribute: {
+    tag: 'AddressingAttribute',
+    label: 'Реквизиты адресации',
+    kind: 'AddressingAttribute',
   },
   TabularSection: {
     tag: 'TabularSection',

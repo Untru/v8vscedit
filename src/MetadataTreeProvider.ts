@@ -146,13 +146,27 @@ export class MetadataTreeProvider implements vscode.TreeDataProvider<MetadataNod
 
     for (const group of TOP_GROUPS) {
       const descriptor = getNodeDescriptor(group.kind);
+      const handler = getObjectHandler(group.types[0]);
+      const names = handler ? this.collectNames(info, group.types) : [];
+      const hasChildren = Boolean(handler && names.length > 0);
+
       result.push(
         buildNode(descriptor, {
           label: group.label,
           kind: group.kind,
-          collapsibleState: vscode.TreeItemCollapsibleState.Collapsed,
+          collapsibleState: hasChildren
+            ? vscode.TreeItemCollapsibleState.Collapsed
+            : vscode.TreeItemCollapsibleState.None,
           xmlPath: undefined,
-          childrenLoader: undefined,
+          childrenLoader: hasChildren
+            ? () =>
+                handler!.buildTreeNodes({
+                  configRoot: entry.rootPath,
+                  configKind: entry.kind,
+                  namePrefix: info.namePrefix,
+                  names,
+                })
+            : undefined,
           ownershipTag: undefined,
         })
       );

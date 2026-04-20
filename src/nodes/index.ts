@@ -46,6 +46,7 @@ import { TaskDescriptor } from './objects/Task';
 import { ExchangePlanDescriptor } from './objects/ExchangePlan';
 
 import { AttributeDescriptor } from './children/Attribute';
+import { AddressingAttributeDescriptor } from './children/AddressingAttribute';
 import { TabularSectionDescriptor } from './children/TabularSection';
 import { ColumnDescriptor } from './children/Column';
 import { FormDescriptor } from './children/Form';
@@ -106,6 +107,7 @@ const NODE_DESCRIPTORS: Record<NodeKind, NodeDescriptor> = {
 
   // Дочерние элементы
   Attribute: AttributeDescriptor,
+  AddressingAttribute: AddressingAttributeDescriptor,
   TabularSection: TabularSectionDescriptor,
   Column: ColumnDescriptor,
   Form: FormDescriptor,

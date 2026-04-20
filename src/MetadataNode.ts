@@ -1,5 +1,21 @@
 import * as vscode from 'vscode';
 
+/**
+ * Контекст узла, созданного из иерархии объекта метаданных (справочник, план обмена и т.д.).
+ * Нужен для панели свойств дочерних элементов и поиска XML-фрагментов.
+ */
+export interface MetaTreeNodeContext {
+  /** Тип корневого объекта в ветке дерева (например ExchangePlan) */
+  rootMetaKind: NodeKind;
+  /** Имя табличной части — только для узла колонки */
+  tabularSectionName?: string;
+  /**
+   * XML основного объекта метаданных (план обмена и т.д.).
+   * Нужен, если {@link MetadataNode.xmlPath} указывает на вложенный файл (макет).
+   */
+  ownerObjectXmlPath?: string;
+}
+
 // ---------------------------------------------------------------------------
 // Типы узлов
 // ---------------------------------------------------------------------------
@@ -49,6 +65,7 @@ export type NodeKind =
   | 'Language'
   // Дочерние элементы
   | 'Attribute'
+  | 'AddressingAttribute'
   | 'TabularSection'
   | 'Column'
   | 'Form'
@@ -100,6 +117,7 @@ const NODE_KIND_LABELS: Record<NodeKind, string> = {
   FunctionalOption: 'Функциональная опция',
   Language: 'Язык',
   Attribute: 'Реквизит',
+  AddressingAttribute: 'Реквизит адресации',
   TabularSection: 'Табличная часть',
   Column: 'Колонка',
   Form: 'Форма',
@@ -131,7 +149,9 @@ export class MetadataNode extends vscode.TreeItem {
     /** Тег объекта расширения: [OWN] / [BORROWED] */
     public readonly ownershipTag?: 'OWN' | 'BORROWED',
     /** Скрывать ли команду "Свойства" в контекстном меню */
-    public readonly hidePropertiesCommand?: boolean
+    public readonly hidePropertiesCommand?: boolean,
+    /** Цепочка «объект метаданных → дети» для общих обработчиков свойств */
+    public readonly metaContext?: MetaTreeNodeContext
   ) {
     super(label, collapsibleState);
     // Суффикс -hasXml позволяет фильтровать пункты контекстного меню

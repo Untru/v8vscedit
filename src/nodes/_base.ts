@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { MetadataNode, NodeKind } from '../MetadataNode';
+import { MetaTreeNodeContext, MetadataNode, NodeKind } from '../MetadataNode';
 import { CommandId, NodeDescriptor } from './_types';
 
 /** Параметры создания узла с применением дескриптора */
@@ -11,6 +11,8 @@ export interface BuildNodeParams {
   childrenLoader?: () => MetadataNode[];
   ownershipTag?: 'OWN' | 'BORROWED';
   hidePropertiesCommand?: boolean;
+  /** Контекст для свойств дочерних узлов иерархии объекта метаданных */
+  metaContext?: MetaTreeNodeContext;
 }
 
 /**
@@ -25,7 +27,8 @@ export function buildNode(descriptor: NodeDescriptor | undefined, params: BuildN
     params.xmlPath,
     params.childrenLoader,
     params.ownershipTag,
-    params.hidePropertiesCommand
+    params.hidePropertiesCommand,
+    params.metaContext
   );
 
   if (descriptor?.singleClickCommand) {
