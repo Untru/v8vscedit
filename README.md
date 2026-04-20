@@ -21,6 +21,22 @@
 - VSCode >= 1.85 или Cursor
 - `@vscode/vsce` для сборки VSIX: `npm install -g @vscode/vsce`
 
+## Установка из GitHub Releases
+
+1. Открой страницу **Releases** этого репозитория на GitHub.
+2. Скачай файл расширения `v8vscedit-<версия>.vsix` из блока **Assets**.
+3. Установи расширение из скачанного файла:
+
+```bash
+# VSCode
+code --install-extension "C:\path\to\v8vscedit-<версия>.vsix"
+
+# Cursor
+cursor --install-extension "C:\path\to\v8vscedit-<версия>.vsix"
+```
+
+Альтернативно можно установить через UI редактора: **Extensions → ... → Install from VSIX...**
+
 ## Установка зависимостей
 
 ```bash
