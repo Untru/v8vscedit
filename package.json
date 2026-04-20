@@ -3,6 +3,10 @@
   "displayName": "Редактор конфигураций 1С",
   "description": "Редактор конфигураций и расширений 1С:Предприятие — навигация по метаданным, LSP для BSL, работа с XML-выгрузкой",
   "version": "0.1.2",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Macegor/v8vscedit.git"
+  },
   "engines": {
     "vscode": "^1.85.0"
   },
