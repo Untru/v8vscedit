@@ -1,45 +1,36 @@
 import { MetadataNode, NodeKind } from '../MetadataNode';
 import { ObjectHandler } from './_types';
+import { accountingRegisterHandler } from './accountingRegister';
+import { accumulationRegisterHandler } from './accumulationRegister';
+import { businessProcessHandler } from './businessProcess';
+import { calculationRegisterHandler } from './calculationRegister';
 import { catalogHandler } from './catalog';
+import { chartOfAccountsHandler } from './chartOfAccounts';
+import { chartOfCalculationTypesHandler } from './chartOfCalculationTypes';
+import { chartOfCharacteristicTypesHandler } from './chartOfCharacteristicTypes';
 import { commonAttributeHandler } from './commonAttribute';
 import { commonModuleHandler } from './commonModule';
+import { constantHandler } from './constant';
+import { dataProcessorHandler } from './dataProcessor';
 import { documentHandler } from './document';
+import { documentJournalHandler } from './documentJournal';
 import { enumHandler } from './enum';
+import { eventSubscriptionHandler } from './eventSubscription';
 import { exchangePlanHandler } from './exchangePlan';
-import { createMetaObjectHandler } from './metaObjectTree';
+import { filterCriterionHandler } from './filterCriterion';
+import { informationRegisterHandler } from './informationRegister';
+import { reportHandler } from './report';
 import { roleHandler } from './role';
+import { scheduledJobHandler } from './scheduledJob';
+import { sequenceHandler } from './sequence';
 import { sessionParameterHandler } from './sessionParameter';
 import { structuredMetaChildHandler } from './structuredMetaChildHandler';
 import { subsystemHandler } from './subsystem';
-
-/** Типы из верхних групп навигатора без отдельного файла-обработчика — через createMetaObjectHandler */
-const TOP_GROUP_OBJECT_KINDS: NodeKind[] = [
-  'Constant',
-  'FilterCriterion',
-  'EventSubscription',
-  'ScheduledJob',
-  'Sequence',
-  'DocumentJournal',
-  'Report',
-  'DataProcessor',
-  'ChartOfCharacteristicTypes',
-  'ChartOfAccounts',
-  'ChartOfCalculationTypes',
-  'InformationRegister',
-  'AccumulationRegister',
-  'AccountingRegister',
-  'CalculationRegister',
-  'BusinessProcess',
-  'Task',
-];
-
-const metaObjectHandlersEntries = TOP_GROUP_OBJECT_KINDS.map(
-  (kind) => [kind, createMetaObjectHandler(kind)] as const
-);
+import { taskHandler } from './task';
 
 /**
  * Реестр обработчиков по типу объекта из ChildObjects в Configuration.xml.
- * Справочник, документ, план обмена — отдельные модули (catalog, document, exchangePlan).
+ * Каждый тип из верхних групп навигатора — отдельный модуль в этой папке.
  */
 const HANDLER_REGISTRY = new Map<string, ObjectHandler>([
   ['Subsystem', subsystemHandler],
@@ -51,7 +42,23 @@ const HANDLER_REGISTRY = new Map<string, ObjectHandler>([
   ['Document', documentHandler],
   ['Enum', enumHandler],
   ['ExchangePlan', exchangePlanHandler],
-  ...metaObjectHandlersEntries,
+  ['Constant', constantHandler],
+  ['FilterCriterion', filterCriterionHandler],
+  ['EventSubscription', eventSubscriptionHandler],
+  ['ScheduledJob', scheduledJobHandler],
+  ['Sequence', sequenceHandler],
+  ['DocumentJournal', documentJournalHandler],
+  ['Report', reportHandler],
+  ['DataProcessor', dataProcessorHandler],
+  ['ChartOfCharacteristicTypes', chartOfCharacteristicTypesHandler],
+  ['ChartOfAccounts', chartOfAccountsHandler],
+  ['ChartOfCalculationTypes', chartOfCalculationTypesHandler],
+  ['InformationRegister', informationRegisterHandler],
+  ['AccumulationRegister', accumulationRegisterHandler],
+  ['AccountingRegister', accountingRegisterHandler],
+  ['CalculationRegister', calculationRegisterHandler],
+  ['BusinessProcess', businessProcessHandler],
+  ['Task', taskHandler],
 ]);
 
 /** Возвращает обработчик для указанного типа объекта или undefined */

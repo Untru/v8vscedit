@@ -7,17 +7,14 @@ import {
 import { HandlerContext, ObjectHandler, ObjectPropertiesCollection } from './_types';
 
 // ---------------------------------------------------------------------------
-// Объект «Документ» (Document) в XML-выгрузке 1С:
-//
-// Папка: Documents, дескриптор — nodes/objects/Document.ts
-// (реквизиты, табличные части, формы, команды, макеты).
-//
-// Дерево и свойства корня — через metaObjectTreeBuilder.
+// Объект «Константа» (Constant) в XML-выгрузке 1С.
+// Папка: Constants, дескриптор — nodes/objects/Constant.ts (лист без дочерних групп).
+// Дерево и свойства корня — metaObjectTreeBuilder + metaXmlFragmentProperties.
 // ---------------------------------------------------------------------------
 
-const NODE_KIND = 'Document' as const;
+const NODE_KIND = 'Constant' as const;
 
-export const documentHandler: ObjectHandler = {
+export const constantHandler: ObjectHandler = {
   buildTreeNodes(ctx: HandlerContext) {
     return buildTreeNodesForMetaKind(ctx, NODE_KIND);
   },

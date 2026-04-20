@@ -1,6 +1,6 @@
 import { MetadataNode } from '../MetadataNode';
 import {
-  buildStructuredObjectTreeNodes,
+  buildTreeNodesForMetaKind,
   rootMetaObjectCanShowProperties,
   rootMetaObjectGetProperties,
 } from './metaObjectTreeBuilder';
@@ -19,7 +19,7 @@ const NODE_KIND = 'Enum' as const;
 
 export const enumHandler: ObjectHandler = {
   buildTreeNodes(ctx: HandlerContext) {
-    return buildStructuredObjectTreeNodes(ctx, NODE_KIND);
+    return buildTreeNodesForMetaKind(ctx, NODE_KIND);
   },
 
   canShowProperties(node: MetadataNode) {

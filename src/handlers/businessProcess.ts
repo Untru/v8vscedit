@@ -7,17 +7,13 @@ import {
 import { HandlerContext, ObjectHandler, ObjectPropertiesCollection } from './_types';
 
 // ---------------------------------------------------------------------------
-// Объект «Документ» (Document) в XML-выгрузке 1С:
-//
-// Папка: Documents, дескриптор — nodes/objects/Document.ts
-// (реквизиты, табличные части, формы, команды, макеты).
-//
-// Дерево и свойства корня — через metaObjectTreeBuilder.
+// Объект «Бизнес-процесс» (BusinessProcess). Папка: BusinessProcesses.
+// Дескриптор — nodes/objects/BusinessProcess.ts (реквизиты, ТЧ, формы, команды).
 // ---------------------------------------------------------------------------
 
-const NODE_KIND = 'Document' as const;
+const NODE_KIND = 'BusinessProcess' as const;
 
-export const documentHandler: ObjectHandler = {
+export const businessProcessHandler: ObjectHandler = {
   buildTreeNodes(ctx: HandlerContext) {
     return buildTreeNodesForMetaKind(ctx, NODE_KIND);
   },

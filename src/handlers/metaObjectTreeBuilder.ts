@@ -1,6 +1,6 @@
 /**
  * Декомпозированная сборка дерева для объектов метаданных с XML-выгрузки 1С.
- * Конкретные обработчики (exchangePlan, справочник через фабрику и т.д.) вызывают эти функции,
+ * Конкретные обработчики (catalog.ts, constant.ts, …) вызывают эти функции,
  * а не дублируют обход ChildObjects и построение групп.
  */
 import * as path from 'path';
@@ -88,6 +88,22 @@ export function buildStructuredObjectTreeNodes(ctx: HandlerContext, nodeKind: No
       return node;
     })
     .filter((n): n is MetadataNode => Boolean(n));
+}
+
+/**
+ * Дерево объектов метаданных по дескриптору узла (`nodes/objects/*.ts`):
+ * без `children` — плоский список файлов объектов, иначе — группы по ChildObjects.
+ */
+export function buildTreeNodesForMetaKind(ctx: HandlerContext, nodeKind: NodeKind): MetadataNode[] {
+  const descriptor = getNodeDescriptor(nodeKind)!;
+  if (!descriptor.folderName) {
+    return [];
+  }
+  const planned = descriptor.children;
+  if (!planned?.length) {
+    return buildLeafObjectTreeNodes(ctx, nodeKind);
+  }
+  return buildStructuredObjectTreeNodes(ctx, nodeKind);
 }
 
 /** Корневой узел метаданных: доступна панель свойств */

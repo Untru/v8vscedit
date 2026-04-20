@@ -1,6 +1,6 @@
 import { MetadataNode } from '../MetadataNode';
 import {
-  buildStructuredObjectTreeNodes,
+  buildTreeNodesForMetaKind,
   rootMetaObjectCanShowProperties,
   rootMetaObjectGetProperties,
 } from './metaObjectTreeBuilder';
@@ -20,7 +20,7 @@ const NODE_KIND = 'ExchangePlan' as const;
 
 export const exchangePlanHandler: ObjectHandler = {
   buildTreeNodes(ctx: HandlerContext) {
-    return buildStructuredObjectTreeNodes(ctx, NODE_KIND);
+    return buildTreeNodesForMetaKind(ctx, NODE_KIND);
   },
 
   canShowProperties(node: MetadataNode) {
