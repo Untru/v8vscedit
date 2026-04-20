@@ -16,7 +16,7 @@ export class BslAnalyzerStatusBar implements vscode.Disposable {
 
   constructor() {
     this.item = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 0);
-    this.item.command = '1cNavigator.bslAnalyzer.showMenu';
+    this.item.command = 'v8vscedit.bslAnalyzer.showMenu';
     this.setState('stopped');
     this.item.show();
   }

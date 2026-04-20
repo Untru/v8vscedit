@@ -40,56 +40,56 @@ function mapCommand(commandId: CommandId, node: MetadataNode): vscode.Command {
   switch (commandId) {
     case 'openXmlFile':
       return {
-        command: '1cNavigator.openXmlFile',
+        command: 'v8vscedit.openXmlFile',
         title: 'Открыть XML',
         arguments: [node],
       };
     case 'openObjectModule':
       return {
-        command: '1cNavigator.openObjectModule',
+        command: 'v8vscedit.openObjectModule',
         title: 'Открыть модуль объекта',
         arguments: [node],
       };
     case 'openManagerModule':
       return {
-        command: '1cNavigator.openManagerModule',
+        command: 'v8vscedit.openManagerModule',
         title: 'Открыть модуль менеджера',
         arguments: [node],
       };
     case 'openConstantModule':
       return {
-        command: '1cNavigator.openConstantModule',
+        command: 'v8vscedit.openConstantModule',
         title: 'Открыть модуль константы',
         arguments: [node],
       };
     case 'openFormModule':
       return {
-        command: '1cNavigator.openFormModule',
+        command: 'v8vscedit.openFormModule',
         title: 'Открыть модуль формы',
         arguments: [node],
       };
     case 'openCommandModule':
       return {
-        command: '1cNavigator.openCommandModule',
+        command: 'v8vscedit.openCommandModule',
         title: 'Открыть модуль команды',
         arguments: [node],
       };
     case 'openServiceModule':
       return {
-        command: '1cNavigator.openServiceModule',
+        command: 'v8vscedit.openServiceModule',
         title: 'Открыть модуль сервиса',
         arguments: [node],
       };
     case 'openCommonModuleCode':
       return {
-        command: '1cNavigator.openCommonModuleCode',
+        command: 'v8vscedit.openCommonModuleCode',
         title: 'Открыть модуль общего модуля',
         arguments: [node],
       };
     default: {
       // Защита от несовпадений перечисления и реализации
       return {
-        command: '1cNavigator.openXmlFile',
+        command: 'v8vscedit.openXmlFile',
         title: 'Открыть XML',
         arguments: [node],
       };

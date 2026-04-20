@@ -1,4 +1,4 @@
-# Навигатор метаданных
+# Редактор конфигураций (v8vscedit)
 
 ## Назначение
 
@@ -118,15 +118,15 @@ interface NodeDescriptor {
 
 | Команда | Описание | Когда доступна |
 |---|---|---|
-| `1cNavigator.refresh` | Обновить дерево | Всегда (toolbar) |
-| `1cNavigator.openXmlFile` | Открыть XML объекта | `.*-hasXml$` |
-| `1cNavigator.openObjectModule` | Открыть модуль объекта | Catalog, Document, ... |
-| `1cNavigator.openManagerModule` | Открыть модуль менеджера | Catalog, Document, Enum, ... |
-| `1cNavigator.openConstantModule` | Открыть модуль константы | `Constant-hasXml` |
-| `1cNavigator.openFormModule` | Открыть модуль формы | CommonForm, Form |
-| `1cNavigator.openCommandModule` | Открыть модуль команды | CommonCommand, Command |
-| `1cNavigator.openServiceModule` | Открыть модуль сервиса | WebService, HTTPService |
-| `1cNavigator.openCommonModuleCode` | Открыть модуль | `CommonModule-hasXml` |
+| `v8vscedit.refresh` | Обновить дерево | Всегда (toolbar) |
+| `v8vscedit.openXmlFile` | Открыть XML объекта | `.*-hasXml$` |
+| `v8vscedit.openObjectModule` | Открыть модуль объекта | Catalog, Document, ... |
+| `v8vscedit.openManagerModule` | Открыть модуль менеджера | Catalog, Document, Enum, ... |
+| `v8vscedit.openConstantModule` | Открыть модуль константы | `Constant-hasXml` |
+| `v8vscedit.openFormModule` | Открыть модуль формы | CommonForm, Form |
+| `v8vscedit.openCommandModule` | Открыть модуль команды | CommonCommand, Command |
+| `v8vscedit.openServiceModule` | Открыть модуль сервиса | WebService, HTTPService |
+| `v8vscedit.openCommonModuleCode` | Открыть модуль | `CommonModule-hasXml` |
 
 `CommandRegistry` также создаёт `FileSystemWatcher` на `**/Configuration.xml` — при изменении, создании или удалении вызывается `reloadEntries()`.
 

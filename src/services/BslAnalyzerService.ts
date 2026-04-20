@@ -64,7 +64,7 @@ export class BslAnalyzerService implements vscode.Disposable {
    */
   async ensureBinary(token?: vscode.CancellationToken): Promise<boolean> {
     try { fs.unlinkSync(this.binaryPath + '.old'); } catch { /* noop */ }
-    const customPath = vscode.workspace.getConfiguration('1cNavigator.bslAnalyzer').get<string>('path');
+    const customPath = vscode.workspace.getConfiguration('v8vscedit.bslAnalyzer').get<string>('path');
     if (customPath) {
       if (!fs.existsSync(customPath)) {
         vscode.window.showErrorMessage(`bsl-analyzer: указанный путь не найден: ${customPath}`);
@@ -80,7 +80,7 @@ export class BslAnalyzerService implements vscode.Disposable {
 
   /** Получить путь к исполняемому файлу с учётом пользовательского пути */
   getExecutablePath(): string {
-    const customPath = vscode.workspace.getConfiguration('1cNavigator.bslAnalyzer').get<string>('path');
+    const customPath = vscode.workspace.getConfiguration('v8vscedit.bslAnalyzer').get<string>('path');
     return customPath || this.binaryPath;
   }
 
@@ -201,7 +201,7 @@ export class BslAnalyzerService implements vscode.Disposable {
 
       const request = (targetUrl: string) => {
         const mod = targetUrl.startsWith('https') ? https : http;
-        const req = mod.get(targetUrl, { headers: { 'User-Agent': '1c-metadata-navigator' } }, (res) => {
+        const req = mod.get(targetUrl, { headers: { 'User-Agent': 'v8vscedit' } }, (res) => {
           if (res.statusCode && res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
             request(res.headers.location);
             return;
@@ -230,7 +230,7 @@ export class BslAnalyzerService implements vscode.Disposable {
   /** HTTP GET JSON */
   private httpGetJson(url: string): Promise<Record<string, unknown>> {
     return new Promise((resolve, reject) => {
-      https.get(url, { headers: { 'User-Agent': '1c-metadata-navigator', Accept: 'application/json' } }, (res) => {
+      https.get(url, { headers: { 'User-Agent': 'v8vscedit', Accept: 'application/json' } }, (res) => {
         let body = '';
         res.on('data', (c: Buffer) => { body += c.toString(); });
         res.on('end', () => {

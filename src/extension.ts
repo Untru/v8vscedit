@@ -21,7 +21,7 @@ export function activate(context: vscode.ExtensionContext): void {
   const rootPath = workspaceFolder.uri.fsPath;
 
   // ── Канал логирования ───────────────────────────────────────────────────
-  const outputChannel = vscode.window.createOutputChannel('1С Навигатор');
+  const outputChannel = vscode.window.createOutputChannel('1С Редактор');
   context.subscriptions.push(outputChannel);
   outputChannel.appendLine('[init] Расширение активировано');
 
@@ -78,7 +78,7 @@ export function activate(context: vscode.ExtensionContext): void {
   const propertiesViewProvider = new PropertiesViewProvider();
   context.subscriptions.push(propertiesViewProvider);
 
-  const treeView = vscode.window.createTreeView('1cMetadataTree', {
+  const treeView = vscode.window.createTreeView('v8vsceditTree', {
     treeDataProvider: provider,
     showCollapseAll: true,
   });
@@ -121,13 +121,13 @@ export function activate(context: vscode.ExtensionContext): void {
 
   // Команды-индикаторы поддержки (inline-кнопки в дереве)
   context.subscriptions.push(
-    vscode.commands.registerCommand('1cNavigator.support.none', () => {
+    vscode.commands.registerCommand('v8vscedit.support.none', () => {
       vscode.window.showInformationMessage('Объект не на поддержке.');
     }),
-    vscode.commands.registerCommand('1cNavigator.support.editable', () => {
+    vscode.commands.registerCommand('v8vscedit.support.editable', () => {
       vscode.window.showInformationMessage('Объект на поддержке. Редактирование разрешено.');
     }),
-    vscode.commands.registerCommand('1cNavigator.support.locked', () => {
+    vscode.commands.registerCommand('v8vscedit.support.locked', () => {
       vscode.window.showWarningMessage('Объект на поддержке. Редактирование запрещено.');
     }),
   );
