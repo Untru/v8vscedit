@@ -1,7 +1,9 @@
 import { MetadataNode, NodeKind } from '../MetadataNode';
 import { ObjectHandler } from './_types';
+import { catalogHandler } from './catalog';
 import { commonAttributeHandler } from './commonAttribute';
 import { commonModuleHandler } from './commonModule';
+import { documentHandler } from './document';
 import { exchangePlanHandler } from './exchangePlan';
 import { createMetaObjectHandler } from './metaObjectTree';
 import { roleHandler } from './role';
@@ -9,15 +11,13 @@ import { sessionParameterHandler } from './sessionParameter';
 import { structuredMetaChildHandler } from './structuredMetaChildHandler';
 import { subsystemHandler } from './subsystem';
 
-/** Типы из верхних групп навигатора (не «Общие») — дерево через metaObjectTree */
+/** Типы из верхних групп навигатора без отдельного файла-обработчика — через createMetaObjectHandler */
 const TOP_GROUP_OBJECT_KINDS: NodeKind[] = [
   'Constant',
   'FilterCriterion',
   'EventSubscription',
   'ScheduledJob',
   'Sequence',
-  'Catalog',
-  'Document',
   'DocumentJournal',
   'Enum',
   'Report',
@@ -39,7 +39,7 @@ const metaObjectHandlersEntries = TOP_GROUP_OBJECT_KINDS.map(
 
 /**
  * Реестр обработчиков по типу объекта из ChildObjects в Configuration.xml.
- * По мере реализации сюда добавляются новые типы (Catalog, Document и т.д.).
+ * Справочник, документ, план обмена — отдельные модули (catalog, document, exchangePlan).
  */
 const HANDLER_REGISTRY = new Map<string, ObjectHandler>([
   ['Subsystem', subsystemHandler],
@@ -47,6 +47,8 @@ const HANDLER_REGISTRY = new Map<string, ObjectHandler>([
   ['SessionParameter', sessionParameterHandler],
   ['Role', roleHandler],
   ['CommonAttribute', commonAttributeHandler],
+  ['Catalog', catalogHandler],
+  ['Document', documentHandler],
   ['ExchangePlan', exchangePlanHandler],
   ...metaObjectHandlersEntries,
 ]);

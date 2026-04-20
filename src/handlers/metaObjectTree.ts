@@ -10,7 +10,7 @@ import { HandlerContext, ObjectHandler } from './_types';
 
 /**
  * Фабрика обработчиков для типов метаданных без отдельного файла-обработчика.
- * Для типов с собственным модулем (например ExchangePlan → exchangePlan.ts)
+ * Для типов с собственным модулем (catalog, document, exchangePlan и т.д.)
  * регистрируйте обработчик явно в handlers/index.ts.
  */
 export function createMetaObjectHandler(nodeKind: NodeKind): ObjectHandler {
