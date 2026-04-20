@@ -33,7 +33,10 @@ export type NodeKind =
   | 'Role'
   | 'CommonForm'
   | 'CommonCommand'
+  | 'CommandGroup'
   | 'CommonPicture'
+  | 'CommonTemplate'
+  | 'XDTOPackage'
   | 'StyleItem'
   | 'DefinedType'
   | 'Constant'
@@ -62,6 +65,16 @@ export type NodeKind =
   | 'SessionParameter'
   | 'CommonAttribute'
   | 'FunctionalOption'
+  | 'FunctionalOptionsParameter'
+  | 'SettingsStorage'
+  | 'Style'
+  | 'WSReference'
+  | 'WebSocketClient'
+  | 'IntegrationService'
+  | 'Bot'
+  | 'ExternalDataSource'
+  | 'Interface'
+  | 'PaletteColor'
   | 'Language'
   // Дочерние элементы
   | 'Attribute'
@@ -86,8 +99,11 @@ const NODE_KIND_LABELS: Record<NodeKind, string> = {
   Role: 'Роль',
   CommonForm: 'Общая форма',
   CommonCommand: 'Общая команда',
+  CommandGroup: 'Группа команд',
   CommonPicture: 'Общая картинка',
-  StyleItem: 'Стилевое оформление',
+  CommonTemplate: 'Общий макет',
+  XDTOPackage: 'XDTO-пакет',
+  StyleItem: 'Элемент стиля',
   DefinedType: 'Определяемый тип',
   Constant: 'Константа',
   Catalog: 'Справочник',
@@ -115,6 +131,16 @@ const NODE_KIND_LABELS: Record<NodeKind, string> = {
   SessionParameter: 'Параметр сеанса',
   CommonAttribute: 'Общий реквизит',
   FunctionalOption: 'Функциональная опция',
+  FunctionalOptionsParameter: 'Параметр функциональной опции',
+  SettingsStorage: 'Хранилище настроек',
+  Style: 'Стиль',
+  WSReference: 'WS-ссылка',
+  WebSocketClient: 'WebSocket-клиент',
+  IntegrationService: 'Сервис интеграции',
+  Bot: 'Бот',
+  ExternalDataSource: 'Внешний источник данных',
+  Interface: 'Интерфейс',
+  PaletteColor: 'Цвет палитры',
   Language: 'Язык',
   Attribute: 'Реквизит',
   AddressingAttribute: 'Реквизит адресации',

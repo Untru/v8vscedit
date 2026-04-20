@@ -15,13 +15,25 @@ import { RoleDescriptor } from './common/Role';
 import { DefinedTypeDescriptor } from './common/DefinedType';
 import { CommonFormDescriptor } from './common/CommonForm';
 import { CommonCommandDescriptor } from './common/CommonCommand';
+import { CommandGroupDescriptor } from './common/CommandGroup';
 import { CommonTemplateDescriptor } from './common/CommonTemplate';
 import { CommonPictureDescriptor } from './common/CommonPicture';
 import { StyleItemDescriptor } from './common/StyleItem';
 import { LanguageDescriptor } from './common/Language';
 import { HTTPServiceDescriptor } from './common/HTTPService';
 import { WebServiceDescriptor } from './common/WebService';
+import { XDTOPackageDescriptor } from './common/XDTOPackage';
 import { FunctionalOptionDescriptor } from './common/FunctionalOption';
+import { FunctionalOptionsParameterDescriptor } from './common/FunctionalOptionsParameter';
+import { SettingsStorageDescriptor } from './common/SettingsStorage';
+import { StyleDescriptor } from './common/Style';
+import { WSReferenceDescriptor } from './common/WSReference';
+import { WebSocketClientDescriptor } from './common/WebSocketClient';
+import { IntegrationServiceDescriptor } from './common/IntegrationService';
+import { BotDescriptor } from './common/Bot';
+import { ExternalDataSourceDescriptor } from './common/ExternalDataSource';
+import { InterfaceObjectDescriptor } from './common/InterfaceObject';
+import { PaletteColorDescriptor } from './common/PaletteColor';
 
 import { ConstantDescriptor } from './objects/Constant';
 import { FilterCriterionDescriptor } from './objects/FilterCriterion';
@@ -74,10 +86,22 @@ const NODE_DESCRIPTORS: Record<NodeKind, NodeDescriptor> = {
   Role: RoleDescriptor,
   CommonForm: CommonFormDescriptor,
   CommonCommand: CommonCommandDescriptor,
+  CommandGroup: CommandGroupDescriptor,
   CommonPicture: CommonPictureDescriptor,
+  CommonTemplate: CommonTemplateDescriptor,
+  XDTOPackage: XDTOPackageDescriptor,
   StyleItem: StyleItemDescriptor,
   DefinedType: DefinedTypeDescriptor,
   FunctionalOption: FunctionalOptionDescriptor,
+  FunctionalOptionsParameter: FunctionalOptionsParameterDescriptor,
+  SettingsStorage: SettingsStorageDescriptor,
+  Style: StyleDescriptor,
+  WSReference: WSReferenceDescriptor,
+  WebSocketClient: WebSocketClientDescriptor,
+  IntegrationService: IntegrationServiceDescriptor,
+  Bot: BotDescriptor,
+  Interface: InterfaceObjectDescriptor,
+  PaletteColor: PaletteColorDescriptor,
   Language: LanguageDescriptor,
 
   // Объекты верхнего уровня
@@ -104,6 +128,7 @@ const NODE_DESCRIPTORS: Record<NodeKind, NodeDescriptor> = {
   WebService: WebServiceDescriptor,
   FilterCriterion: FilterCriterionDescriptor,
   Sequence: SequenceDescriptor,
+  ExternalDataSource: ExternalDataSourceDescriptor,
 
   // Дочерние элементы
   Attribute: AttributeDescriptor,

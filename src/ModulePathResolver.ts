@@ -61,7 +61,9 @@ export function resolveObjectXmlPath(
     Role: 'Roles',
     CommonForm: 'CommonForms',
     CommonCommand: 'CommonCommands',
+    CommandGroup: 'CommandGroups',
     CommonPicture: 'CommonPictures',
+    CommonTemplate: 'CommonTemplates',
     StyleItem: 'StyleItems',
     DefinedType: 'DefinedTypes',
     Subsystem: 'Subsystems',
@@ -78,6 +80,13 @@ export function resolveObjectXmlPath(
     FunctionalOptionsParameter: 'FunctionalOptionsParameters',
     XDTOPackage: 'XDTOPackages',
     Interface: 'Interfaces',
+    ExternalDataSource: 'ExternalDataSources',
+    SettingsStorage: 'SettingsStorages',
+    Style: 'Styles',
+    WSReference: 'WSReferences',
+    WebSocketClient: 'WebSocketClients',
+    IntegrationService: 'IntegrationServices',
+    Bot: 'Bots',
   };
 
   const folder = typeToFolder[objectType];

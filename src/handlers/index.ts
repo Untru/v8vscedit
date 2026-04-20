@@ -1,7 +1,9 @@
 import { MetadataNode, NodeKind } from '../MetadataNode';
+import { createLeafMetaObjectHandler } from './createLeafMetaObjectHandler';
 import { ObjectHandler } from './_types';
 import { accountingRegisterHandler } from './accountingRegister';
 import { accumulationRegisterHandler } from './accumulationRegister';
+import { botHandler } from './bot';
 import { businessProcessHandler } from './businessProcess';
 import { calculationRegisterHandler } from './calculationRegister';
 import { catalogHandler } from './catalog';
@@ -17,23 +19,52 @@ import { documentJournalHandler } from './documentJournal';
 import { enumHandler } from './enum';
 import { eventSubscriptionHandler } from './eventSubscription';
 import { exchangePlanHandler } from './exchangePlan';
+import { externalDataSourceHandler } from './externalDataSource';
 import { filterCriterionHandler } from './filterCriterion';
+import { httpServiceHandler } from './httpService';
+import { functionalOptionHandler } from './functionalOption';
+import { functionalOptionsParameterHandler } from './functionalOptionsParameter';
 import { informationRegisterHandler } from './informationRegister';
+import { integrationServiceHandler } from './integrationService';
+import { interfaceObjectHandler } from './interfaceObject';
+import { paletteColorHandler } from './paletteColor';
 import { reportHandler } from './report';
 import { roleHandler } from './role';
 import { scheduledJobHandler } from './scheduledJob';
 import { sequenceHandler } from './sequence';
 import { sessionParameterHandler } from './sessionParameter';
+import { settingsStorageHandler } from './settingsStorage';
 import { structuredMetaChildHandler } from './structuredMetaChildHandler';
+import { styleHandler } from './style';
 import { subsystemHandler } from './subsystem';
 import { taskHandler } from './task';
+import { webSocketClientHandler } from './webSocketClient';
+import { webServiceHandler } from './webService';
+import { wsReferenceHandler } from './wsReference';
+
+const definedTypeHandler = createLeafMetaObjectHandler('DefinedType');
+const commonFormHandler = createLeafMetaObjectHandler('CommonForm');
+const commonCommandHandler = createLeafMetaObjectHandler('CommonCommand');
+const commandGroupHandler = createLeafMetaObjectHandler('CommandGroup');
+const commonPictureHandler = createLeafMetaObjectHandler('CommonPicture');
+const commonTemplateHandler = createLeafMetaObjectHandler('CommonTemplate');
+const styleItemHandler = createLeafMetaObjectHandler('StyleItem');
+const xdtoPackageHandler = createLeafMetaObjectHandler('XDTOPackage');
 
 /**
  * Реестр обработчиков по типу объекта из ChildObjects в Configuration.xml.
- * Каждый тип из верхних групп навигатора — отдельный модуль в этой папке.
+ * Каждый тип из навигатора — отдельный модуль в этой папке.
  */
 const HANDLER_REGISTRY = new Map<string, ObjectHandler>([
   ['Subsystem', subsystemHandler],
+  ['DefinedType', definedTypeHandler],
+  ['CommonForm', commonFormHandler],
+  ['CommonCommand', commonCommandHandler],
+  ['CommandGroup', commandGroupHandler],
+  ['CommonPicture', commonPictureHandler],
+  ['CommonTemplate', commonTemplateHandler],
+  ['StyleItem', styleItemHandler],
+  ['XDTOPackage', xdtoPackageHandler],
   ['CommonModule', commonModuleHandler],
   ['SessionParameter', sessionParameterHandler],
   ['Role', roleHandler],
@@ -59,6 +90,19 @@ const HANDLER_REGISTRY = new Map<string, ObjectHandler>([
   ['CalculationRegister', calculationRegisterHandler],
   ['BusinessProcess', businessProcessHandler],
   ['Task', taskHandler],
+  ['ExternalDataSource', externalDataSourceHandler],
+  ['FunctionalOption', functionalOptionHandler],
+  ['FunctionalOptionsParameter', functionalOptionsParameterHandler],
+  ['SettingsStorage', settingsStorageHandler],
+  ['Style', styleHandler],
+  ['WSReference', wsReferenceHandler],
+  ['WebSocketClient', webSocketClientHandler],
+  ['IntegrationService', integrationServiceHandler],
+  ['Bot', botHandler],
+  ['Interface', interfaceObjectHandler],
+  ['PaletteColor', paletteColorHandler],
+  ['WebService', webServiceHandler],
+  ['HTTPService', httpServiceHandler],
 ]);
 
 /** Возвращает обработчик для указанного типа объекта или undefined */

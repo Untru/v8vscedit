@@ -181,7 +181,7 @@ export class MetadataTreeProvider implements vscode.TreeDataProvider<MetadataNod
       const descriptor = getNodeDescriptor(sg.kind);
       const handler = getObjectHandler(sg.types[0]);
       const names = handler ? this.collectNames(info, sg.types) : [];
-      const hasChildren = handler && names.length > 0;
+      const hasChildren = Boolean(handler && names.length > 0);
 
       return buildNode(descriptor, {
         label: sg.label,
@@ -191,12 +191,13 @@ export class MetadataTreeProvider implements vscode.TreeDataProvider<MetadataNod
           : vscode.TreeItemCollapsibleState.None,
         xmlPath: undefined,
         childrenLoader: hasChildren
-          ? () => handler.buildTreeNodes({
-              configRoot: entry.rootPath,
-              configKind: entry.kind,
-              namePrefix: info.namePrefix,
-              names,
-            })
+          ? () =>
+              handler!.buildTreeNodes({
+                configRoot: entry.rootPath,
+                configKind: entry.kind,
+                namePrefix: info.namePrefix,
+                names,
+              })
           : undefined,
         ownershipTag: undefined,
       });
