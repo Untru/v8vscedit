@@ -4,6 +4,7 @@ import { catalogHandler } from './catalog';
 import { commonAttributeHandler } from './commonAttribute';
 import { commonModuleHandler } from './commonModule';
 import { documentHandler } from './document';
+import { enumHandler } from './enum';
 import { exchangePlanHandler } from './exchangePlan';
 import { createMetaObjectHandler } from './metaObjectTree';
 import { roleHandler } from './role';
@@ -19,7 +20,6 @@ const TOP_GROUP_OBJECT_KINDS: NodeKind[] = [
   'ScheduledJob',
   'Sequence',
   'DocumentJournal',
-  'Enum',
   'Report',
   'DataProcessor',
   'ChartOfCharacteristicTypes',
@@ -49,6 +49,7 @@ const HANDLER_REGISTRY = new Map<string, ObjectHandler>([
   ['CommonAttribute', commonAttributeHandler],
   ['Catalog', catalogHandler],
   ['Document', documentHandler],
+  ['Enum', enumHandler],
   ['ExchangePlan', exchangePlanHandler],
   ...metaObjectHandlersEntries,
 ]);

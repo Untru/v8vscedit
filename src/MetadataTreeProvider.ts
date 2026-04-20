@@ -186,7 +186,9 @@ export class MetadataTreeProvider implements vscode.TreeDataProvider<MetadataNod
       return buildNode(descriptor, {
         label: sg.label,
         kind: sg.kind,
-        collapsibleState: vscode.TreeItemCollapsibleState.Collapsed,
+        collapsibleState: hasChildren
+          ? vscode.TreeItemCollapsibleState.Collapsed
+          : vscode.TreeItemCollapsibleState.None,
         xmlPath: undefined,
         childrenLoader: hasChildren
           ? () => handler.buildTreeNodes({

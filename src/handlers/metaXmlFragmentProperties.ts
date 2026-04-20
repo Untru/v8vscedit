@@ -26,7 +26,6 @@ const BOOLEAN_PROPERTY_TAGS = new Set([
   'FillFromFillingValue',
   'CreateOnInput',
   'QuickChoice',
-  'ChoiceHistoryOnInput',
   'FullTextSearch',
   'DenyIncompleteValues',
   'ShowInTotal',
@@ -127,6 +126,8 @@ const PROPERTY_TITLE_RU: Record<string, string> = {
   IncludeHelpInContents: 'Включать справку в содержимое',
   FormType: 'Тип формы',
   UseStandardCommands: 'Использовать стандартные команды',
+  ChoiceMode: 'Режим выбора',
+  Color: 'Цвет',
   Explanation: 'Пояснение',
   ExtendedExplanation: 'Расширенное пояснение',
   DataLockControlMode: 'Режим управления блокировкой данных',
@@ -162,6 +163,26 @@ const COMMON_ROOT_META_PROPERTY_KEYS: string[] = [
   'ExtendedListPresentation',
   'Explanation',
   'BasedOn',
+];
+
+/** Поля корня «Перечисление» (без реквизитов/ТЧ/форм объекта метаданных) */
+const ENUM_ROOT_META_PROPERTY_KEYS: string[] = [
+  'Name',
+  'Synonym',
+  'Comment',
+  'ObjectBelonging',
+  'ExtendedConfigurationObject',
+  'UseStandardCommands',
+  'QuickChoice',
+  'ChoiceMode',
+  'DefaultListForm',
+  'DefaultChoiceForm',
+  'AuxiliaryListForm',
+  'AuxiliaryChoiceForm',
+  'ListPresentation',
+  'ExtendedListPresentation',
+  'Explanation',
+  'ChoiceHistoryOnInput',
 ];
 
 /** Дополнительные поля корня «План обмена» */
@@ -249,13 +270,16 @@ const COMMAND_PROPERTY_KEYS: string[] = [
   'IncludeHelpInContents',
 ];
 
-/** Поля значения перечисления */
-const ENUM_VALUE_PROPERTY_KEYS: string[] = ['Name', 'Synonym', 'Comment'];
+/** Поля значения перечисления (в т.ч. оформление в списке) */
+const ENUM_VALUE_PROPERTY_KEYS: string[] = ['Name', 'Synonym', 'Comment', 'Color'];
 
 /** Порядок ключей корня по типу объекта */
 export function getRootPropertyKeyOrder(rootMetaKind: NodeKind): string[] {
   if (rootMetaKind === 'ExchangePlan') {
     return [...COMMON_ROOT_META_PROPERTY_KEYS, ...EXCHANGE_PLAN_ROOT_EXTRA_KEYS];
+  }
+  if (rootMetaKind === 'Enum') {
+    return ENUM_ROOT_META_PROPERTY_KEYS;
   }
   return COMMON_ROOT_META_PROPERTY_KEYS;
 }

@@ -124,7 +124,8 @@ export function groupMetaChildren(children: MetaChild[], allowed: Set<string>): 
 }
 
 /**
- * Узлы групп в порядке дескриптора; пустые группы тоже создаются.
+ * Узлы групп в порядке дескриптора; пустые группы тоже создаются,
+ * но без шеврона раскрытия и без {@link MetadataNode.childrenLoader}.
  */
 export function buildGroupNodes(
   objectXmlPath: string,
@@ -139,12 +140,18 @@ export function buildGroupNodes(
     const items = byTag.get(tag) ?? [];
 
     const tagCfg = CHILD_TAG_CONFIG[tag];
+    /** Без дочерних элементов — лист без шеврона раскрытия (как в стандартном дереве VS Code) */
+    const hasTagItems = items.length > 0;
     const groupNode = buildNode(groupDesc, {
       label: tagCfg.label,
       kind: 'group-type',
-      collapsibleState: vscode.TreeItemCollapsibleState.Collapsed,
+      collapsibleState: hasTagItems
+        ? vscode.TreeItemCollapsibleState.Collapsed
+        : vscode.TreeItemCollapsibleState.None,
       xmlPath: undefined,
-      childrenLoader: () => buildLeavesForTag(objectXmlPath, tag, items, rootMetaKind),
+      childrenLoader: hasTagItems
+        ? () => buildLeavesForTag(objectXmlPath, tag, items, rootMetaKind)
+        : undefined,
       ownershipTag: undefined,
       hidePropertiesCommand: true,
     });

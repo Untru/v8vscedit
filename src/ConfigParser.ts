@@ -126,7 +126,11 @@ export function parseObjectXml(xmlPath: string): ObjectInfo | null {
  *   Attribute... → TabularSection... → Form... → Command... → Template...
  *
  * Стратегия извлечения:
- * - Attribute/Dimension/Resource/EnumValue: из части ДО первой TabularSection
+ * - Attribute/Dimension/Resource: из части ДО первой TabularSection
+ *   (чтобы не захватить колонки ТЧ).
+ * - EnumValue: из всего главного блока — у перечислений нет ТЧ; значения всегда
+ *   на верхнем уровне ChildObjects и не должны отсекаться ложным вхождением
+ *   подстроки «TabularSection» в других узлах XML.
  * - TabularSection: из всего главного блока (рекурсивно извлекает Attribute колонки)
  * - Form/Template: простые теги из всего главного блока
  * - Command: сложный элемент с uuid из всего главного блока
@@ -140,13 +144,16 @@ function parseObjectChildObjects(xml: string): MetaChild[] {
     return result;
   }
 
-  // Attribute/Dimension/Resource/EnumValue — только до первой TabularSection,
+  // Attribute/Dimension/Resource — только до первой TabularSection,
   // чтобы не захватить колонки ТЧ которые идут после них
   const tsStart = mainBlock.search(/<TabularSection(?=[\s/>])/);
   const attrBlock = tsStart >= 0 ? mainBlock.slice(0, tsStart) : mainBlock;
-  for (const ctag of ['Attribute', 'Dimension', 'Resource', 'EnumValue']) {
+  for (const ctag of ['Attribute', 'Dimension', 'Resource']) {
     extractComplexChildren(attrBlock, ctag, result);
   }
+
+  // Значения перечисления — только в корневом ChildObjects, не внутри ТЧ
+  extractComplexChildren(mainBlock, 'EnumValue', result);
 
   // TabularSection — из всего главного блока (колонки из вложенного <ChildObjects>)
   extractComplexChildren(mainBlock, 'TabularSection', result);
