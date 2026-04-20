@@ -6,6 +6,10 @@ import { extensionDescriptor } from './root/extension';
 
 import { groupCommonDescriptor } from './groups/group-common';
 import { groupTypeDescriptor } from './groups/group-type';
+import {
+  NumeratorsBranchDescriptor,
+  SequencesBranchDescriptor,
+} from './groups/documentBranchFolders';
 
 import { SubsystemDescriptor } from './common/Subsystem';
 import { CommonModuleDescriptor } from './common/CommonModule';
@@ -42,6 +46,7 @@ import { ScheduledJobDescriptor } from './objects/ScheduledJob';
 import { SequenceDescriptor } from './objects/Sequence';
 import { CatalogDescriptor } from './objects/Catalog';
 import { DocumentDescriptor } from './objects/Document';
+import { DocumentNumeratorDescriptor } from './objects/DocumentNumerator';
 import { DocumentJournalDescriptor } from './objects/DocumentJournal';
 import { EnumDescriptor } from './objects/Enum';
 import { ReportDescriptor } from './objects/Report';
@@ -77,6 +82,8 @@ const NODE_DESCRIPTORS: Record<NodeKind, NodeDescriptor> = {
   // Группы
   'group-common': groupCommonDescriptor,
   'group-type': groupTypeDescriptor,
+  NumeratorsBranch: NumeratorsBranchDescriptor,
+  SequencesBranch: SequencesBranchDescriptor,
 
   // Общие объекты
   Subsystem: SubsystemDescriptor,
@@ -108,6 +115,7 @@ const NODE_DESCRIPTORS: Record<NodeKind, NodeDescriptor> = {
   Constant: ConstantDescriptor,
   Catalog: CatalogDescriptor,
   Document: DocumentDescriptor,
+  DocumentNumerator: DocumentNumeratorDescriptor,
   Enum: EnumDescriptor,
   InformationRegister: InformationRegisterDescriptor,
   AccumulationRegister: AccumulationRegisterDescriptor,

@@ -27,6 +27,9 @@ export type NodeKind =
   // Группы верхнего уровня
   | 'group-common'
   | 'group-type'
+  /** Подветки группы «Документы» в навигаторе (не объекты метаданных) */
+  | 'NumeratorsBranch'
+  | 'SequencesBranch'
   // Типы объектов (группа + иконка)
   | 'Subsystem'
   | 'CommonModule'
@@ -42,6 +45,7 @@ export type NodeKind =
   | 'Constant'
   | 'Catalog'
   | 'Document'
+  | 'DocumentNumerator'
   | 'Enum'
   | 'InformationRegister'
   | 'AccumulationRegister'
@@ -94,6 +98,8 @@ const NODE_KIND_LABELS: Record<NodeKind, string> = {
   extension: 'Расширение',
   'group-common': 'Группа "Общие"',
   'group-type': 'Группа объектов',
+  NumeratorsBranch: 'Нумераторы',
+  SequencesBranch: 'Последовательности',
   Subsystem: 'Подсистема',
   CommonModule: 'Общий модуль',
   Role: 'Роль',
@@ -108,6 +114,7 @@ const NODE_KIND_LABELS: Record<NodeKind, string> = {
   Constant: 'Константа',
   Catalog: 'Справочник',
   Document: 'Документ',
+  DocumentNumerator: 'Нумератор документов',
   Enum: 'Перечисление',
   InformationRegister: 'Регистр сведений',
   AccumulationRegister: 'Регистр накопления',

@@ -15,6 +15,7 @@ import { commonModuleHandler } from './commonModule';
 import { constantHandler } from './constant';
 import { dataProcessorHandler } from './dataProcessor';
 import { documentHandler } from './document';
+import { documentNumeratorHandler } from './documentNumerator';
 import { documentJournalHandler } from './documentJournal';
 import { enumHandler } from './enum';
 import { eventSubscriptionHandler } from './eventSubscription';
@@ -71,6 +72,7 @@ const HANDLER_REGISTRY = new Map<string, ObjectHandler>([
   ['CommonAttribute', commonAttributeHandler],
   ['Catalog', catalogHandler],
   ['Document', documentHandler],
+  ['DocumentNumerator', documentNumeratorHandler],
   ['Enum', enumHandler],
   ['ExchangePlan', exchangePlanHandler],
   ['Constant', constantHandler],

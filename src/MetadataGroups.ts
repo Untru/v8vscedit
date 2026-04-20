@@ -6,6 +6,11 @@ export interface MetaGroup {
   types: string[];
   kind: NodeKind;
   isCommon?: boolean;
+  /**
+   * Несколько типов ChildObjects в одной ветке дерева (порядок в `types` сохраняется),
+   * например нумераторы и последовательности внутри «Документы».
+   */
+  mergeTypes?: boolean;
 }
 
 /** Типы в группе «Общие» (порядок как в конфигураторе 1С) */
@@ -45,7 +50,12 @@ export const COMMON_TYPES: string[] = [
 export const TOP_GROUPS: MetaGroup[] = [
   { label: 'Константы', types: ['Constant'], kind: 'Constant' },
   { label: 'Справочники', types: ['Catalog'], kind: 'Catalog' },
-  { label: 'Документы', types: ['Document'], kind: 'Document' },
+  {
+    label: 'Документы',
+    types: ['DocumentNumerator', 'Sequence', 'Document'],
+    kind: 'Document',
+    mergeTypes: true,
+  },
   { label: 'Журналы документов', types: ['DocumentJournal'], kind: 'DocumentJournal' },
   { label: 'Перечисления', types: ['Enum'], kind: 'Enum' },
   { label: 'Отчёты', types: ['Report'], kind: 'Report' },
@@ -63,7 +73,6 @@ export const TOP_GROUPS: MetaGroup[] = [
   { label: 'Регистры расчёта', types: ['CalculationRegister'], kind: 'CalculationRegister' },
   { label: 'Бизнес-процессы', types: ['BusinessProcess'], kind: 'BusinessProcess' },
   { label: 'Задачи', types: ['Task'], kind: 'Task' },
-  { label: 'Последовательности', types: ['Sequence'], kind: 'Sequence' },
   { label: 'Внешние источники данных', types: ['ExternalDataSource'], kind: 'ExternalDataSource' },
 ];
 

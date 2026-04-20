@@ -346,6 +346,7 @@ export function resolveObjectXmlPath(
   const typeToFolder: Record<string, string> = {
     Catalog: 'Catalogs',
     Document: 'Documents',
+    DocumentNumerator: 'DocumentNumerators',
     Enum: 'Enums',
     InformationRegister: 'InformationRegisters',
     AccumulationRegister: 'AccumulationRegisters',
