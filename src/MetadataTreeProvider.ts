@@ -101,10 +101,8 @@ export class MetadataTreeProvider implements vscode.TreeDataProvider<MetadataNod
     const configXmlPath = path.join(entry.rootPath, 'Configuration.xml');
     const info = parseConfigXml(configXmlPath);
 
-    const label =
-      entry.kind === 'cf'
-        ? `Конфигурация: ${info.name}${info.version ? ` v${info.version}` : ''}`
-        : info.name;
+    // Для корневого узла показываем только имя, без префикса "Конфигурация".
+    const label = info.name;
 
     const nodeKind: NodeKind = entry.kind === 'cf' ? 'configuration' : 'extension';
 
