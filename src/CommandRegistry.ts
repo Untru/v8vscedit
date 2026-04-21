@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
+import * as fs from 'fs';
 import { spawn } from 'child_process';
 import { decode } from 'iconv-lite';
 import { MetadataTreeProvider } from './MetadataTreeProvider';
@@ -24,7 +25,7 @@ import {
 type NodeArg = MetadataNode | { xmlPath?: string; nodeKind?: string; label?: string };
 
 interface ActionItem extends vscode.QuickPickItem {
-  actionId: 'decompileext';
+  actionId: 'decompileext' | 'compileext' | 'updateext' | 'compileAndUpdateExt';
 }
 
 /**
@@ -229,6 +230,21 @@ export function registerCommands(
           label: '$(export) Выгрузить исходники расширения',
           description: 'vrunner decompileext',
         });
+        actions.push({
+          actionId: 'compileext',
+          label: '$(database) Загрузить расширение в БД',
+          description: 'vrunner compileext',
+        });
+        actions.push({
+          actionId: 'updateext',
+          label: '$(sync) Обновить расширение в БД',
+          description: 'vrunner updateext',
+        });
+        actions.push({
+          actionId: 'compileAndUpdateExt',
+          label: '$(run-all) Загрузить и обновить расширение в БД',
+          description: 'vrunner compileext + updateext',
+        });
       }
 
       if (actions.length === 0) {
@@ -249,22 +265,94 @@ export function registerCommands(
           'v8vscedit.decompileExtensionSources',
           node
         );
+      } else if (picked.actionId === 'compileext') {
+        await vscode.commands.executeCommand(
+          'v8vscedit.compileExtensionToDb',
+          node
+        );
+      } else if (picked.actionId === 'updateext') {
+        await vscode.commands.executeCommand(
+          'v8vscedit.updateExtensionInDb',
+          node
+        );
+      } else if (picked.actionId === 'compileAndUpdateExt') {
+        await vscode.commands.executeCommand(
+          'v8vscedit.compileAndUpdateExtensionInDb',
+          node
+        );
       }
     })
   );
 
   context.subscriptions.push(
     vscode.commands.registerCommand('v8vscedit.decompileExtensionSources', async (node: NodeArg) => {
-      const nodeKind = node?.nodeKind;
-      const xmlPath = node?.xmlPath;
-      const extensionName = String((node as MetadataNode | undefined)?.label ?? '');
-      if (nodeKind !== 'extension' || !xmlPath || !extensionName) {
+      const target = extractExtensionTarget(node);
+      if (!target) {
         vscode.window.showWarningMessage('Команда доступна только для корневого узла расширения.');
         return;
       }
 
-      const extensionRoot = path.dirname(xmlPath);
-      await runDecompileExtension(extensionName, extensionRoot, workspaceFolder, outputChannel);
+      await runDecompileExtension(target.extensionName, target.extensionRoot, workspaceFolder, outputChannel);
+    })
+  );
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand('v8vscedit.compileExtensionToDb', async (node: NodeArg) => {
+      const target = extractExtensionTarget(node);
+      if (!target) {
+        vscode.window.showWarningMessage('Команда доступна только для корневого узла расширения.');
+        return;
+      }
+
+      await runCompileExtension(target.extensionName, target.extensionRoot, workspaceFolder, outputChannel);
+    })
+  );
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand('v8vscedit.updateExtensionInDb', async (node: NodeArg) => {
+      const target = extractExtensionTarget(node);
+      if (!target) {
+        vscode.window.showWarningMessage('Команда доступна только для корневого узла расширения.');
+        return;
+      }
+
+      await runUpdateExtension(target.extensionName, target.extensionRoot, workspaceFolder, outputChannel);
+    })
+  );
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand('v8vscedit.compileAndUpdateExtensionInDb', async (node: NodeArg) => {
+      const target = extractExtensionTarget(node);
+      if (!target) {
+        vscode.window.showWarningMessage('Команда доступна только для корневого узла расширения.');
+        return;
+      }
+
+      const compiled = await runCompileExtension(
+        target.extensionName,
+        target.extensionRoot,
+        workspaceFolder,
+        outputChannel,
+        false
+      );
+      if (!compiled) {
+        return;
+      }
+      const updated = await runUpdateExtension(
+        target.extensionName,
+        target.extensionRoot,
+        workspaceFolder,
+        outputChannel,
+        false
+      );
+      if (!updated) {
+        return;
+      }
+
+      await vscode.window.showInformationMessage(
+        `Загрузка и обновление расширения "${target.extensionName}" в БД успешно завершены.`,
+        { modal: true }
+      );
     })
   );
 
@@ -288,26 +376,106 @@ async function runDecompileExtension(
   extensionRoot: string,
   workspaceFolder: vscode.WorkspaceFolder,
   outputChannel: vscode.OutputChannel
-): Promise<void> {
-  const relativeExtDir = path.relative(workspaceFolder.uri.fsPath, extensionRoot).replace(/\\/g, '/');
-  const targetDir = relativeExtDir.startsWith('.') ? relativeExtDir : `./${relativeExtDir}`;
-  const settingsPath = './example/env.json';
+): Promise<boolean> {
+  const targetDir = extensionRoot;
+  const settingsPath = resolveSettingsPath(workspaceFolder.uri.fsPath, extensionRoot);
   const commandArgs = ['decompileext', extensionName, targetDir, '--settings', settingsPath];
-  const commandAsText = `vrunner ${commandArgs.join(' ')}`;
+  return runVrunnerExtensionCommand(
+    {
+      extensionName,
+      commandArgs,
+      progressTitle: `Выгрузка расширения ${extensionName}`,
+      progressStartMessage: 'Запуск decompileext...',
+      successMessage: `Выгрузка расширения "${extensionName}" успешно завершена.`,
+      errorTitle: `Ошибка выгрузки расширения "${extensionName}".`,
+      logPrefix: 'decompileext',
+    },
+    workspaceFolder,
+    outputChannel
+  );
+}
 
+async function runCompileExtension(
+  extensionName: string,
+  extensionRoot: string,
+  workspaceFolder: vscode.WorkspaceFolder,
+  outputChannel: vscode.OutputChannel,
+  showSuccessModal = true
+): Promise<boolean> {
+  const targetDir = extensionRoot;
+  const settingsPath = resolveSettingsPath(workspaceFolder.uri.fsPath, extensionRoot);
+  const commandArgs = ['compileext', targetDir, extensionName, '--settings', settingsPath];
+  return runVrunnerExtensionCommand(
+    {
+      extensionName,
+      commandArgs,
+      progressTitle: `Загрузка расширения ${extensionName} в БД`,
+      progressStartMessage: 'Запуск compileext...',
+      successMessage: `Загрузка расширения "${extensionName}" в БД успешно завершена.`,
+      errorTitle: `Ошибка загрузки расширения "${extensionName}" в БД.`,
+      logPrefix: 'compileext',
+      showSuccessModal,
+    },
+    workspaceFolder,
+    outputChannel
+  );
+}
+
+async function runUpdateExtension(
+  extensionName: string,
+  extensionRoot: string,
+  workspaceFolder: vscode.WorkspaceFolder,
+  outputChannel: vscode.OutputChannel,
+  showSuccessModal = true
+): Promise<boolean> {
+  const settingsPath = resolveSettingsPath(workspaceFolder.uri.fsPath, extensionRoot);
+  const commandArgs = ['updateext', extensionName, '--settings', settingsPath];
+  return runVrunnerExtensionCommand(
+    {
+      extensionName,
+      commandArgs,
+      progressTitle: `Обновление расширения ${extensionName} в БД`,
+      progressStartMessage: 'Запуск updateext...',
+      successMessage: `Обновление расширения "${extensionName}" в БД успешно завершено.`,
+      errorTitle: `Ошибка обновления расширения "${extensionName}" в БД.`,
+      logPrefix: 'updateext',
+      showSuccessModal,
+    },
+    workspaceFolder,
+    outputChannel
+  );
+}
+
+interface RunVrunnerOptions {
+  extensionName: string;
+  commandArgs: string[];
+  progressTitle: string;
+  progressStartMessage: string;
+  successMessage: string;
+  errorTitle: string;
+  logPrefix: string;
+  showSuccessModal?: boolean;
+}
+
+async function runVrunnerExtensionCommand(
+  options: RunVrunnerOptions,
+  workspaceFolder: vscode.WorkspaceFolder,
+  outputChannel: vscode.OutputChannel
+): Promise<boolean> {
+  const commandAsText = `vrunner ${options.commandArgs.join(' ')}`;
   outputChannel.appendLine(`[actions] Старт: ${commandAsText}`);
 
   try {
     await vscode.window.withProgress(
       {
         location: vscode.ProgressLocation.Window,
-        title: `Выгрузка расширения ${extensionName}`,
+        title: options.progressTitle,
         cancellable: false,
       },
       (progress) =>
         new Promise<void>((resolve, reject) => {
-          progress.report({ message: 'Запуск vrunner...' });
-          const child = spawn('vrunner', commandArgs, {
+          progress.report({ message: options.progressStartMessage });
+          const child = spawn('vrunner', options.commandArgs, {
             cwd: workspaceFolder.uri.fsPath,
             shell: true,
           });
@@ -336,7 +504,7 @@ async function runDecompileExtension(
             const text = decodeProcessOutput(chunk).trim();
             if (text.length > 0) {
               lastStdout = text;
-              outputChannel.appendLine(`[decompileext] ${text}`);
+              outputChannel.appendLine(`[${options.logPrefix}] ${text}`);
               progress.report({ message: trimStatusMessage(text) });
             }
           });
@@ -345,7 +513,7 @@ async function runDecompileExtension(
             const text = decodeProcessOutput(chunk).trim();
             if (text.length > 0) {
               lastStderr = text;
-              outputChannel.appendLine(`[decompileext][stderr] ${text}`);
+              outputChannel.appendLine(`[${options.logPrefix}][stderr] ${text}`);
               progress.report({ message: trimStatusMessage(`stderr: ${text}`) });
             }
           });
@@ -368,18 +536,29 @@ async function runDecompileExtension(
     );
 
     outputChannel.appendLine(`[actions] Завершено: ${commandAsText}`);
-    await vscode.window.showInformationMessage(
-      `Выгрузка расширения "${extensionName}" успешно завершена.`,
-      { modal: true }
-    );
+    if (options.showSuccessModal !== false) {
+      await vscode.window.showInformationMessage(options.successMessage, { modal: true });
+    }
+    return true;
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     outputChannel.appendLine(`[actions][error] ${message}`);
-    await vscode.window.showErrorMessage(
-      `Ошибка выгрузки расширения "${extensionName}".\n${message}`,
-      { modal: true }
-    );
+    await vscode.window.showErrorMessage(`${options.errorTitle}\n${message}`, { modal: true });
+    return false;
   }
+}
+
+function extractExtensionTarget(node: NodeArg): { extensionName: string; extensionRoot: string } | null {
+  const nodeKind = node?.nodeKind;
+  const xmlPath = node?.xmlPath;
+  const extensionName = String((node as MetadataNode | undefined)?.label ?? '');
+  if (nodeKind !== 'extension' || !xmlPath || !extensionName) {
+    return null;
+  }
+  return {
+    extensionName,
+    extensionRoot: path.dirname(xmlPath),
+  };
 }
 
 function trimStatusMessage(text: string): string {
@@ -426,4 +605,28 @@ function pickMostReadableText(candidates: string[]): string {
   }
 
   return best;
+}
+
+/**
+ * Подбирает корректный абсолютный путь к env.json.
+ * Нужен, чтобы избежать дубля "example/example" при разных корнях workspace.
+ */
+function resolveSettingsPath(workspaceRoot: string, extensionRoot: string): string {
+  const extensionParent = path.dirname(extensionRoot);
+  const extensionGrandParent = path.dirname(extensionParent);
+
+  const candidates = [
+    path.join(workspaceRoot, 'example', 'env.json'),
+    path.join(workspaceRoot, 'env.json'),
+    path.join(extensionGrandParent, 'env.json'),
+    path.join(extensionParent, 'env.json'),
+  ];
+
+  for (const candidate of candidates) {
+    if (fs.existsSync(candidate)) {
+      return candidate;
+    }
+  }
+
+  return candidates[0];
 }

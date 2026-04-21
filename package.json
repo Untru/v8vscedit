@@ -2,7 +2,7 @@
   "name": "v8vscedit",
   "displayName": "Редактор конфигураций 1С",
   "description": "Редактор конфигураций и расширений 1С:Предприятие — навигация по метаданным, LSP для BSL, работа с XML-выгрузкой",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "repository": {
     "type": "git",
     "url": "https://github.com/Macegor/v8vscedit.git"
@@ -84,6 +84,18 @@
         "title": "Выгрузить исходники расширения"
       },
       {
+        "command": "v8vscedit.compileExtensionToDb",
+        "title": "Загрузить расширение в БД"
+      },
+      {
+        "command": "v8vscedit.updateExtensionInDb",
+        "title": "Обновить расширение в БД"
+      },
+      {
+        "command": "v8vscedit.compileAndUpdateExtensionInDb",
+        "title": "Загрузить и обновить расширение в БД"
+      },
+      {
         "command": "v8vscedit.bslAnalyzer.showMenu",
         "title": "BSL Analyzer: Меню"
       },
@@ -135,6 +147,21 @@
       "view/item/context": [
         {
           "command": "v8vscedit.decompileExtensionSources",
+          "when": "view == v8vsceditTree && viewItem =~ /^extension-hasXml/",
+          "group": "navigation@0"
+        },
+        {
+          "command": "v8vscedit.compileExtensionToDb",
+          "when": "view == v8vsceditTree && viewItem =~ /^extension-hasXml/",
+          "group": "navigation@0"
+        },
+        {
+          "command": "v8vscedit.updateExtensionInDb",
+          "when": "view == v8vsceditTree && viewItem =~ /^extension-hasXml/",
+          "group": "navigation@0"
+        },
+        {
+          "command": "v8vscedit.compileAndUpdateExtensionInDb",
           "when": "view == v8vsceditTree && viewItem =~ /^extension-hasXml/",
           "group": "navigation@0"
         },
