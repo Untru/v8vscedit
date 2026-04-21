@@ -1,4 +1,7 @@
 import * as vscode from 'vscode';
+import * as path from 'path';
+import { spawn } from 'child_process';
+import { decode } from 'iconv-lite';
 import { MetadataTreeProvider } from './MetadataTreeProvider';
 import { MetadataNode } from './MetadataNode';
 import { PropertiesViewProvider } from './views/PropertiesViewProvider';
@@ -18,6 +21,10 @@ import {
 } from './ModulePathResolver';
 
 type NodeArg = MetadataNode | { xmlPath?: string; nodeKind?: string; label?: string };
+
+interface ActionItem extends vscode.QuickPickItem {
+  actionId: 'decompileext';
+}
 
 /**
  * Открывает BSL-модуль и блокирует редактирование для объектов на поддержке.
@@ -74,6 +81,7 @@ export function registerCommands(
   reloadEntries: () => void,
   propertiesViewProvider: PropertiesViewProvider,
   fsp: OnecFileSystemProvider,
+  outputChannel: vscode.OutputChannel,
   supportService?: SupportInfoService
 ): void {
   // Открыть XML-файл объекта метаданных
@@ -200,6 +208,65 @@ export function registerCommands(
     )
   );
 
+  // Меню действий над корневой конфигурацией/расширением
+  context.subscriptions.push(
+    vscode.commands.registerCommand('v8vscedit.showConfigActions', async (node: NodeArg) => {
+      const nodeKind = node?.nodeKind;
+      const xmlPath = node?.xmlPath;
+      if (!nodeKind || !xmlPath) {
+        return;
+      }
+
+      const isExtension = nodeKind === 'extension';
+      const targetLabel = String((node as MetadataNode).label ?? '');
+      const targetRoot = path.dirname(xmlPath);
+
+      const actions: ActionItem[] = [];
+      if (isExtension) {
+        actions.push({
+          actionId: 'decompileext',
+          label: '$(export) Выгрузить исходники расширения',
+          description: 'vrunner decompileext',
+        });
+      }
+
+      if (actions.length === 0) {
+        vscode.window.showInformationMessage(`Для "${targetLabel}" пока нет доступных команд.`);
+        return;
+      }
+
+      const picked = await vscode.window.showQuickPick(actions, {
+        title: `Команды: ${targetLabel}`,
+        placeHolder: 'Выберите действие',
+      });
+      if (!picked) {
+        return;
+      }
+
+      if (picked.actionId === 'decompileext') {
+        await vscode.commands.executeCommand(
+          'v8vscedit.decompileExtensionSources',
+          node
+        );
+      }
+    })
+  );
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand('v8vscedit.decompileExtensionSources', async (node: NodeArg) => {
+      const nodeKind = node?.nodeKind;
+      const xmlPath = node?.xmlPath;
+      const extensionName = String((node as MetadataNode | undefined)?.label ?? '');
+      if (nodeKind !== 'extension' || !xmlPath || !extensionName) {
+        vscode.window.showWarningMessage('Команда доступна только для корневого узла расширения.');
+        return;
+      }
+
+      const extensionRoot = path.dirname(xmlPath);
+      await runDecompileExtension(extensionName, extensionRoot, workspaceFolder, outputChannel);
+    })
+  );
+
   // FileSystemWatcher — перестраиваем дерево при изменении Configuration.xml
   const watcher = vscode.workspace.createFileSystemWatcher(
     new vscode.RelativePattern(workspaceFolder, '**/Configuration.xml'),
@@ -213,4 +280,149 @@ export function registerCommands(
   watcher.onDidDelete(onConfigChange, null, context.subscriptions);
   watcher.onDidChange(onConfigChange, null, context.subscriptions);
   context.subscriptions.push(watcher);
+}
+
+async function runDecompileExtension(
+  extensionName: string,
+  extensionRoot: string,
+  workspaceFolder: vscode.WorkspaceFolder,
+  outputChannel: vscode.OutputChannel
+): Promise<void> {
+  const relativeExtDir = path.relative(workspaceFolder.uri.fsPath, extensionRoot).replace(/\\/g, '/');
+  const targetDir = relativeExtDir.startsWith('.') ? relativeExtDir : `./${relativeExtDir}`;
+  const settingsPath = './example/env.json';
+  const commandArgs = ['decompileext', extensionName, targetDir, '--settings', settingsPath];
+  const commandAsText = `vrunner ${commandArgs.join(' ')}`;
+
+  outputChannel.appendLine(`[actions] Старт: ${commandAsText}`);
+
+  try {
+    await vscode.window.withProgress(
+      {
+        location: vscode.ProgressLocation.Window,
+        title: `Выгрузка расширения ${extensionName}`,
+        cancellable: false,
+      },
+      (progress) =>
+        new Promise<void>((resolve, reject) => {
+          progress.report({ message: 'Запуск vrunner...' });
+          const child = spawn('vrunner', commandArgs, {
+            cwd: workspaceFolder.uri.fsPath,
+            shell: true,
+          });
+
+          let finished = false;
+          let lastStdout = '';
+          let lastStderr = '';
+
+          const finalizeSuccess = () => {
+            if (finished) {
+              return;
+            }
+            finished = true;
+            resolve();
+          };
+
+          const finalizeError = (message: string) => {
+            if (finished) {
+              return;
+            }
+            finished = true;
+            reject(new Error(message));
+          };
+
+          child.stdout.on('data', (chunk: Buffer) => {
+            const text = decodeProcessOutput(chunk).trim();
+            if (text.length > 0) {
+              lastStdout = text;
+              outputChannel.appendLine(`[decompileext] ${text}`);
+              progress.report({ message: trimStatusMessage(text) });
+            }
+          });
+
+          child.stderr.on('data', (chunk: Buffer) => {
+            const text = decodeProcessOutput(chunk).trim();
+            if (text.length > 0) {
+              lastStderr = text;
+              outputChannel.appendLine(`[decompileext][stderr] ${text}`);
+              progress.report({ message: trimStatusMessage(`stderr: ${text}`) });
+            }
+          });
+
+          child.on('error', (err) => {
+            finalizeError(`Не удалось запустить vrunner: ${err.message}`);
+          });
+
+          child.on('close', (code) => {
+            if (code === 0) {
+              finalizeSuccess();
+              return;
+            }
+
+            const details = [lastStderr, lastStdout].filter(Boolean).join('\n');
+            const suffix = details ? `\n\n${details}` : '';
+            finalizeError(`Команда завершилась с кодом ${code ?? 'null'}.${suffix}`);
+          });
+        })
+    );
+
+    outputChannel.appendLine(`[actions] Завершено: ${commandAsText}`);
+    await vscode.window.showInformationMessage(
+      `Выгрузка расширения "${extensionName}" успешно завершена.`,
+      { modal: true }
+    );
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    outputChannel.appendLine(`[actions][error] ${message}`);
+    await vscode.window.showErrorMessage(
+      `Ошибка выгрузки расширения "${extensionName}".\n${message}`,
+      { modal: true }
+    );
+  }
+}
+
+function trimStatusMessage(text: string): string {
+  const oneLine = text.replace(/\s+/g, ' ').trim();
+  if (oneLine.length <= 80) {
+    return oneLine;
+  }
+  return `${oneLine.slice(0, 77)}...`;
+}
+
+/**
+ * Нормализует кодировку вывода внешней команды.
+ * На Windows консольные утилиты часто пишут в OEM-866 вместо UTF-8.
+ */
+function decodeProcessOutput(chunk: Buffer): string {
+  const utf8Text = chunk.toString('utf-8');
+  if (process.platform !== 'win32') {
+    return utf8Text;
+  }
+
+  // Если UTF-8 уже корректен, оставляем как есть.
+  if (!utf8Text.includes('�')) {
+    return utf8Text;
+  }
+
+  const cp866Text = decode(chunk, 'cp866');
+  const cp1251Text = decode(chunk, 'win1251');
+  return pickMostReadableText([cp866Text, cp1251Text, utf8Text]);
+}
+
+/** Выбирает вариант строки с наибольшим числом кириллических символов. */
+function pickMostReadableText(candidates: string[]): string {
+  let best = candidates[0] ?? '';
+  let bestScore = -1;
+
+  for (const candidate of candidates) {
+    const cyr = (candidate.match(/[А-Яа-яЁё]/g) ?? []).length;
+    const replacement = (candidate.match(/�/g) ?? []).length;
+    const score = cyr * 2 - replacement * 3;
+    if (score > bestScore) {
+      best = candidate;
+      bestScore = score;
+    }
+  }
+
+  return best;
 }

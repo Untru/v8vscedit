@@ -2,7 +2,7 @@
   "name": "v8vscedit",
   "displayName": "Редактор конфигураций 1С",
   "description": "Редактор конфигураций и расширений 1С:Предприятие — навигация по метаданным, LSP для BSL, работа с XML-выгрузкой",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "repository": {
     "type": "git",
     "url": "https://github.com/Macegor/v8vscedit.git"
@@ -75,6 +75,15 @@
         "title": "Свойства"
       },
       {
+        "command": "v8vscedit.showConfigActions",
+        "title": "Команды конфигурации/расширения",
+        "icon": "$(tools)"
+      },
+      {
+        "command": "v8vscedit.decompileExtensionSources",
+        "title": "Выгрузить исходники расширения"
+      },
+      {
         "command": "v8vscedit.bslAnalyzer.showMenu",
         "title": "BSL Analyzer: Меню"
       },
@@ -125,6 +134,11 @@
       ],
       "view/item/context": [
         {
+          "command": "v8vscedit.decompileExtensionSources",
+          "when": "view == v8vsceditTree && viewItem =~ /^extension-hasXml/",
+          "group": "navigation@0"
+        },
+        {
           "command": "v8vscedit.openXmlFile",
           "when": "view == v8vsceditTree && viewItem =~ /-hasXml/",
           "group": "navigation@1"
@@ -168,6 +182,11 @@
           "command": "v8vscedit.showProperties",
           "when": "view == v8vsceditTree && !(viewItem =~ /-propertiesHidden/)",
           "group": "navigation@9"
+        },
+        {
+          "command": "v8vscedit.showConfigActions",
+          "when": "view == v8vsceditTree && viewItem =~ /^(configuration|extension)-hasXml/",
+          "group": "inline"
         },
         {
           "command": "v8vscedit.support.none",
@@ -234,7 +253,11 @@
         "v8vscedit.lsp.mode": {
           "type": "string",
           "default": "bsl-analyzer",
-          "enum": ["built-in", "bsl-analyzer", "off"],
+          "enum": [
+            "built-in",
+            "bsl-analyzer",
+            "off"
+          ],
           "enumDescriptions": [
             "Встроенный LSP-сервер (tree-sitter, базовые возможности)",
             "BSL Analyzer — внешний Rust-сервер (180+ диагностик, быстрый)",
@@ -324,6 +347,7 @@
     "webpack-cli": "^5.1.0"
   },
   "dependencies": {
+    "iconv-lite": "^0.7.2",
     "tree-sitter-bsl": "^0.1.6",
     "vscode-languageclient": "^9.0.1",
     "vscode-languageserver": "^9.0.1",

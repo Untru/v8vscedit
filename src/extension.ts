@@ -91,7 +91,16 @@ export function activate(context: vscode.ExtensionContext): void {
     });
   };
 
-  registerCommands(context, provider, workspaceFolder, reloadEntries, propertiesViewProvider, fsp, supportService);
+  registerCommands(
+    context,
+    provider,
+    workspaceFolder,
+    reloadEntries,
+    propertiesViewProvider,
+    fsp,
+    outputChannel,
+    supportService
+  );
 
   // ── Readonly для BSL-файлов, открытых напрямую из ФС (схема file://) ───
   // Для onec:// readonly обеспечивается через stat() → permissions.
