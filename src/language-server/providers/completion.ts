@@ -1,4 +1,5 @@
 import * as fs from 'fs';
+import * as path from 'path';
 import { Node } from 'web-tree-sitter';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { CompletionItem, CompletionItemKind, Position } from 'vscode-languageserver/node';
@@ -7,6 +8,7 @@ import { BslContextService } from '../BslContextService';
 import { getDocumentContext } from '../BslDocumentContext';
 import { uriToFsPath } from '../lspUtils';
 import { GLOBAL_METHODS } from '../data/globalMethods';
+import { parseConfigXml } from '../../ConfigParser';
 
 const CORE_KEYWORDS = [
   'Если', 'If', 'Тогда', 'Then', 'ИначеЕсли', 'ElsIf', 'Иначе', 'Else',
@@ -67,6 +69,120 @@ const META_PREFIXES: Record<string, string> = {
   CommonModule: 'ОбщиеМодули',
 };
 
+/** Обратный маппинг: русское имя → тип объекта */
+const RU_PREFIX_TO_TYPE: Record<string, string> = {};
+for (const [type, ru] of Object.entries(META_PREFIXES)) {
+  RU_PREFIX_TO_TYPE[ru.toLowerCase()] = type;
+}
+/** Обратный маппинг: английское имя (pluralized) → тип объекта */
+const EN_PREFIX_TO_TYPE: Record<string, string> = {};
+for (const type of Object.keys(META_PREFIXES)) {
+  EN_PREFIX_TO_TYPE[(type + 's').toLowerCase()] = type;
+}
+
+function resolveObjectType(prefix: string): string | null {
+  return RU_PREFIX_TO_TYPE[prefix.toLowerCase()] ?? EN_PREFIX_TO_TYPE[prefix.toLowerCase()] ?? null;
+}
+
+/** Стандартные методы менеджеров по типу объекта */
+const MANAGER_METHODS: Record<string, { name: string; detail: string; isFunction: boolean }[]> = {
+  Catalog: [
+    { name: 'СоздатьЭлемент', detail: 'Создать новый элемент справочника', isFunction: true },
+    { name: 'СоздатьГруппу', detail: 'Создать новую группу справочника', isFunction: true },
+    { name: 'НайтиПоКоду', detail: 'Найти элемент по коду', isFunction: true },
+    { name: 'НайтиПоНаименованию', detail: 'Найти элемент по наименованию', isFunction: true },
+    { name: 'НайтиПоРеквизиту', detail: 'Найти элемент по значению реквизита', isFunction: true },
+    { name: 'Выбрать', detail: 'Получить выборку элементов', isFunction: true },
+    { name: 'ВыбратьИерархически', detail: 'Получить иерархическую выборку', isFunction: true },
+    { name: 'ПустаяСсылка', detail: 'Получить пустую ссылку', isFunction: true },
+    { name: 'ПолучитьДанныеВыбора', detail: 'Данные для поля выбора', isFunction: true },
+    { name: 'ПолучитьСсылку', detail: 'Получить ссылку по UUID', isFunction: true },
+  ],
+  Document: [
+    { name: 'СоздатьДокумент', detail: 'Создать новый документ', isFunction: true },
+    { name: 'НайтиПоНомеру', detail: 'Найти документ по номеру', isFunction: true },
+    { name: 'Выбрать', detail: 'Получить выборку документов', isFunction: true },
+    { name: 'ПустаяСсылка', detail: 'Получить пустую ссылку', isFunction: true },
+    { name: 'ПолучитьДанныеВыбора', detail: 'Данные для поля выбора', isFunction: true },
+    { name: 'ПолучитьСсылку', detail: 'Получить ссылку по UUID', isFunction: true },
+  ],
+  InformationRegister: [
+    { name: 'СоздатьМенеджерЗаписи', detail: 'Создать менеджер записи', isFunction: true },
+    { name: 'СоздатьНаборЗаписей', detail: 'Создать набор записей', isFunction: true },
+    { name: 'Выбрать', detail: 'Получить выборку записей', isFunction: true },
+    { name: 'ПолучитьПоследнее', detail: 'Получить последнее значение ресурса', isFunction: true },
+    { name: 'ПолучитьПервое', detail: 'Получить первое значение', isFunction: true },
+    { name: 'Получить', detail: 'Получить значение ресурса', isFunction: true },
+    { name: 'СрезПоследних', detail: 'Получить срез последних', isFunction: true },
+    { name: 'СрезПервых', detail: 'Получить срез первых', isFunction: true },
+  ],
+  AccumulationRegister: [
+    { name: 'СоздатьНаборЗаписей', detail: 'Создать набор записей', isFunction: true },
+    { name: 'Выбрать', detail: 'Получить выборку записей', isFunction: true },
+    { name: 'Остатки', detail: 'Получить остатки', isFunction: true },
+    { name: 'Обороты', detail: 'Получить обороты', isFunction: true },
+    { name: 'ОстаткиИОбороты', detail: 'Получить остатки и обороты', isFunction: true },
+  ],
+  Enum: [
+    { name: 'ПустаяСсылка', detail: 'Получить пустую ссылку перечисления', isFunction: true },
+  ],
+  Report: [
+    { name: 'Создать', detail: 'Создать экземпляр отчёта', isFunction: true },
+  ],
+  DataProcessor: [
+    { name: 'Создать', detail: 'Создать экземпляр обработки', isFunction: true },
+  ],
+  ChartOfCharacteristicTypes: [
+    { name: 'СоздатьЭлемент', detail: 'Создать новый элемент', isFunction: true },
+    { name: 'СоздатьГруппу', detail: 'Создать новую группу', isFunction: true },
+    { name: 'НайтиПоКоду', detail: 'Найти элемент по коду', isFunction: true },
+    { name: 'НайтиПоНаименованию', detail: 'Найти элемент по наименованию', isFunction: true },
+    { name: 'Выбрать', detail: 'Получить выборку', isFunction: true },
+    { name: 'ПустаяСсылка', detail: 'Получить пустую ссылку', isFunction: true },
+    { name: 'ПолучитьДанныеВыбора', detail: 'Данные для поля выбора', isFunction: true },
+  ],
+  AccountingRegister: [
+    { name: 'СоздатьНаборЗаписей', detail: 'Создать набор записей', isFunction: true },
+    { name: 'Выбрать', detail: 'Получить выборку записей', isFunction: true },
+  ],
+  CalculationRegister: [
+    { name: 'СоздатьНаборЗаписей', detail: 'Создать набор записей', isFunction: true },
+    { name: 'Выбрать', detail: 'Получить выборку записей', isFunction: true },
+  ],
+  ExchangePlan: [
+    { name: 'СоздатьЭлемент', detail: 'Создать новый узел плана обмена', isFunction: true },
+    { name: 'НайтиПоКоду', detail: 'Найти узел по коду', isFunction: true },
+    { name: 'Выбрать', detail: 'Получить выборку', isFunction: true },
+    { name: 'ПустаяСсылка', detail: 'Получить пустую ссылку', isFunction: true },
+    { name: 'ЭтотУзел', detail: 'Получить ссылку на этот узел', isFunction: true },
+  ],
+  BusinessProcess: [
+    { name: 'СоздатьБизнесПроцесс', detail: 'Создать новый бизнес-процесс', isFunction: true },
+    { name: 'Выбрать', detail: 'Получить выборку', isFunction: true },
+    { name: 'ПустаяСсылка', detail: 'Получить пустую ссылку', isFunction: true },
+  ],
+  Task: [
+    { name: 'СоздатьЗадачу', detail: 'Создать новую задачу', isFunction: true },
+    { name: 'Выбрать', detail: 'Получить выборку', isFunction: true },
+    { name: 'ПустаяСсылка', detail: 'Получить пустую ссылку', isFunction: true },
+  ],
+  ChartOfAccounts: [
+    { name: 'НайтиПоКоду', detail: 'Найти счёт по коду', isFunction: true },
+    { name: 'Выбрать', detail: 'Получить выборку', isFunction: true },
+    { name: 'ПустаяСсылка', detail: 'Получить пустую ссылку', isFunction: true },
+  ],
+  Constant: [
+    { name: 'Получить', detail: 'Получить значение константы', isFunction: true },
+    { name: 'Установить', detail: 'Установить значение константы', isFunction: false },
+  ],
+};
+
+/** Дефолтные методы менеджера (общие для типов без специальных методов) */
+const DEFAULT_MANAGER_METHODS = [
+  { name: 'ПустаяСсылка', detail: 'Получить пустую ссылку', isFunction: true },
+  { name: 'ПолучитьДанныеВыбора', detail: 'Данные для поля выбора', isFunction: true },
+];
+
 /** Кэш объектов метаданных по пути корня конфигурации. */
 const metaCache = new Map<string, CompletionItem[]>();
 
@@ -107,13 +223,36 @@ export async function provideCompletionItems(
 
   // Триггер '.' — ищем имя модуля перед точкой
   if (triggerCharacter === '.' || /[\wа-яА-ЯёЁ_]+\.$/.test(linePrefix)) {
+    // 1. Общие модули: МодульИмя.{cursor}
     if (contextService) {
       const dotItems = await buildDotCompletions(linePrefix, contextService);
       if (dotItems.length > 0) {
         return dotItems;
       }
     }
-    // Если модуль не найден — возвращаем объекты метаданных (Справочники.Xxx)
+
+    // 2. Цепочка: Справочники.Номенклатура.{cursor} → методы менеджера
+    const chainMatch = /([\wа-яА-ЯёЁ_]+)\.([\wа-яА-ЯёЁ_]+)\.$/u.exec(linePrefix);
+    if (chainMatch) {
+      const prefix = chainMatch[1];
+      const objectName = chainMatch[2];
+      const managerItems = buildManagerMethodItems(prefix, objectName);
+      if (managerItems.length > 0) {
+        return managerItems;
+      }
+    }
+
+    // 3. Одиночная точка: Справочники.{cursor} → список объектов этого типа
+    const singleDotMatch = /([\wа-яА-ЯёЁ_]+)\.$/u.exec(linePrefix);
+    if (singleDotMatch) {
+      const prefix = singleDotMatch[1];
+      const typeItems = buildTypedObjectItems(prefix, workspaceRoots);
+      if (typeItems.length > 0) {
+        return typeItems;
+      }
+    }
+
+    // 4. Fallback — все объекты метаданных (Справочники.Xxx)
     return buildMetaItems(workspaceRoots);
   }
 
@@ -382,6 +521,61 @@ async function parseConfigMeta(rootPath: string): Promise<CompletionItem[]> {
     }
   }
 
+  return items;
+}
+
+/**
+ * Строит элементы автодополнения для методов менеджера объекта.
+ * Вызывается при цепочке вида: Справочники.Номенклатура.{cursor}
+ */
+function buildManagerMethodItems(
+  prefix: string,
+  objectName: string,
+): CompletionItem[] {
+  const objectType = resolveObjectType(prefix);
+  if (!objectType) {
+    return [];
+  }
+
+  const methods = MANAGER_METHODS[objectType] ?? DEFAULT_MANAGER_METHODS;
+
+  return methods.map((m) => ({
+    label: m.name,
+    kind: m.isFunction ? CompletionItemKind.Method : CompletionItemKind.Method,
+    detail: m.detail,
+    documentation: `${prefix}.${objectName}.${m.name}()`,
+  }));
+}
+
+/**
+ * Строит элементы автодополнения для списка объектов конкретного типа.
+ * Вызывается при: Справочники.{cursor} → список справочников из Configuration.xml
+ */
+function buildTypedObjectItems(prefix: string, workspaceRoots: string[]): CompletionItem[] {
+  const objectType = resolveObjectType(prefix);
+  if (!objectType) {
+    return [];
+  }
+
+  const items: CompletionItem[] = [];
+  for (const root of workspaceRoots) {
+    const configPath = path.join(root, 'Configuration.xml');
+    let configInfo;
+    try {
+      configInfo = parseConfigXml(configPath);
+    } catch {
+      continue;
+    }
+
+    const names = configInfo.childObjects.get(objectType) ?? [];
+    for (const name of names) {
+      items.push({
+        label: name,
+        kind: CompletionItemKind.Class,
+        detail: `${prefix}.${name}`,
+      });
+    }
+  }
   return items;
 }
 
