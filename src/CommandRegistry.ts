@@ -9,6 +9,8 @@ import { PropertiesViewProvider } from './views/PropertiesViewProvider';
 import { OnecFileSystemProvider } from './OnecFileSystemProvider';
 import { buildVirtualUri, buildFormModuleVirtualUri } from './OnecUriBuilder';
 import { SupportInfoService } from './services/SupportInfoService';
+import { RepoConnectionService } from './services/RepoConnectionService';
+import { RepoLockService } from './services/RepoLockService';
 import {
   getCommonCommandModulePath,
   getCommonFormModulePath,
@@ -84,7 +86,9 @@ export function registerCommands(
   propertiesViewProvider: PropertiesViewProvider,
   fsp: OnecFileSystemProvider,
   outputChannel: vscode.OutputChannel,
-  supportService?: SupportInfoService
+  supportService?: SupportInfoService,
+  repoConnectionService?: RepoConnectionService,
+  repoLockService?: RepoLockService
 ): void {
   // Открыть XML-файл объекта метаданных
   context.subscriptions.push(
@@ -356,6 +360,121 @@ export function registerCommands(
     })
   );
 
+  // ── Команды хранилища конфигурации ──────────────────────────────────────
+  if (repoConnectionService && repoLockService) {
+    // Подключить к хранилищу
+    context.subscriptions.push(
+      vscode.commands.registerCommand('v8vscedit.repo.connect', async (node: NodeArg) => {
+        const configRoot = extractConfigRoot(node);
+        if (!configRoot) { return; }
+
+        const settings = await repoConnectionService.promptAndSaveSettings(configRoot);
+        if (!settings) { return; }
+
+        await vscode.window.withProgress(
+          { location: vscode.ProgressLocation.Window, title: 'Обновление захватов хранилища...' },
+          async () => {
+            await repoLockService.refreshLocks(configRoot);
+            provider.refresh();
+          }
+        );
+
+        vscode.window.showInformationMessage('Хранилище подключено. Статус захватов обновлён.');
+      })
+    );
+
+    // Отключить от хранилища
+    context.subscriptions.push(
+      vscode.commands.registerCommand('v8vscedit.repo.disconnect', async (node: NodeArg) => {
+        const configRoot = extractConfigRoot(node);
+        if (!configRoot) { return; }
+
+        await repoConnectionService.removeSettings(configRoot);
+        repoLockService.invalidate(configRoot);
+        provider.refresh();
+        vscode.window.showInformationMessage('Хранилище отключено.');
+      })
+    );
+
+    // Захватить объект
+    context.subscriptions.push(
+      vscode.commands.registerCommand('v8vscedit.repo.lock', async (node: NodeArg) => {
+        const metaNode = node as MetadataNode;
+        const configRoot = metaNode.configRoot;
+        if (!configRoot || !metaNode.nodeKind || !metaNode.label) { return; }
+
+        const label = String(metaNode.label);
+        const confirmed = await vscode.window.showInformationMessage(
+          `Захватить "${label}" в хранилище?`,
+          { modal: true },
+          'Захватить'
+        );
+        if (confirmed !== 'Захватить') { return; }
+
+        const success = await vscode.window.withProgress(
+          { location: vscode.ProgressLocation.Window, title: `Захват: ${label}...` },
+          () => repoLockService.lockObject(configRoot, metaNode.nodeKind, label)
+        );
+
+        if (success) {
+          provider.refresh();
+          vscode.window.showInformationMessage(`"${label}" захвачен.`);
+        } else {
+          vscode.window.showErrorMessage(`Не удалось захватить "${label}". Подробности в канале вывода.`);
+        }
+      })
+    );
+
+    // Снять захват
+    context.subscriptions.push(
+      vscode.commands.registerCommand('v8vscedit.repo.unlock', async (node: NodeArg) => {
+        const metaNode = node as MetadataNode;
+        const configRoot = metaNode.configRoot;
+        if (!configRoot || !metaNode.nodeKind || !metaNode.label) { return; }
+
+        const label = String(metaNode.label);
+        const confirmed = await vscode.window.showInformationMessage(
+          `Снять захват "${label}" в хранилище?`,
+          { modal: true },
+          'Снять захват'
+        );
+        if (confirmed !== 'Снять захват') { return; }
+
+        const success = await vscode.window.withProgress(
+          { location: vscode.ProgressLocation.Window, title: `Снятие захвата: ${label}...` },
+          () => repoLockService.unlockObject(configRoot, metaNode.nodeKind, label)
+        );
+
+        if (success) {
+          provider.refresh();
+          vscode.window.showInformationMessage(`Захват "${label}" снят.`);
+        } else {
+          vscode.window.showErrorMessage(`Не удалось снять захват "${label}". Подробности в канале вывода.`);
+        }
+      })
+    );
+
+    // Обновить статус захватов
+    context.subscriptions.push(
+      vscode.commands.registerCommand('v8vscedit.repo.refreshLocks', async (node: NodeArg) => {
+        const configRoot = extractConfigRoot(node);
+        if (!configRoot) { return; }
+
+        const success = await vscode.window.withProgress(
+          { location: vscode.ProgressLocation.Window, title: 'Обновление захватов хранилища...' },
+          () => repoLockService.refreshLocks(configRoot)
+        );
+
+        if (success) {
+          provider.refresh();
+          vscode.window.showInformationMessage('Статус захватов обновлён.');
+        } else {
+          vscode.window.showErrorMessage('Не удалось получить отчёт из хранилища. Подробности в канале вывода.');
+        }
+      })
+    );
+  }
+
   // FileSystemWatcher — перестраиваем дерево при изменении Configuration.xml
   const watcher = vscode.workspace.createFileSystemWatcher(
     new vscode.RelativePattern(workspaceFolder, '**/Configuration.xml'),
@@ -546,6 +665,14 @@ async function runVrunnerExtensionCommand(
     await vscode.window.showErrorMessage(`${options.errorTitle}\n${message}`, { modal: true });
     return false;
   }
+}
+
+function extractConfigRoot(node: NodeArg): string | null {
+  const metaNode = node as MetadataNode;
+  if (metaNode.configRoot) { return metaNode.configRoot; }
+  const xmlPath = node?.xmlPath;
+  if (!xmlPath) { return null; }
+  return path.dirname(xmlPath);
 }
 
 function extractExtensionTarget(node: NodeArg): { extensionName: string; extensionRoot: string } | null {

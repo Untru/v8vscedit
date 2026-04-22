@@ -9,6 +9,7 @@ import { buildNode } from './nodes/_base';
 import { getNodeDescriptor } from './nodes';
 import { getObjectHandler } from './handlers';
 import { SupportInfoService, SupportMode } from './services/SupportInfoService';
+import { RepoLockService, RepoLockStatus } from './services/RepoLockService';
 
 export class MetadataTreeProvider implements vscode.TreeDataProvider<MetadataNode> {
   private _onDidChangeTreeData = new vscode.EventEmitter<MetadataNode | undefined | null>();
@@ -19,7 +20,8 @@ export class MetadataTreeProvider implements vscode.TreeDataProvider<MetadataNod
   constructor(
     private entries: ConfigEntry[],
     private readonly extensionUri: vscode.Uri,
-    private readonly supportService?: SupportInfoService
+    private readonly supportService?: SupportInfoService,
+    private readonly repoLockService?: RepoLockService
   ) {
     this.buildRoots();
   }
@@ -39,6 +41,7 @@ export class MetadataTreeProvider implements vscode.TreeDataProvider<MetadataNod
   getTreeItem(element: MetadataNode): vscode.TreeItem {
     element.iconPath = getIconUris(element.nodeKind, element.ownershipTag, this.extensionUri);
     this.applySupportDecoration(element);
+    this.applyRepoLockDecoration(element);
     return element;
   }
 
@@ -57,6 +60,54 @@ export class MetadataTreeProvider implements vscode.TreeDataProvider<MetadataNod
     // Суффикс contextValue для показа inline-иконки при наведении
     const baseCtx = (element.contextValue ?? '').replace(/-support\d$/, '');
     element.contextValue = `${baseCtx}-support${mode}`;
+  }
+
+  /**
+   * Добавляет к contextValue суффикс статуса захвата в хранилище:
+   * `-repoFree`, `-repoLockedByMe`, `-repoLockedByOther`.
+   * Для корневого узла конфигурации добавляет `-repoConnected`.
+   */
+  private applyRepoLockDecoration(element: MetadataNode): void {
+    if (!this.repoLockService) { return; }
+
+    const configRoot = element.configRoot;
+    if (!configRoot) { return; }
+
+    // Для корневого узла конфигурации — только маркер подключения
+    if (element.nodeKind === 'configuration' || element.nodeKind === 'extension') {
+      if (this.repoLockService.isConnected(configRoot)) {
+        element.contextValue = `${element.contextValue ?? ''}-repoConnected`;
+      }
+      return;
+    }
+
+    // Для объектов метаданных — статус захвата
+    if (!this.repoLockService.isConnected(configRoot)) { return; }
+    if (!this.repoLockService.hasLockData(configRoot)) { return; }
+    if (!this.repoLockService.isLockable(element.nodeKind)) { return; }
+
+    const label = typeof element.label === 'string' ? element.label : '';
+    const status = this.repoLockService.getLockStatus(configRoot, element.nodeKind, label);
+
+    let suffix: string;
+    switch (status) {
+      case RepoLockStatus.LockedByMe:
+        suffix = '-repoLockedByMe';
+        break;
+      case RepoLockStatus.LockedByOther:
+        suffix = '-repoLockedByOther';
+        break;
+      default:
+        suffix = '-repoFree';
+        break;
+    }
+
+    const info = this.repoLockService.getLockInfo(configRoot, element.nodeKind, label);
+    if (info?.lockedBy) {
+      element.tooltip = `${element.tooltip ?? label}\nЗахвачен: ${info.lockedBy}`;
+    }
+
+    element.contextValue = `${element.contextValue ?? ''}${suffix}`;
   }
 
   getChildren(element?: MetadataNode): MetadataNode[] {
@@ -115,6 +166,7 @@ export class MetadataTreeProvider implements vscode.TreeDataProvider<MetadataNod
       childrenLoader: () => this.buildConfigChildren(entry, info),
       ownershipTag: undefined,
     });
+    node.configRoot = entry.rootPath;
 
     if (info.synonym) {
       node.tooltip = info.synonym;
@@ -170,7 +222,7 @@ export class MetadataTreeProvider implements vscode.TreeDataProvider<MetadataNod
               );
             }
           }
-          mergedChildren = parts;
+          mergedChildren = this.tagConfigRoot(parts, entry.rootPath);
         }
       }
 
@@ -188,14 +240,17 @@ export class MetadataTreeProvider implements vscode.TreeDataProvider<MetadataNod
           xmlPath: undefined,
           childrenLoader: hasChildren
             ? () =>
-                mergeTypes && mergedChildren
-                  ? mergedChildren
-                  : handler!.buildTreeNodes({
-                      configRoot: entry.rootPath,
-                      configKind: entry.kind,
-                      namePrefix: info.namePrefix,
-                      names,
-                    })
+                this.tagConfigRoot(
+                  mergeTypes && mergedChildren
+                    ? mergedChildren
+                    : handler!.buildTreeNodes({
+                        configRoot: entry.rootPath,
+                        configKind: entry.kind,
+                        namePrefix: info.namePrefix,
+                        names,
+                      }),
+                  entry.rootPath
+                )
             : undefined,
           ownershipTag: undefined,
         })
@@ -228,12 +283,15 @@ export class MetadataTreeProvider implements vscode.TreeDataProvider<MetadataNod
         xmlPath: undefined,
         childrenLoader: hasNum
           ? () =>
-              numHandler!.buildTreeNodes({
-                configRoot: entry.rootPath,
-                configKind: entry.kind,
-                namePrefix: info.namePrefix,
-                names: numNames,
-              })
+              this.tagConfigRoot(
+                numHandler!.buildTreeNodes({
+                  configRoot: entry.rootPath,
+                  configKind: entry.kind,
+                  namePrefix: info.namePrefix,
+                  names: numNames,
+                }),
+                entry.rootPath
+              )
           : undefined,
         ownershipTag: undefined,
         hidePropertiesCommand: true,
@@ -253,12 +311,15 @@ export class MetadataTreeProvider implements vscode.TreeDataProvider<MetadataNod
         xmlPath: undefined,
         childrenLoader: hasSeq
           ? () =>
-              seqHandler!.buildTreeNodes({
-                configRoot: entry.rootPath,
-                configKind: entry.kind,
-                namePrefix: info.namePrefix,
-                names: seqNames,
-              })
+              this.tagConfigRoot(
+                seqHandler!.buildTreeNodes({
+                  configRoot: entry.rootPath,
+                  configKind: entry.kind,
+                  namePrefix: info.namePrefix,
+                  names: seqNames,
+                }),
+                entry.rootPath
+              )
           : undefined,
         ownershipTag: undefined,
         hidePropertiesCommand: true,
@@ -268,12 +329,15 @@ export class MetadataTreeProvider implements vscode.TreeDataProvider<MetadataNod
     const docHandler = getObjectHandler('Document');
     if (docHandler && docNames.length > 0) {
       children.push(
-        ...docHandler.buildTreeNodes({
-          configRoot: entry.rootPath,
-          configKind: entry.kind,
-          namePrefix: info.namePrefix,
-          names: docNames,
-        })
+        ...this.tagConfigRoot(
+          docHandler.buildTreeNodes({
+            configRoot: entry.rootPath,
+            configKind: entry.kind,
+            namePrefix: info.namePrefix,
+            names: docNames,
+          }),
+          entry.rootPath
+        )
       );
     }
 
@@ -297,16 +361,25 @@ export class MetadataTreeProvider implements vscode.TreeDataProvider<MetadataNod
         xmlPath: undefined,
         childrenLoader: hasChildren
           ? () =>
-              handler!.buildTreeNodes({
-                configRoot: entry.rootPath,
-                configKind: entry.kind,
-                namePrefix: info.namePrefix,
-                names,
-              })
+              this.tagConfigRoot(
+                handler!.buildTreeNodes({
+                  configRoot: entry.rootPath,
+                  configKind: entry.kind,
+                  namePrefix: info.namePrefix,
+                  names,
+                }),
+                entry.rootPath
+              )
           : undefined,
         ownershipTag: undefined,
       });
     });
+  }
+
+  /** Проставляет configRoot на массиве узлов и возвращает его */
+  private tagConfigRoot(nodes: MetadataNode[], configRoot: string): MetadataNode[] {
+    for (const n of nodes) { n.configRoot = configRoot; }
+    return nodes;
   }
 
   /** Собирает имена объектов по нескольким типам из ChildObjects */
