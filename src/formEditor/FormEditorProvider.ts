@@ -1,14 +1,66 @@
 /**
- * CustomReadonlyEditorProvider для визуального отображения форм 1С.
- * Открывает Form.xml в webview с тремя панелями: дерево, превью, свойства.
+ * Writable CustomEditorProvider для визуального редактирования форм 1С.
+ * Поддерживает drag-and-drop, редактирование свойств, удаление элементов.
  */
 
 import * as vscode from 'vscode';
 import * as fs from 'fs';
 import { parseFormXml } from './FormXmlParser';
+import { FormXmlDocument } from './FormXmlSerializer';
 
-export class FormEditorProvider implements vscode.CustomReadonlyEditorProvider {
+// ── CustomDocument ──────────────────────────────────────────────────────────
+
+class FormDocument implements vscode.CustomDocument {
+  private readonly _onDidDispose = new vscode.EventEmitter<void>();
+  readonly onDidDispose = this._onDidDispose.event;
+
+  private _xmlDoc: FormXmlDocument;
+  private _isDirty = false;
+
+  private readonly _onDidChange = new vscode.EventEmitter<void>();
+  readonly onDidChange = this._onDidChange.event;
+
+  constructor(readonly uri: vscode.Uri, content: string) {
+    this._xmlDoc = new FormXmlDocument(content);
+  }
+
+  get xmlDoc(): FormXmlDocument {
+    return this._xmlDoc;
+  }
+
+  get isDirty(): boolean {
+    return this._isDirty;
+  }
+
+  markDirty(): void {
+    this._isDirty = true;
+    this._onDidChange.fire();
+  }
+
+  markClean(): void {
+    this._isDirty = false;
+  }
+
+  reload(content: string): void {
+    this._xmlDoc = new FormXmlDocument(content);
+    this._isDirty = false;
+  }
+
+  dispose(): void {
+    this._onDidDispose.fire();
+    this._onDidDispose.dispose();
+    this._onDidChange.dispose();
+  }
+}
+
+// ── Provider ────────────────────────────────────────────────────────────────
+
+export class FormEditorProvider implements vscode.CustomEditorProvider<FormDocument> {
   static readonly viewType = 'v8vscedit.formEditor';
+
+  private readonly _onDidChangeCustomDocument =
+    new vscode.EventEmitter<vscode.CustomDocumentContentChangeEvent<FormDocument>>();
+  readonly onDidChangeCustomDocument = this._onDidChangeCustomDocument.event;
 
   constructor(private readonly extensionUri: vscode.Uri) {}
 
@@ -24,14 +76,15 @@ export class FormEditorProvider implements vscode.CustomReadonlyEditorProvider {
     );
   }
 
-  openCustomDocument(
-    uri: vscode.Uri
-  ): vscode.CustomDocument {
-    return { uri, dispose: () => {} };
+  // ── Lifecycle ───────────────────────────────────────────────────────────
+
+  async openCustomDocument(uri: vscode.Uri): Promise<FormDocument> {
+    const content = fs.readFileSync(uri.fsPath, 'utf-8');
+    return new FormDocument(uri, content);
   }
 
   resolveCustomEditor(
-    document: vscode.CustomDocument,
+    document: FormDocument,
     webviewPanel: vscode.WebviewPanel
   ): void {
     webviewPanel.webview.options = {
@@ -43,25 +96,132 @@ export class FormEditorProvider implements vscode.CustomReadonlyEditorProvider {
 
     webviewPanel.webview.html = this.getHtml(webviewPanel.webview);
 
-    // Парсим Form.xml и отправляем модель в webview
-    this.loadAndSendForm(document.uri, webviewPanel.webview);
+    // Отправить начальную модель
+    this.sendModel(document, webviewPanel.webview);
 
-    // Следим за изменениями файла
+    // Обработка сообщений от webview
+    webviewPanel.webview.onDidReceiveMessage(
+      (msg) => this.handleMessage(msg, document, webviewPanel.webview)
+    );
+
+    // File watcher для внешних изменений
     const watcher = vscode.workspace.createFileSystemWatcher(
       new vscode.RelativePattern(
         vscode.Uri.file(document.uri.fsPath.replace(/[/\\][^/\\]+$/, '')),
         '*.xml'
       )
     );
-    const reload = () => this.loadAndSendForm(document.uri, webviewPanel.webview);
-    watcher.onDidChange(reload);
+    watcher.onDidChange(() => {
+      if (!document.isDirty) {
+        const content = fs.readFileSync(document.uri.fsPath, 'utf-8');
+        document.reload(content);
+        this.sendModel(document, webviewPanel.webview);
+      }
+    });
     webviewPanel.onDidDispose(() => watcher.dispose());
   }
 
-  private loadAndSendForm(uri: vscode.Uri, webview: vscode.Webview): void {
+  // ── Save ────────────────────────────────────────────────────────────────
+
+  async saveCustomDocument(document: FormDocument): Promise<void> {
+    const xml = document.xmlDoc.serialize();
+    fs.writeFileSync(document.uri.fsPath, xml, 'utf-8');
+    document.markClean();
+  }
+
+  async saveCustomDocumentAs(
+    document: FormDocument,
+    destination: vscode.Uri
+  ): Promise<void> {
+    const xml = document.xmlDoc.serialize();
+    fs.writeFileSync(destination.fsPath, xml, 'utf-8');
+  }
+
+  async revertCustomDocument(document: FormDocument): Promise<void> {
+    const content = fs.readFileSync(document.uri.fsPath, 'utf-8');
+    document.reload(content);
+  }
+
+  async backupCustomDocument(
+    document: FormDocument,
+    context: vscode.CustomDocumentBackupContext
+  ): Promise<vscode.CustomDocumentBackup> {
+    const xml = document.xmlDoc.serialize();
+    fs.writeFileSync(context.destination.fsPath, xml, 'utf-8');
+    return {
+      id: context.destination.toString(),
+      delete: () => {
+        try { fs.unlinkSync(context.destination.fsPath); } catch {}
+      },
+    };
+  }
+
+  // ── Message handling ──────────────────────────────────────────────────────
+
+  private handleMessage(
+    msg: {
+      type: string;
+      elementId?: number;
+      targetParentId?: number;
+      insertBeforeId?: number | null;
+      propertyName?: string;
+      value?: string;
+    },
+    document: FormDocument,
+    webview: vscode.Webview
+  ): void {
+    switch (msg.type) {
+      case 'moveElement': {
+        const ok = document.xmlDoc.moveElement(
+          msg.elementId!,
+          msg.targetParentId!,
+          msg.insertBeforeId ?? null
+        );
+        if (ok) {
+          this.markChanged(document);
+          this.sendModel(document, webview);
+        }
+        break;
+      }
+
+      case 'updateProperty': {
+        const ok = document.xmlDoc.updateElementProperty(
+          msg.elementId!,
+          msg.propertyName!,
+          msg.value!
+        );
+        if (ok) {
+          this.markChanged(document);
+          this.sendModel(document, webview);
+        }
+        break;
+      }
+
+      case 'deleteElement': {
+        const ok = document.xmlDoc.deleteElement(msg.elementId!);
+        if (ok) {
+          this.markChanged(document);
+          this.sendModel(document, webview);
+        }
+        break;
+      }
+
+      case 'selectElement':
+        // Только визуальная синхронизация, обрабатывается в webview
+        break;
+    }
+  }
+
+  private markChanged(document: FormDocument): void {
+    document.markDirty();
+    this._onDidChangeCustomDocument.fire({ document });
+  }
+
+  private sendModel(document: FormDocument, webview: vscode.Webview): void {
     try {
-      const xmlContent = fs.readFileSync(uri.fsPath, 'utf-8');
-      const model = parseFormXml(xmlContent);
+      // Пере-парсим из текущего XML чтобы получить актуальную FormModel
+      const xml = document.xmlDoc.serialize();
+      const model = parseFormXml(xml);
       webview.postMessage({ type: 'formLoaded', model });
     } catch (err) {
       webview.postMessage({
@@ -70,6 +230,8 @@ export class FormEditorProvider implements vscode.CustomReadonlyEditorProvider {
       });
     }
   }
+
+  // ── HTML ───────────────────────────────────────────────────────────────────
 
   private getHtml(webview: vscode.Webview): string {
     const scriptUri = webview.asWebviewUri(

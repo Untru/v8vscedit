@@ -68,6 +68,7 @@ function renderTreeNode(element: FormElement, depth: number): HTMLElement {
   const nodeDiv = document.createElement('div');
   nodeDiv.className = 'tree-node';
   nodeDiv.dataset.elementId = String(element.id);
+  nodeDiv.draggable = true;
   if (element.id === selectedElementId) {
     nodeDiv.classList.add('selected');
   }
