@@ -61,6 +61,7 @@ export class FormEditorProvider implements vscode.CustomEditorProvider<FormDocum
   private readonly _onDidChangeCustomDocument =
     new vscode.EventEmitter<vscode.CustomDocumentContentChangeEvent<FormDocument>>();
   readonly onDidChangeCustomDocument = this._onDidChangeCustomDocument.event;
+  private readonly webviews = new Map<string, vscode.Webview>();
 
   constructor(private readonly extensionUri: vscode.Uri) {}
 
@@ -87,6 +88,8 @@ export class FormEditorProvider implements vscode.CustomEditorProvider<FormDocum
     document: FormDocument,
     webviewPanel: vscode.WebviewPanel
   ): void {
+    this.webviews.set(document.uri.toString(), webviewPanel.webview);
+
     webviewPanel.webview.options = {
       enableScripts: true,
       localResourceRoots: [
@@ -118,7 +121,10 @@ export class FormEditorProvider implements vscode.CustomEditorProvider<FormDocum
         this.sendModel(document, webviewPanel.webview);
       }
     });
-    webviewPanel.onDidDispose(() => watcher.dispose());
+    webviewPanel.onDidDispose(() => {
+      watcher.dispose();
+      this.webviews.delete(document.uri.toString());
+    });
   }
 
   // ── Save ────────────────────────────────────────────────────────────────
@@ -140,6 +146,10 @@ export class FormEditorProvider implements vscode.CustomEditorProvider<FormDocum
   async revertCustomDocument(document: FormDocument): Promise<void> {
     const content = fs.readFileSync(document.uri.fsPath, 'utf-8');
     document.reload(content);
+    const webview = this.webviews.get(document.uri.toString());
+    if (webview) {
+      this.sendModel(document, webview);
+    }
   }
 
   async backupCustomDocument(
