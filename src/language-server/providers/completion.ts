@@ -6,6 +6,7 @@ import { BslParserService } from '../BslParserService';
 import { BslContextService } from '../BslContextService';
 import { getDocumentContext } from '../BslDocumentContext';
 import { uriToFsPath } from '../lspUtils';
+import { GLOBAL_METHODS } from '../data/globalMethods';
 
 const CORE_KEYWORDS = [
   'Если', 'If', 'Тогда', 'Then', 'ИначеЕсли', 'ElsIf', 'Иначе', 'Else',
@@ -120,6 +121,21 @@ export async function provideCompletionItems(
     label: kw,
     kind: CompletionItemKind.Keyword,
   }));
+
+  for (const m of GLOBAL_METHODS) {
+    items.push({
+      label: m.nameRu,
+      kind: m.isFunction ? CompletionItemKind.Function : CompletionItemKind.Method,
+      detail: m.description,
+      documentation: m.category,
+    });
+    items.push({
+      label: m.nameEn,
+      kind: m.isFunction ? CompletionItemKind.Function : CompletionItemKind.Method,
+      detail: m.description,
+      documentation: m.category,
+    });
+  }
 
   await parserService.ensureInit();
   items.push(...extractLocalSymbols(document, parserService));
