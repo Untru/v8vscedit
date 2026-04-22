@@ -9,6 +9,8 @@ import { SupportInfoService } from './services/SupportInfoService';
 import { SupportDecorationProvider } from './services/SupportDecorationProvider';
 import { LspManager } from './services/LspManager';
 import { FormEditorProvider } from './formEditor/FormEditorProvider';
+import { RepoConnectionService } from './services/RepoConnectionService';
+import { RepoLockService } from './services/RepoLockService';
 
 let lspManager: LspManager | undefined;
 
@@ -74,8 +76,12 @@ export function activate(context: vscode.ExtensionContext): void {
     })
   );
 
+  // ── Сервис хранилища конфигурации ────────────────────────────────────────
+  const repoConnectionService = new RepoConnectionService(context.secrets);
+  const repoLockService = new RepoLockService(repoConnectionService, outputChannel);
+
   // ── Навигатор метаданных ────────────────────────────────────────────────
-  const provider = new MetadataTreeProvider([], context.extensionUri, supportService);
+  const provider = new MetadataTreeProvider([], context.extensionUri, supportService, repoLockService);
   const propertiesViewProvider = new PropertiesViewProvider();
   context.subscriptions.push(propertiesViewProvider);
 
@@ -100,7 +106,9 @@ export function activate(context: vscode.ExtensionContext): void {
     propertiesViewProvider,
     fsp,
     outputChannel,
-    supportService
+    supportService,
+    repoConnectionService,
+    repoLockService
   );
 
   // ── Readonly для BSL-файлов, открытых напрямую из ФС (схема file://) ───
@@ -144,6 +152,23 @@ export function activate(context: vscode.ExtensionContext): void {
 
   // ── Визуальный редактор форм ─────────────────────────────────────────────
   context.subscriptions.push(FormEditorProvider.register(context));
+
+  // Команды-индикаторы хранилища (inline-кнопки в дереве)
+  context.subscriptions.push(
+    vscode.commands.registerCommand('v8vscedit.repo.status.free', () => {
+      vscode.window.showInformationMessage('Объект свободен в хранилище.');
+    }),
+    vscode.commands.registerCommand('v8vscedit.repo.status.lockedByMe', () => {
+      vscode.window.showInformationMessage('Объект захвачен вами.');
+    }),
+    vscode.commands.registerCommand('v8vscedit.repo.status.lockedByOther', (node: any) => {
+      const info = node?.configRoot
+        ? repoLockService.getLockInfo(node.configRoot, node.nodeKind, String(node.label ?? ''))
+        : undefined;
+      const who = info?.lockedBy ? ` пользователем "${info.lockedBy}"` : '';
+      vscode.window.showWarningMessage(`Объект захвачен${who} в хранилище.`);
+    }),
+  );
 
   reloadEntries();
 
