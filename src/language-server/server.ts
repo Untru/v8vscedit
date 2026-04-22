@@ -21,6 +21,7 @@ import { provideDefinition, invalidateDefinitionCache } from './providers/defini
 import { provideSignatureHelp } from './providers/signatureHelp';
 import { provideDocumentFormatting } from './providers/formatting';
 import { provideWorkspaceSymbols, invalidateWorkspaceSymbolCache } from './providers/workspaceSymbols';
+import { provideRename, prepareRename } from './providers/rename';
 import { uriToFsPath } from './lspUtils';
 
 const connection = createConnection(ProposedFeatures.all);
@@ -53,6 +54,9 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
       hoverProvider: true,
       definitionProvider: true,
       documentFormattingProvider: true,
+      renameProvider: {
+        prepareProvider: true,
+      },
       documentSymbolProvider: true,
       workspaceSymbolProvider: true,
       foldingRangeProvider: true,
@@ -228,6 +232,7 @@ connection.onDefinition(async (params) => {
   }
 });
 
+<<<<<<< HEAD
 connection.onDocumentFormatting((params) => {
   const doc = documents.get(params.textDocument.uri);
   if (!doc) {
@@ -245,6 +250,26 @@ connection.onWorkspaceSymbol(async (params) => {
     return await provideWorkspaceSymbols(params.query, workspaceRoots, parserService);
   } catch {
     return [];
+  }
+});
+
+connection.onPrepareRename(async (params) => {
+  const doc = documents.get(params.textDocument.uri);
+  if (!doc) return null;
+  try {
+    return await prepareRename(doc, params.position, parserService);
+  } catch {
+    return null;
+  }
+});
+
+connection.onRenameRequest(async (params) => {
+  const doc = documents.get(params.textDocument.uri);
+  if (!doc) return null;
+  try {
+    return await provideRename(doc, params.position, params.newName, parserService);
+  } catch {
+    return null;
   }
 });
 
