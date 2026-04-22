@@ -445,6 +445,18 @@
         }
       }
     },
+    "customEditors": [
+      {
+        "viewType": "v8vscedit.formEditor",
+        "displayName": "Визуальный редактор формы 1С",
+        "selector": [
+          {
+            "filenamePattern": "**/Ext/Form.xml"
+          }
+        ],
+        "priority": "option"
+      }
+    ],
     "semanticTokenScopes": [
       {
         "language": "bsl",
@@ -515,6 +527,7 @@
     "webpack-cli": "^5.1.0"
   },
   "dependencies": {
+    "fast-xml-parser": "^5.7.1",
     "iconv-lite": "^0.7.2",
     "tree-sitter-bsl": "^0.1.6",
     "vscode-languageclient": "^9.0.1",
