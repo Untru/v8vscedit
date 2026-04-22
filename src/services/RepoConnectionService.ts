@@ -54,6 +54,7 @@ export class RepoConnectionService {
   /** Запрашивает у пользователя настройки и сохраняет их */
   async promptAndSaveSettings(configRoot: string): Promise<RepoConnectionSettings | undefined> {
     const existing = this.getSettings(configRoot);
+    const existingPassword = existing ? await this.getPassword(configRoot) : '';
 
     const v8Path = await vscode.window.showInputBox({
       title: 'Путь к 1cv8.exe',
@@ -89,7 +90,9 @@ export class RepoConnectionService {
 
     const password = await vscode.window.showInputBox({
       title: 'Пароль хранилища',
-      prompt: 'Пароль для подключения к хранилищу',
+      prompt: existingPassword
+        ? 'Пароль для подключения к хранилищу (оставьте пустым, чтобы сохранить текущий)'
+        : 'Пароль для подключения к хранилищу',
       password: true,
       ignoreFocusOut: true,
     });
@@ -100,7 +103,9 @@ export class RepoConnectionService {
     const all = this.getAllSettings();
     all[configRoot] = settings;
     await this.saveAllSettings(all);
-    await this.secrets.store(PASSWORD_KEY_PREFIX + configRoot, password);
+    if (password !== '' || !existingPassword) {
+      await this.secrets.store(PASSWORD_KEY_PREFIX + configRoot, password);
+    }
 
     return settings;
   }

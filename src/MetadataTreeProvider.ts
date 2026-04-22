@@ -73,20 +73,31 @@ export class MetadataTreeProvider implements vscode.TreeDataProvider<MetadataNod
     const configRoot = element.configRoot;
     if (!configRoot) { return; }
 
+    const baseCtx = (element.contextValue ?? '')
+      .replace(/-repo(?:Connected|Free|LockedByMe|LockedByOther)/g, '');
+    const label = typeof element.label === 'string' ? element.label : '';
+    const baseTooltip = typeof element.tooltip === 'string'
+      ? element.tooltip.replace(/\r?\nЗахвачен:.*$/u, '')
+      : element.tooltip;
+
     // Для корневого узла конфигурации — только маркер подключения
     if (element.nodeKind === 'configuration' || element.nodeKind === 'extension') {
       if (this.repoLockService.isConnected(configRoot)) {
-        element.contextValue = `${element.contextValue ?? ''}-repoConnected`;
+        element.contextValue = `${baseCtx}-repoConnected`;
+      } else {
+        element.contextValue = baseCtx;
       }
       return;
     }
 
     // Для объектов метаданных — статус захвата
+    element.contextValue = baseCtx;
+    element.tooltip = baseTooltip;
+
     if (!this.repoLockService.isConnected(configRoot)) { return; }
     if (!this.repoLockService.hasLockData(configRoot)) { return; }
     if (!this.repoLockService.isLockable(element.nodeKind)) { return; }
 
-    const label = typeof element.label === 'string' ? element.label : '';
     const status = this.repoLockService.getLockStatus(configRoot, element.nodeKind, label);
 
     let suffix: string;
@@ -104,10 +115,10 @@ export class MetadataTreeProvider implements vscode.TreeDataProvider<MetadataNod
 
     const info = this.repoLockService.getLockInfo(configRoot, element.nodeKind, label);
     if (info?.lockedBy) {
-      element.tooltip = `${element.tooltip ?? label}\nЗахвачен: ${info.lockedBy}`;
+      element.tooltip = `${typeof baseTooltip === 'string' ? baseTooltip : label}\nЗахвачен: ${info.lockedBy}`;
     }
 
-    element.contextValue = `${element.contextValue ?? ''}${suffix}`;
+    element.contextValue = `${baseCtx}${suffix}`;
   }
 
   getChildren(element?: MetadataNode): MetadataNode[] {
