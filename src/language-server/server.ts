@@ -219,7 +219,7 @@ connection.onDefinition(async (params) => {
     return null;
   }
   try {
-    return await provideDefinition(doc, params.position, parserService, workspaceRoots, documents);
+    return await provideDefinition(doc, params.position, parserService, workspaceRoots, documents, contextService);
   } catch {
     return null;
   }
