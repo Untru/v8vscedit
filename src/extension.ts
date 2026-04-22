@@ -8,6 +8,7 @@ import { OnecFileSystemProvider, ONEC_SCHEME } from './OnecFileSystemProvider';
 import { SupportInfoService } from './services/SupportInfoService';
 import { SupportDecorationProvider } from './services/SupportDecorationProvider';
 import { LspManager } from './services/LspManager';
+import { FormEditorProvider } from './formEditor/FormEditorProvider';
 
 let lspManager: LspManager | undefined;
 
@@ -140,6 +141,9 @@ export function activate(context: vscode.ExtensionContext): void {
       vscode.window.showWarningMessage('Объект на поддержке. Редактирование запрещено.');
     }),
   );
+
+  // ── Визуальный редактор форм ─────────────────────────────────────────────
+  context.subscriptions.push(FormEditorProvider.register(context));
 
   reloadEntries();
 

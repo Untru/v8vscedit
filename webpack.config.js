@@ -4,7 +4,7 @@ const path = require('path');
 const CopyWebpackPlugin = require('copy-webpack-plugin');
 
 /** @type {import('webpack').Configuration} */
-module.exports = {
+const nodeConfig = {
   target: 'node',
   entry: {
     extension: './src/extension.ts',
@@ -45,3 +45,42 @@ module.exports = {
     level: 'log',
   },
 };
+
+/** @type {import('webpack').Configuration} */
+const webviewConfig = {
+  target: 'web',
+  entry: {
+    formEditor: './src/formEditor/webview/formEditor.ts',
+  },
+  output: {
+    path: path.resolve(__dirname, 'dist'),
+    filename: '[name].js',
+  },
+  resolve: {
+    extensions: ['.ts', '.js'],
+  },
+  module: {
+    rules: [
+      {
+        test: /\.ts$/,
+        exclude: /node_modules/,
+        use: {
+          loader: 'ts-loader',
+          options: {
+            configFile: path.resolve(__dirname, 'src/formEditor/webview/tsconfig.json'),
+          },
+        },
+      },
+    ],
+  },
+  plugins: [
+    new CopyWebpackPlugin({
+      patterns: [
+        { from: 'src/formEditor/webview/styles.css', to: 'formEditor.css' },
+      ],
+    }),
+  ],
+  devtool: 'nosources-source-map',
+};
+
+module.exports = [nodeConfig, webviewConfig];
