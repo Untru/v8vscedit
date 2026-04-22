@@ -18,6 +18,7 @@ import { provideFoldingRanges } from './providers/folding';
 import { provideHover } from './providers/hover';
 import { provideCompletionItems, invalidateMetaCache } from './providers/completion';
 import { provideDefinition, invalidateDefinitionCache } from './providers/definition';
+import { provideSignatureHelp } from './providers/signatureHelp';
 import { uriToFsPath } from './lspUtils';
 
 const connection = createConnection(ProposedFeatures.all);
@@ -41,6 +42,10 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
       completionProvider: {
         triggerCharacters: ['&', '#', '.'],
         resolveProvider: false,
+      },
+
+      signatureHelpProvider: {
+        triggerCharacters: ['(', ','],
       },
 
       hoverProvider: true,
@@ -170,6 +175,18 @@ connection.onHover(async (params) => {
   }
   try {
     return await provideHover(doc, params.position, parserService);
+  } catch {
+    return null;
+  }
+});
+
+connection.onSignatureHelp(async (params) => {
+  const doc = documents.get(params.textDocument.uri);
+  if (!doc) {
+    return null;
+  }
+  try {
+    return await provideSignatureHelp(doc, params.position, parserService, contextService);
   } catch {
     return null;
   }
