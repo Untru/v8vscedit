@@ -11,6 +11,7 @@ import { LspManager } from './services/LspManager';
 import { FormEditorProvider } from './formEditor/FormEditorProvider';
 import { RepoConnectionService } from './services/RepoConnectionService';
 import { RepoLockService } from './services/RepoLockService';
+import { searchInModules } from './services/ModuleSearchService';
 
 let lspManager: LspManager | undefined;
 
@@ -171,6 +172,49 @@ export function activate(context: vscode.ExtensionContext): void {
   );
 
   reloadEntries();
+
+  // ── Глобальный поиск по модулям ──────────────────────────────────────────
+  context.subscriptions.push(
+    vscode.commands.registerCommand('v8vscedit.searchInModules', async () => {
+      const query = await vscode.window.showInputBox({
+        prompt: 'Поиск по всем BSL-модулям конфигурации',
+        placeHolder: 'Введите текст для поиска...',
+      });
+      if (!query) return;
+
+      const results = await vscode.window.withProgress(
+        { location: vscode.ProgressLocation.Notification, title: 'Поиск по модулям...' },
+        () => searchInModules(query, [rootPath])
+      );
+
+      if (results.length === 0) {
+        vscode.window.showInformationMessage(`Ничего не найдено: "${query}"`);
+        return;
+      }
+
+      // Показываем результаты через Quick Pick с группировкой
+      const items = results.map(r => ({
+        label: `$(symbol-method) ${r.lineText.trim()}`,
+        description: `${r.objectName} · ${r.moduleType}`,
+        detail: `Строка ${r.line + 1}`,
+        result: r,
+      }));
+
+      const picked = await vscode.window.showQuickPick(items, {
+        placeHolder: `Найдено ${results.length} результатов для "${query}"`,
+        matchOnDescription: true,
+        matchOnDetail: true,
+      });
+
+      if (picked) {
+        const doc = await vscode.workspace.openTextDocument(picked.result.filePath);
+        const editor = await vscode.window.showTextDocument(doc);
+        const pos = new vscode.Position(picked.result.line, picked.result.column);
+        editor.selection = new vscode.Selection(pos, pos);
+        editor.revealRange(new vscode.Range(pos, pos), vscode.TextEditorRevealType.InCenter);
+      }
+    })
+  );
 
   // ── Языковой сервер BSL (переключаемый) ────────────────────────────────
   lspManager = new LspManager(context, outputChannel, ONEC_SCHEME);

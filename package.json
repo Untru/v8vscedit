@@ -96,6 +96,11 @@
         "title": "Загрузить и обновить расширение в БД"
       },
       {
+        "command": "v8vscedit.searchInModules",
+        "title": "1С: Поиск по всем модулям",
+        "icon": "$(search)"
+      },
+      {
         "command": "v8vscedit.bslAnalyzer.showMenu",
         "title": "BSL Analyzer: Меню"
       },
@@ -208,6 +213,11 @@
     ],
     "menus": {
       "view/title": [
+        {
+          "command": "v8vscedit.searchInModules",
+          "when": "view == v8vsceditTree",
+          "group": "navigation"
+        },
         {
           "command": "v8vscedit.refresh",
           "when": "view == v8vsceditTree",
