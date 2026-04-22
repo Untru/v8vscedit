@@ -473,6 +473,165 @@ export function registerCommands(
         }
       })
     );
+
+    // Создать хранилище
+    context.subscriptions.push(
+      vscode.commands.registerCommand('v8vscedit.repo.create', async (node: NodeArg) => {
+        const configRoot = extractConfigRoot(node);
+        if (!configRoot) { return; }
+
+        if (!repoConnectionService.hasSettings(configRoot)) {
+          const settings = await repoConnectionService.promptAndSaveSettings(configRoot);
+          if (!settings) { return; }
+        }
+
+        const confirmed = await vscode.window.showWarningMessage(
+          'Создать новое хранилище конфигурации? Текущая конфигурация базы будет помещена как начальная версия.',
+          { modal: true },
+          'Создать'
+        );
+        if (confirmed !== 'Создать') { return; }
+
+        const success = await vscode.window.withProgress(
+          { location: vscode.ProgressLocation.Window, title: 'Создание хранилища...' },
+          () => repoLockService.createRepository(configRoot)
+        );
+
+        if (success) {
+          provider.refresh();
+          vscode.window.showInformationMessage('Хранилище конфигурации создано.');
+        } else {
+          vscode.window.showErrorMessage('Не удалось создать хранилище. Подробности в канале вывода.');
+        }
+      })
+    );
+
+    // Поместить в хранилище (commit)
+    context.subscriptions.push(
+      vscode.commands.registerCommand('v8vscedit.repo.commit', async (node: NodeArg) => {
+        const configRoot = extractConfigRoot(node);
+        if (!configRoot) { return; }
+
+        const comment = await vscode.window.showInputBox({
+          title: 'Помещение в хранилище',
+          prompt: 'Комментарий к версии (необязательно)',
+          placeHolder: 'Описание изменений...',
+          ignoreFocusOut: true,
+        });
+        if (comment === undefined) { return; }
+
+        const success = await vscode.window.withProgress(
+          { location: vscode.ProgressLocation.Window, title: 'Помещение в хранилище...' },
+          () => repoLockService.commitToRepository(configRoot, comment || undefined)
+        );
+
+        if (success) {
+          await repoLockService.refreshLocks(configRoot);
+          provider.refresh();
+          vscode.window.showInformationMessage('Изменения помещены в хранилище.');
+        } else {
+          vscode.window.showErrorMessage('Не удалось поместить в хранилище. Подробности в канале вывода.');
+        }
+      })
+    );
+
+    // Получить из хранилища (update)
+    context.subscriptions.push(
+      vscode.commands.registerCommand('v8vscedit.repo.updateCfg', async (node: NodeArg) => {
+        const configRoot = extractConfigRoot(node);
+        if (!configRoot) { return; }
+
+        const confirmed = await vscode.window.showInformationMessage(
+          'Получить конфигурацию из хранилища? Текущая конфигурация БД будет обновлена.',
+          { modal: true },
+          'Получить'
+        );
+        if (confirmed !== 'Получить') { return; }
+
+        const success = await vscode.window.withProgress(
+          { location: vscode.ProgressLocation.Window, title: 'Получение из хранилища...' },
+          () => repoLockService.updateFromRepository(configRoot)
+        );
+
+        if (success) {
+          await repoLockService.refreshLocks(configRoot);
+          provider.refresh();
+          vscode.window.showInformationMessage('Конфигурация обновлена из хранилища.');
+        } else {
+          vscode.window.showErrorMessage('Не удалось получить из хранилища. Подробности в канале вывода.');
+        }
+      })
+    );
+
+    // Добавить пользователя хранилища
+    context.subscriptions.push(
+      vscode.commands.registerCommand('v8vscedit.repo.addUser', async (node: NodeArg) => {
+        const configRoot = extractConfigRoot(node);
+        if (!configRoot) { return; }
+
+        const userName = await vscode.window.showInputBox({
+          title: 'Добавление пользователя хранилища',
+          prompt: 'Имя нового пользователя',
+          ignoreFocusOut: true,
+        });
+        if (!userName) { return; }
+
+        const userPassword = await vscode.window.showInputBox({
+          title: 'Добавление пользователя хранилища',
+          prompt: `Пароль для "${userName}"`,
+          password: true,
+          ignoreFocusOut: true,
+        });
+        if (userPassword === undefined) { return; }
+
+        interface RightsItem extends vscode.QuickPickItem { rightsId: 'ReadOnly' | 'LockObjects' | 'ManageConfigurationVersions' | 'Administration'; }
+        const rightsOptions: RightsItem[] = [
+          { label: 'Захват объектов', description: 'LockObjects', rightsId: 'LockObjects' },
+          { label: 'Только чтение', description: 'ReadOnly', rightsId: 'ReadOnly' },
+          { label: 'Управление версиями', description: 'ManageConfigurationVersions', rightsId: 'ManageConfigurationVersions' },
+          { label: 'Администрирование', description: 'Administration', rightsId: 'Administration' },
+        ];
+        const pickedRights = await vscode.window.showQuickPick(rightsOptions, {
+          title: 'Права пользователя',
+          placeHolder: 'Выберите уровень прав',
+        });
+        if (!pickedRights) { return; }
+
+        const success = await vscode.window.withProgress(
+          { location: vscode.ProgressLocation.Window, title: `Добавление пользователя "${userName}"...` },
+          () => repoLockService.addUser(configRoot, userName, userPassword, pickedRights.rightsId)
+        );
+
+        if (success) {
+          vscode.window.showInformationMessage(`Пользователь "${userName}" добавлен в хранилище.`);
+        } else {
+          vscode.window.showErrorMessage(`Не удалось добавить пользователя. Подробности в канале вывода.`);
+        }
+      })
+    );
+
+    // История хранилища
+    context.subscriptions.push(
+      vscode.commands.registerCommand('v8vscedit.repo.history', async (node: NodeArg) => {
+        const configRoot = extractConfigRoot(node);
+        if (!configRoot) { return; }
+
+        const report = await vscode.window.withProgress(
+          { location: vscode.ProgressLocation.Window, title: 'Получение истории хранилища...' },
+          () => repoLockService.getHistory(configRoot)
+        );
+
+        if (report) {
+          const doc = await vscode.workspace.openTextDocument({
+            content: report,
+            language: 'plaintext',
+          });
+          await vscode.window.showTextDocument(doc, { preview: true });
+        } else {
+          vscode.window.showErrorMessage('Не удалось получить историю хранилища. Подробности в канале вывода.');
+        }
+      })
+    );
   }
 
   // FileSystemWatcher — перестраиваем дерево при изменении Configuration.xml

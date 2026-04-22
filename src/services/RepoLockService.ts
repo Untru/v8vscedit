@@ -150,6 +150,131 @@ export class RepoLockService {
   }
 
   // ---------------------------------------------------------------------------
+  // Операции с хранилищем
+  // ---------------------------------------------------------------------------
+
+  /** Создаёт новое хранилище конфигурации из базы данных */
+  async createRepository(configRoot: string): Promise<boolean> {
+    const settings = this.connectionService.getSettings(configRoot);
+    if (!settings) { return false; }
+
+    const password = await this.connectionService.getPassword(configRoot);
+
+    const args: string[] = [
+      'DESIGNER',
+      `/F${settings.dbPath}`,
+      '/ConfigurationRepositoryCreate',
+      `-Path`, settings.repoPath,
+      `-User`, settings.user,
+      `-Pwd`, password,
+    ];
+
+    const result = await this.runDesignerCommand(settings.v8Path, args, 'create');
+    return result.success;
+  }
+
+  /**
+   * Помещает изменения конфигурации в хранилище.
+   * @param comment — комментарий к версии
+   * @param objects — если указаны, помещаются только эти объекты; иначе — все изменённые
+   */
+  async commitToRepository(
+    configRoot: string,
+    comment?: string,
+    objects?: Array<{ nodeKind: NodeKind; name: string }>
+  ): Promise<boolean> {
+    const settings = this.connectionService.getSettings(configRoot);
+    if (!settings) { return false; }
+
+    const password = await this.connectionService.getPassword(configRoot);
+
+    const extraArgs: string[] = ['/ConfigurationRepositoryCommit'];
+    if (comment) {
+      extraArgs.push('-comment', comment);
+    }
+    if (objects && objects.length > 0) {
+      const objectKeys = objects
+        .map((o) => this.buildObjectKey(o.nodeKind, o.name))
+        .filter(Boolean) as string[];
+      if (objectKeys.length > 0) {
+        extraArgs.push('-Objects', objectKeys.join(';'));
+      }
+    }
+
+    const args = this.buildDesignerArgs(settings, password, extraArgs);
+    const result = await this.runDesignerCommand(settings.v8Path, args, 'commit');
+    return result.success;
+  }
+
+  /** Получает конфигурацию из хранилища (обновляет конфигурацию БД) */
+  async updateFromRepository(configRoot: string, version?: number): Promise<boolean> {
+    const settings = this.connectionService.getSettings(configRoot);
+    if (!settings) { return false; }
+
+    const password = await this.connectionService.getPassword(configRoot);
+
+    const extraArgs: string[] = ['/ConfigurationRepositoryUpdateCfg'];
+    if (version !== undefined) {
+      extraArgs.push('-v', String(version));
+    }
+    extraArgs.push('-force');
+
+    const args = this.buildDesignerArgs(settings, password, extraArgs);
+    const result = await this.runDesignerCommand(settings.v8Path, args, 'updateCfg');
+    return result.success;
+  }
+
+  /** Добавляет пользователя в хранилище */
+  async addUser(
+    configRoot: string,
+    userName: string,
+    userPassword: string,
+    rights: 'ReadOnly' | 'LockObjects' | 'ManageConfigurationVersions' | 'Administration' = 'LockObjects'
+  ): Promise<boolean> {
+    const settings = this.connectionService.getSettings(configRoot);
+    if (!settings) { return false; }
+
+    const password = await this.connectionService.getPassword(configRoot);
+
+    const extraArgs: string[] = [
+      '/ConfigurationRepositoryAddUser',
+      '-User', userName,
+      '-Pwd', userPassword,
+      '-Rights', rights,
+    ];
+
+    const args = this.buildDesignerArgs(settings, password, extraArgs);
+    const result = await this.runDesignerCommand(settings.v8Path, args, 'addUser');
+    return result.success;
+  }
+
+  /** Получает историю версий хранилища (отчёт) */
+  async getHistory(configRoot: string, versionCount?: number): Promise<string | undefined> {
+    const settings = this.connectionService.getSettings(configRoot);
+    if (!settings) { return undefined; }
+
+    const password = await this.connectionService.getPassword(configRoot);
+    const reportPath = path.join(os.tmpdir(), `v8vscedit-repo-history-${Date.now()}.txt`);
+
+    const extraArgs: string[] = ['/ConfigurationRepositoryReport', reportPath];
+    if (versionCount) {
+      extraArgs.push('-NBegin', String(versionCount));
+    }
+
+    const args = this.buildDesignerArgs(settings, password, extraArgs);
+    const result = await this.runDesignerCommand(settings.v8Path, args, 'history');
+    if (!result.success) { return undefined; }
+
+    try {
+      if (!fs.existsSync(reportPath)) { return undefined; }
+      const raw = fs.readFileSync(reportPath);
+      return this.decodeOutput(raw);
+    } finally {
+      try { fs.unlinkSync(reportPath); } catch { /* ignore */ }
+    }
+  }
+
+  // ---------------------------------------------------------------------------
   // Приватные методы
   // ---------------------------------------------------------------------------
 

@@ -158,6 +158,30 @@
         "icon": "$(sync)"
       },
       {
+        "command": "v8vscedit.repo.create",
+        "title": "Создать хранилище конфигурации",
+        "icon": "$(add)"
+      },
+      {
+        "command": "v8vscedit.repo.commit",
+        "title": "Поместить в хранилище",
+        "icon": "$(cloud-upload)"
+      },
+      {
+        "command": "v8vscedit.repo.updateCfg",
+        "title": "Получить из хранилища",
+        "icon": "$(cloud-download)"
+      },
+      {
+        "command": "v8vscedit.repo.addUser",
+        "title": "Добавить пользователя хранилища"
+      },
+      {
+        "command": "v8vscedit.repo.history",
+        "title": "История хранилища",
+        "icon": "$(history)"
+      },
+      {
         "command": "v8vscedit.repo.status.free",
         "title": "Свободен в хранилище",
         "icon": {
@@ -277,19 +301,44 @@
           "group": "inline"
         },
         {
-          "command": "v8vscedit.repo.connect",
+          "command": "v8vscedit.repo.create",
           "when": "view == v8vsceditTree && viewItem =~ /^(configuration|extension)-hasXml/ && !(viewItem =~ /-repoConnected/)",
           "group": "repo@0"
         },
         {
-          "command": "v8vscedit.repo.disconnect",
-          "when": "view == v8vsceditTree && viewItem =~ /-repoConnected/",
+          "command": "v8vscedit.repo.connect",
+          "when": "view == v8vsceditTree && viewItem =~ /^(configuration|extension)-hasXml/ && !(viewItem =~ /-repoConnected/)",
           "group": "repo@1"
+        },
+        {
+          "command": "v8vscedit.repo.commit",
+          "when": "view == v8vsceditTree && viewItem =~ /-repoConnected/",
+          "group": "repo@2"
+        },
+        {
+          "command": "v8vscedit.repo.updateCfg",
+          "when": "view == v8vsceditTree && viewItem =~ /-repoConnected/",
+          "group": "repo@3"
         },
         {
           "command": "v8vscedit.repo.refreshLocks",
           "when": "view == v8vsceditTree && viewItem =~ /-repoConnected/",
-          "group": "repo@2"
+          "group": "repo@4"
+        },
+        {
+          "command": "v8vscedit.repo.history",
+          "when": "view == v8vsceditTree && viewItem =~ /-repoConnected/",
+          "group": "repo@5"
+        },
+        {
+          "command": "v8vscedit.repo.addUser",
+          "when": "view == v8vsceditTree && viewItem =~ /-repoConnected/",
+          "group": "repo@6"
+        },
+        {
+          "command": "v8vscedit.repo.disconnect",
+          "when": "view == v8vsceditTree && viewItem =~ /-repoConnected/",
+          "group": "repo@9"
         },
         {
           "command": "v8vscedit.repo.lock",
