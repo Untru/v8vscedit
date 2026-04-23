@@ -21,6 +21,7 @@ import {
   getFormModulePathForChild,
   getManagerModulePath,
   getObjectModulePath,
+  getObjectLocationFromXml,
   getServiceModulePath,
 } from './ModulePathResolver';
 
@@ -177,6 +178,37 @@ export function registerCommands(
           : buildFormModuleVirtualUri(xmlPath, String(nodeAny.label ?? ''));
       }
       await openModule(fsp, modulePath, vUri, supportService, xmlPath);
+    })
+  );
+
+  // Открыть визуальный редактор формы
+  context.subscriptions.push(
+    vscode.commands.registerCommand('v8vscedit.openFormEditor', async (node: NodeArg) => {
+      const nodeAny = node as any;
+      const xmlPath = nodeAny?.xmlPath as string | undefined;
+      if (!xmlPath) { return; }
+
+      const isCommonForm = nodeAny?.nodeKind === 'CommonForm';
+      const location = getObjectLocationFromXml(xmlPath);
+      let formXmlPath: string;
+
+      if (isCommonForm) {
+        // Общая форма: <ObjectDir>/Ext/Form.xml
+        formXmlPath = path.join(location.objectDir, 'Ext', 'Form.xml');
+      } else {
+        // Форма объекта: <ObjectDir>/Forms/<FormName>/Ext/Form.xml
+        const formName = String(nodeAny.label ?? '');
+        if (!formName) { return; }
+        formXmlPath = path.join(location.objectDir, 'Forms', formName, 'Ext', 'Form.xml');
+      }
+
+      if (!fs.existsSync(formXmlPath)) {
+        vscode.window.showWarningMessage(`Файл формы не найден: ${formXmlPath}`);
+        return;
+      }
+
+      const uri = vscode.Uri.file(formXmlPath);
+      await vscode.commands.executeCommand('vscode.openWith', uri, 'v8vscedit.formEditor');
     })
   );
 
