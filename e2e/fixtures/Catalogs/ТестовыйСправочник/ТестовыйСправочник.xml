@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<MetaDataObject xmlns="http://v8.1c.ru/8.3/MDClasses" xmlns:v8="http://v8.1c.ru/8.1/data/core">
+<Catalog uuid="bb000000-0000-0000-0000-000000000001">
+<Properties>
+  <Name>ТестовыйСправочник</Name>
+  <Synonym>
+    <v8:item>
+      <v8:content>Тестовый справочник</v8:content>
+    </v8:item>
+  </Synonym>
+</Properties>
+<ChildObjects>
+  <Attribute uuid="cc000000-0000-0000-0000-000000000001">
+    <Properties>
+      <Name>Описание</Name>
+    </Properties>
+  </Attribute>
+</ChildObjects>
+</Catalog>
+</MetaDataObject>
