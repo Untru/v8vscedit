@@ -4,6 +4,7 @@ import * as fs from 'fs';
 import { spawn } from 'child_process';
 import { decode } from 'iconv-lite';
 import { MetadataTreeProvider, MetadataQuickPickItem } from './MetadataTreeProvider';
+import { deleteMetadataObject } from './services/MetaObjectDeleter';
 import { MetadataNode } from './MetadataNode';
 import { PropertiesViewProvider } from './views/PropertiesViewProvider';
 import { OnecFileSystemProvider } from './OnecFileSystemProvider';
@@ -673,6 +674,92 @@ export function registerCommands(
         }
       } else {
         vscode.window.showWarningMessage(`Файл не найден: ${xmlPath}`);
+      }
+    })
+  );
+
+  // Удаление объекта метаданных
+  context.subscriptions.push(
+    vscode.commands.registerCommand('v8vscedit.deleteMetadataObject', async (node: NodeArg) => {
+      const metaNode = node as MetadataNode;
+      if (!metaNode?.xmlPath || !metaNode?.label) { return; }
+
+      const objectName = String(metaNode.label);
+      const nodeKind = String(metaNode.nodeKind);
+
+      // Маппинг NodeKind → метатип и папка
+      const FOLDER_MAP: Record<string, { type: string; folder: string }> = {
+        Catalog: { type: 'Catalog', folder: 'Catalogs' },
+        Document: { type: 'Document', folder: 'Documents' },
+        Enum: { type: 'Enum', folder: 'Enums' },
+        Report: { type: 'Report', folder: 'Reports' },
+        DataProcessor: { type: 'DataProcessor', folder: 'DataProcessors' },
+        InformationRegister: { type: 'InformationRegister', folder: 'InformationRegisters' },
+        AccumulationRegister: { type: 'AccumulationRegister', folder: 'AccumulationRegisters' },
+        AccountingRegister: { type: 'AccountingRegister', folder: 'AccountingRegisters' },
+        CalculationRegister: { type: 'CalculationRegister', folder: 'CalculationRegisters' },
+        CommonModule: { type: 'CommonModule', folder: 'CommonModules' },
+        CommonForm: { type: 'CommonForm', folder: 'CommonForms' },
+        CommonCommand: { type: 'CommonCommand', folder: 'CommonCommands' },
+        CommonTemplate: { type: 'CommonTemplate', folder: 'CommonTemplates' },
+        CommonPicture: { type: 'CommonPicture', folder: 'CommonPictures' },
+        Role: { type: 'Role', folder: 'Roles' },
+        Subsystem: { type: 'Subsystem', folder: 'Subsystems' },
+        ExchangePlan: { type: 'ExchangePlan', folder: 'ExchangePlans' },
+        Constant: { type: 'Constant', folder: 'Constants' },
+        BusinessProcess: { type: 'BusinessProcess', folder: 'BusinessProcesses' },
+        Task: { type: 'Task', folder: 'Tasks' },
+        DocumentJournal: { type: 'DocumentJournal', folder: 'DocumentJournals' },
+        ChartOfCharacteristicTypes: { type: 'ChartOfCharacteristicTypes', folder: 'ChartsOfCharacteristicTypes' },
+        ChartOfAccounts: { type: 'ChartOfAccounts', folder: 'ChartsOfAccounts' },
+        ChartOfCalculationTypes: { type: 'ChartOfCalculationTypes', folder: 'ChartsOfCalculationTypes' },
+        HTTPService: { type: 'HTTPService', folder: 'HTTPServices' },
+        WebService: { type: 'WebService', folder: 'WebServices' },
+        ScheduledJob: { type: 'ScheduledJob', folder: 'ScheduledJobs' },
+        EventSubscription: { type: 'EventSubscription', folder: 'EventSubscriptions' },
+        FilterCriterion: { type: 'FilterCriterion', folder: 'FilterCriteria' },
+        SettingsStorage: { type: 'SettingsStorage', folder: 'SettingsStorages' },
+        DocumentNumerator: { type: 'DocumentNumerator', folder: 'DocumentNumerators' },
+        Sequence: { type: 'Sequence', folder: 'Sequences' },
+        DefinedType: { type: 'DefinedType', folder: 'DefinedTypes' },
+        FunctionalOption: { type: 'FunctionalOption', folder: 'FunctionalOptions' },
+      };
+
+      const mapping = FOLDER_MAP[nodeKind];
+      if (!mapping) {
+        vscode.window.showWarningMessage(`Удаление объектов типа "${nodeKind}" не поддерживается.`);
+        return;
+      }
+
+      // Подтверждение
+      const answer = await vscode.window.showWarningMessage(
+        `Удалить ${objectName} (${nodeKind})? Это действие необратимо.`,
+        { modal: true },
+        'Удалить'
+      );
+      if (answer !== 'Удалить') { return; }
+
+      // Найти Configuration.xml
+      const objectXmlDir = path.dirname(metaNode.xmlPath);
+      const objectsDir = path.dirname(objectXmlDir);
+      const configRoot = path.dirname(objectsDir);
+      const configXmlPath = path.join(configRoot, 'Configuration.xml');
+
+      if (!fs.existsSync(configXmlPath)) {
+        vscode.window.showErrorMessage('Не найден Configuration.xml');
+        return;
+      }
+
+      const result = deleteMetadataObject(configXmlPath, mapping.type, objectName, mapping.folder);
+      if (result.success) {
+        if (result.error) {
+          vscode.window.showWarningMessage(result.error);
+        } else {
+          vscode.window.showInformationMessage(`Объект "${objectName}" удалён.`);
+        }
+        reloadEntries();
+      } else {
+        vscode.window.showErrorMessage(result.error ?? 'Ошибка удаления');
       }
     })
   );
