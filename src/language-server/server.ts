@@ -22,6 +22,7 @@ import { provideSignatureHelp } from './providers/signatureHelp';
 import { provideDocumentFormatting } from './providers/formatting';
 import { provideWorkspaceSymbols, invalidateWorkspaceSymbolCache } from './providers/workspaceSymbols';
 import { provideRename, prepareRename } from './providers/rename';
+import { provideReferences } from './providers/references';
 import { uriToFsPath } from './lspUtils';
 
 const connection = createConnection(ProposedFeatures.all);
@@ -57,6 +58,7 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
       renameProvider: {
         prepareProvider: true,
       },
+      referencesProvider: true,
       documentSymbolProvider: true,
       workspaceSymbolProvider: true,
       foldingRangeProvider: true,
@@ -232,7 +234,6 @@ connection.onDefinition(async (params) => {
   }
 });
 
-<<<<<<< HEAD
 connection.onDocumentFormatting((params) => {
   const doc = documents.get(params.textDocument.uri);
   if (!doc) {
@@ -270,6 +271,19 @@ connection.onRenameRequest(async (params) => {
     return await provideRename(doc, params.position, params.newName, parserService);
   } catch {
     return null;
+  }
+});
+
+connection.onReferences(async (params) => {
+  const doc = documents.get(params.textDocument.uri);
+  if (!doc) return [];
+  try {
+    return await provideReferences(
+      doc, params.position, parserService, workspaceRoots, documents,
+      params.context.includeDeclaration
+    );
+  } catch {
+    return [];
   }
 });
 
