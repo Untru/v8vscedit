@@ -101,6 +101,11 @@
         "icon": "$(search)"
       },
       {
+        "command": "v8vscedit.searchMetadata",
+        "title": "1С: Поиск объекта метаданных",
+        "icon": "$(search)"
+      },
+      {
         "command": "v8vscedit.bslAnalyzer.showMenu",
         "title": "BSL Analyzer: Меню"
       },
@@ -219,9 +224,14 @@
           "group": "navigation"
         },
         {
+          "command": "v8vscedit.searchMetadata",
+          "when": "view == v8vsceditTree",
+          "group": "navigation@0"
+        },
+        {
           "command": "v8vscedit.refresh",
           "when": "view == v8vsceditTree",
-          "group": "navigation"
+          "group": "navigation@1"
         }
       ],
       "view/item/context": [
@@ -520,6 +530,13 @@
       }
     ]
   },
+  "keybindings": [
+    {
+      "command": "v8vscedit.searchMetadata",
+      "key": "ctrl+shift+m",
+      "when": "workbenchState != empty"
+    }
+  ],
   "scripts": {
     "vscode:prepublish": "npm run build",
     "build": "webpack --mode production",

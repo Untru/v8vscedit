@@ -3,7 +3,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 import { spawn } from 'child_process';
 import { decode } from 'iconv-lite';
-import { MetadataTreeProvider } from './MetadataTreeProvider';
+import { MetadataTreeProvider, MetadataQuickPickItem } from './MetadataTreeProvider';
 import { MetadataNode } from './MetadataNode';
 import { PropertiesViewProvider } from './views/PropertiesViewProvider';
 import { OnecFileSystemProvider } from './OnecFileSystemProvider';
@@ -634,6 +634,49 @@ export function registerCommands(
     );
   }
 
+  // Quick Pick поиск по метаданным (Ctrl+Alt+M)
+  context.subscriptions.push(
+    vscode.commands.registerCommand('v8vscedit.searchMetadata', async () => {
+      const items = provider.getAllMetadataItems();
+      if (items.length === 0) {
+        vscode.window.showInformationMessage('Нет загруженных конфигураций.');
+        return;
+      }
+
+      const picked = await vscode.window.showQuickPick(items, {
+        title: 'Поиск объекта метаданных',
+        placeHolder: 'Введите имя объекта...',
+        matchOnDescription: true,
+        matchOnDetail: true,
+      });
+
+      if (!picked) { return; }
+
+      // Построить путь к XML-файлу объекта
+      const folderName = META_FOLDER_NAMES[picked.metaType];
+      if (!folderName) { return; }
+
+      const xmlPath = path.join(
+        picked.configRoot,
+        folderName,
+        picked.metaName,
+        `${picked.metaName}.xml`
+      );
+
+      if (fs.existsSync(xmlPath)) {
+        const editor = await vscode.window.showTextDocument(
+          vscode.Uri.file(xmlPath),
+          { preview: false }
+        );
+        if (supportService?.isLocked(xmlPath)) {
+          await setEditorReadonly(editor);
+        }
+      } else {
+        vscode.window.showWarningMessage(`Файл не найден: ${xmlPath}`);
+      }
+    })
+  );
+
   // FileSystemWatcher — перестраиваем дерево при изменении Configuration.xml
   const watcher = vscode.workspace.createFileSystemWatcher(
     new vscode.RelativePattern(workspaceFolder, '**/Configuration.xml'),
@@ -897,6 +940,56 @@ function pickMostReadableText(candidates: string[]): string {
  * Подбирает корректный абсолютный путь к env.json.
  * Нужен, чтобы избежать дубля "example/example" при разных корнях workspace.
  */
+/** Маппинг типа объекта → имя папки в XML-выгрузке */
+const META_FOLDER_NAMES: Record<string, string> = {
+  Subsystem: 'Subsystems',
+  CommonModule: 'CommonModules',
+  Role: 'Roles',
+  CommonForm: 'CommonForms',
+  CommonCommand: 'CommonCommands',
+  CommandGroup: 'CommandGroups',
+  CommonPicture: 'CommonPictures',
+  CommonTemplate: 'CommonTemplates',
+  XDTOPackage: 'XDTOPackages',
+  StyleItem: 'StyleItems',
+  DefinedType: 'DefinedTypes',
+  Constant: 'Constants',
+  Catalog: 'Catalogs',
+  Document: 'Documents',
+  DocumentNumerator: 'DocumentNumerators',
+  Enum: 'Enums',
+  InformationRegister: 'InformationRegisters',
+  AccumulationRegister: 'AccumulationRegisters',
+  AccountingRegister: 'AccountingRegisters',
+  CalculationRegister: 'CalculationRegisters',
+  Report: 'Reports',
+  DataProcessor: 'DataProcessors',
+  BusinessProcess: 'BusinessProcesses',
+  Task: 'Tasks',
+  ExchangePlan: 'ExchangePlans',
+  ChartOfCharacteristicTypes: 'ChartsOfCharacteristicTypes',
+  ChartOfAccounts: 'ChartsOfAccounts',
+  ChartOfCalculationTypes: 'ChartsOfCalculationTypes',
+  DocumentJournal: 'DocumentJournals',
+  ScheduledJob: 'ScheduledJobs',
+  EventSubscription: 'EventSubscriptions',
+  HTTPService: 'HTTPServices',
+  WebService: 'WebServices',
+  FilterCriterion: 'FilterCriteria',
+  Sequence: 'Sequences',
+  SessionParameter: 'SessionParameters',
+  CommonAttribute: 'CommonAttributes',
+  FunctionalOption: 'FunctionalOptions',
+  FunctionalOptionsParameter: 'FunctionalOptionsParameters',
+  SettingsStorage: 'SettingsStorages',
+  Style: 'Styles',
+  WSReference: 'WSReferences',
+  WebSocketClient: 'WebSocketClients',
+  IntegrationService: 'IntegrationServices',
+  Bot: 'Bots',
+  ExternalDataSource: 'ExternalDataSources',
+};
+
 function resolveSettingsPath(workspaceRoot: string, extensionRoot: string): string {
   const extensionParent = path.dirname(extensionRoot);
   const extensionGrandParent = path.dirname(extensionParent);

@@ -401,5 +401,94 @@ export class MetadataTreeProvider implements vscode.TreeDataProvider<MetadataNod
     }
     return result;
   }
+
+  /**
+   * Возвращает плоский список всех объектов метаданных для Quick Pick поиска.
+   * Каждый элемент содержит: label (имя), description (тип), detail (конфигурация).
+   */
+  getAllMetadataItems(): MetadataQuickPickItem[] {
+    const items: MetadataQuickPickItem[] = [];
+
+    for (const entry of this.entries) {
+      const configXmlPath = path.join(entry.rootPath, 'Configuration.xml');
+      const info = parseConfigXml(configXmlPath);
+
+      for (const [typeName, names] of info.childObjects) {
+        const kindLabel = TYPE_LABELS[typeName] ?? typeName;
+        for (const name of names) {
+          items.push({
+            label: name,
+            description: kindLabel,
+            detail: info.name,
+            configRoot: entry.rootPath,
+            metaType: typeName,
+            metaName: name,
+          });
+        }
+      }
+    }
+
+    return items;
+  }
 }
+
+/** Элемент Quick Pick с метаданными для навигации */
+export interface MetadataQuickPickItem extends vscode.QuickPickItem {
+  configRoot: string;
+  metaType: string;
+  metaName: string;
+}
+
+/** Человекочитаемые названия типов объектов метаданных */
+const TYPE_LABELS: Record<string, string> = {
+  Subsystem: 'Подсистема',
+  CommonModule: 'Общий модуль',
+  Role: 'Роль',
+  CommonForm: 'Общая форма',
+  CommonCommand: 'Общая команда',
+  CommandGroup: 'Группа команд',
+  CommonPicture: 'Общая картинка',
+  CommonTemplate: 'Общий макет',
+  XDTOPackage: 'XDTO-пакет',
+  StyleItem: 'Элемент стиля',
+  DefinedType: 'Определяемый тип',
+  Constant: 'Константа',
+  Catalog: 'Справочник',
+  Document: 'Документ',
+  DocumentNumerator: 'Нумератор',
+  Enum: 'Перечисление',
+  InformationRegister: 'Регистр сведений',
+  AccumulationRegister: 'Регистр накопления',
+  AccountingRegister: 'Регистр бухгалтерии',
+  CalculationRegister: 'Регистр расчета',
+  Report: 'Отчет',
+  DataProcessor: 'Обработка',
+  BusinessProcess: 'Бизнес-процесс',
+  Task: 'Задача',
+  ExchangePlan: 'План обмена',
+  ChartOfCharacteristicTypes: 'ПВХ',
+  ChartOfAccounts: 'План счетов',
+  ChartOfCalculationTypes: 'ПВР',
+  DocumentJournal: 'Журнал документов',
+  ScheduledJob: 'Рег. задание',
+  EventSubscription: 'Подписка на событие',
+  HTTPService: 'HTTP-сервис',
+  WebService: 'Web-сервис',
+  FilterCriterion: 'Критерий отбора',
+  Sequence: 'Последовательность',
+  SessionParameter: 'Параметр сеанса',
+  CommonAttribute: 'Общий реквизит',
+  FunctionalOption: 'Функц. опция',
+  FunctionalOptionsParameter: 'Параметр функц. опции',
+  SettingsStorage: 'Хранилище настроек',
+  Style: 'Стиль',
+  WSReference: 'WS-ссылка',
+  WebSocketClient: 'WebSocket',
+  IntegrationService: 'Сервис интеграции',
+  Bot: 'Бот',
+  ExternalDataSource: 'Внешний источник',
+  Interface: 'Интерфейс',
+  PaletteColor: 'Цвет палитры',
+  Language: 'Язык',
+};
 
