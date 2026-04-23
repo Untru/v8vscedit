@@ -223,6 +223,12 @@
         }
       ]
     },
+    "snippets": [
+      {
+        "language": "bsl",
+        "path": "./snippets/bsl.json"
+      }
+    ],
     "grammars": [
       {
         "language": "bsl",

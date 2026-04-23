@@ -3,6 +3,7 @@ import { TextDocument } from 'vscode-languageserver-textdocument';
 import { Hover, MarkupKind, Position } from 'vscode-languageserver/node';
 import { BslParserService } from '../BslParserService';
 import { getWordAtPosition } from '../lspUtils';
+import { GLOBAL_METHODS_MAP, GlobalMethodInfo } from '../data/globalMethods';
 
 /**
  * Возвращает подсказку при наведении — сигнатуру процедуры/функции под курсором.
@@ -22,6 +23,13 @@ export async function provideHover(
 
   const defNode = findDefinition(tree.rootNode, wordInfo.word);
   if (!defNode) {
+    const globalMethod = GLOBAL_METHODS_MAP.get(wordInfo.word.toLowerCase());
+    if (globalMethod) {
+      return {
+        contents: { kind: MarkupKind.Markdown, value: buildGlobalMethodHover(globalMethod) },
+        range: wordInfo.range,
+      };
+    }
     return null;
   }
 
@@ -102,4 +110,29 @@ function buildParamsString(paramsNode: Node): string {
     parts.push(text);
   }
   return parts.join(', ');
+}
+
+function buildGlobalMethodHover(method: GlobalMethodInfo): string {
+  const kind = method.isFunction ? 'Функция' : 'Процедура';
+  const paramsStr = method.params.map(p =>
+    `${p.name}: ${p.type}${p.optional ? ' (необязательный)' : ''}`
+  ).join(', ');
+
+  let md = `\`\`\`bsl\n${kind} ${method.nameRu}(${paramsStr})`;
+  if (method.returnType) md += ` : ${method.returnType}`;
+  md += `\n\`\`\`\n\n${method.description}`;
+
+  if (method.params.length > 0) {
+    md += '\n\n**Параметры:**\n';
+    for (const p of method.params) {
+      md += `- **${p.name}** (*${p.type}*${p.optional ? ', необязательный' : ''}) \u2014 ${p.description}\n`;
+    }
+  }
+
+  if (method.returnType) {
+    md += `\n**Возвращает:** *${method.returnType}*`;
+  }
+
+  md += `\n\n*Категория: ${method.category}*`;
+  return md;
 }

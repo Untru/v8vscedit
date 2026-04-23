@@ -18,6 +18,11 @@ import { provideFoldingRanges } from './providers/folding';
 import { provideHover } from './providers/hover';
 import { provideCompletionItems, invalidateMetaCache } from './providers/completion';
 import { provideDefinition, invalidateDefinitionCache } from './providers/definition';
+import { provideSignatureHelp } from './providers/signatureHelp';
+import { provideDocumentFormatting } from './providers/formatting';
+import { provideWorkspaceSymbols, invalidateWorkspaceSymbolCache } from './providers/workspaceSymbols';
+import { provideRename, prepareRename } from './providers/rename';
+import { provideReferences } from './providers/references';
 import { uriToFsPath } from './lspUtils';
 
 const connection = createConnection(ProposedFeatures.all);
@@ -45,6 +50,15 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
 
       hoverProvider: true,
       definitionProvider: true,
+      signatureHelpProvider: {
+        triggerCharacters: ['(', ','],
+      },
+      documentFormattingProvider: true,
+      workspaceSymbolProvider: true,
+      renameProvider: {
+        prepareProvider: true,
+      },
+      referencesProvider: true,
       documentSymbolProvider: true,
       foldingRangeProvider: true,
 
@@ -104,6 +118,7 @@ connection.onDidChangeWatchedFiles((params) => {
     if (uri.endsWith('.bsl')) {
       parserService.invalidate(uri);
       invalidateDefinitionCache();
+      invalidateWorkspaceSymbolCache();
       // Перезапускаем диагностику для открытых документов
       if (change.type !== FileChangeType.Deleted) {
         const doc = documents.get(uri);
@@ -204,6 +219,55 @@ connection.onDefinition(async (params) => {
   } catch {
     return null;
   }
+});
+
+connection.onSignatureHelp(async (params) => {
+  const doc = documents.get(params.textDocument.uri);
+  if (!doc) { return null; }
+  try {
+    return await provideSignatureHelp(doc, params.position, parserService);
+  } catch { return null; }
+});
+
+connection.onDocumentFormatting((params) => {
+  const doc = documents.get(params.textDocument.uri);
+  if (!doc) { return []; }
+  try {
+    return provideDocumentFormatting(doc, params);
+  } catch { return []; }
+});
+
+connection.onWorkspaceSymbol(async (params) => {
+  try {
+    return await provideWorkspaceSymbols(params.query, workspaceRoots, parserService);
+  } catch { return []; }
+});
+
+connection.onPrepareRename(async (params) => {
+  const doc = documents.get(params.textDocument.uri);
+  if (!doc) { return null; }
+  try {
+    return await prepareRename(doc, params.position, parserService);
+  } catch { return null; }
+});
+
+connection.onRenameRequest(async (params) => {
+  const doc = documents.get(params.textDocument.uri);
+  if (!doc) { return null; }
+  try {
+    return await provideRename(doc, params.position, params.newName, parserService);
+  } catch { return null; }
+});
+
+connection.onReferences(async (params) => {
+  const doc = documents.get(params.textDocument.uri);
+  if (!doc) { return []; }
+  try {
+    return await provideReferences(
+      doc, params.position, parserService, workspaceRoots, documents,
+      params.context.includeDeclaration
+    );
+  } catch { return []; }
 });
 
 // ── Диагностики с дебаунсом 500 мс ─────────────────────────────────────────
