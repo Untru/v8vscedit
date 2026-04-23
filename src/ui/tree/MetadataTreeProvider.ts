@@ -9,6 +9,7 @@ import { buildNode } from './nodes/_base';
 import { getNodeDescriptor } from './nodes/index';
 import { getObjectHandler } from './nodeBuilders/index';
 import { SupportInfoService, SupportMode } from '../../infra/support/SupportInfoService';
+import { RepoLockService, RepoLockStatus } from '../../infra/repo/RepoLockService';
 
 export class MetadataTreeProvider implements vscode.TreeDataProvider<MetadataNode> {
   private _onDidChangeTreeData = new vscode.EventEmitter<MetadataNode | undefined | null>();
@@ -19,7 +20,8 @@ export class MetadataTreeProvider implements vscode.TreeDataProvider<MetadataNod
   constructor(
     private entries: ConfigEntry[],
     private readonly extensionUri: vscode.Uri,
-    private readonly supportService?: SupportInfoService
+    private readonly supportService?: SupportInfoService,
+    private readonly repoLockService?: RepoLockService
   ) {
     this.buildRoots();
   }
@@ -39,6 +41,7 @@ export class MetadataTreeProvider implements vscode.TreeDataProvider<MetadataNod
   getTreeItem(element: MetadataNode): vscode.TreeItem {
     element.iconPath = getIconUris(element.nodeKind, element.ownershipTag, this.extensionUri);
     this.applySupportDecoration(element);
+    this.applyRepoLockDecoration(element);
     return element;
   }
 
@@ -57,6 +60,40 @@ export class MetadataTreeProvider implements vscode.TreeDataProvider<MetadataNod
     // Суффикс contextValue для показа inline-иконки при наведении
     const baseCtx = (element.contextValue ?? '').replace(/-support\d$/, '');
     element.contextValue = `${baseCtx}-support${mode}`;
+  }
+
+  private applyRepoLockDecoration(element: MetadataNode): void {
+    if (!this.repoLockService) { return; }
+    const configRoot = element.configRoot;
+    if (!configRoot) { return; }
+
+    if (element.nodeKind === 'configuration' || element.nodeKind === 'extension') {
+      if (this.repoLockService.isConnected(configRoot)) {
+        element.contextValue = `${element.contextValue ?? ''}-repoConnected`;
+      }
+      return;
+    }
+
+    if (!this.repoLockService.isConnected(configRoot)) { return; }
+    if (!this.repoLockService.hasLockData(configRoot)) { return; }
+    if (!this.repoLockService.isLockable(element.nodeKind)) { return; }
+
+    const label = typeof element.label === 'string' ? element.label : '';
+    const status = this.repoLockService.getLockStatus(configRoot, element.nodeKind, label);
+
+    let suffix: string;
+    switch (status) {
+      case RepoLockStatus.LockedByMe: suffix = '-repoLockedByMe'; break;
+      case RepoLockStatus.LockedByOther: suffix = '-repoLockedByOther'; break;
+      default: suffix = '-repoFree'; break;
+    }
+
+    const info = this.repoLockService.getLockInfo(configRoot, element.nodeKind, label);
+    if (info?.lockedBy) {
+      element.tooltip = `${element.tooltip ?? label}\nЗахвачен: ${info.lockedBy}`;
+    }
+
+    element.contextValue = `${element.contextValue ?? ''}${suffix}`;
   }
 
   getChildren(element?: MetadataNode): MetadataNode[] {
@@ -116,11 +153,19 @@ export class MetadataTreeProvider implements vscode.TreeDataProvider<MetadataNod
       ownershipTag: undefined,
     });
 
+    node.configRoot = entry.rootPath;
+
     if (info.synonym) {
       node.tooltip = info.synonym;
     }
 
     return node;
+  }
+
+  /** Проставляет configRoot на массиве узлов */
+  private tagConfigRoot(nodes: MetadataNode[], configRoot: string): MetadataNode[] {
+    for (const n of nodes) { n.configRoot = configRoot; }
+    return nodes;
   }
 
   /**

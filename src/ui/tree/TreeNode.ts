@@ -168,6 +168,9 @@ export function getNodeKindLabel(nodeKind: NodeKind): string {
 
 /** Узел дерева метаданных */
 export class MetadataNode extends vscode.TreeItem {
+  /** Корневой путь конфигурации (каталог с Configuration.xml) */
+  public configRoot?: string;
+
   constructor(
     /** Отображаемая метка */
     public readonly label: string,

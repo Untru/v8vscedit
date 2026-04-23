@@ -5,6 +5,10 @@ import { PropertiesViewProvider } from '../views/PropertiesViewProvider';
 import { OnecFileSystemProvider } from '../vfs/OnecFileSystemProvider';
 import { buildVirtualUri, buildFormModuleVirtualUri } from '../vfs/OnecUriBuilder';
 import { SupportInfoService } from '../../infra/support/SupportInfoService';
+import { RepoConnectionService } from '../../infra/repo/RepoConnectionService';
+import { RepoLockService } from '../../infra/repo/RepoLockService';
+import * as path from 'path';
+import * as fs from 'fs';
 import {
   extractExtensionTarget,
   runCompileExtension,
@@ -86,7 +90,9 @@ export function registerCommands(
   propertiesViewProvider: PropertiesViewProvider,
   fsp: OnecFileSystemProvider,
   outputChannel: vscode.OutputChannel,
-  supportService?: SupportInfoService
+  supportService?: SupportInfoService,
+  repoConnectionService?: RepoConnectionService,
+  repoLockService?: RepoLockService
 ): void {
   // Открыть XML-файл объекта метаданных
   context.subscriptions.push(
@@ -344,6 +350,121 @@ export function registerCommands(
     })
   );
 
+  // ── Команды хранилища конфигурации ──────────────────────────────────────
+  if (repoConnectionService && repoLockService) {
+    context.subscriptions.push(
+      vscode.commands.registerCommand('v8vscedit.repo.connect', async (node: NodeArg) => {
+        const configRoot = extractConfigRoot(node);
+        if (!configRoot) { return; }
+        const settings = await repoConnectionService.promptAndSaveSettings(configRoot);
+        if (!settings) { return; }
+        await vscode.window.withProgress(
+          { location: vscode.ProgressLocation.Window, title: 'Обновление захватов хранилища...' },
+          async () => { await repoLockService.refreshLocks(configRoot); provider.refresh(); }
+        );
+        vscode.window.showInformationMessage('Хранилище подключено.');
+      }),
+      vscode.commands.registerCommand('v8vscedit.repo.disconnect', async (node: NodeArg) => {
+        const configRoot = extractConfigRoot(node);
+        if (!configRoot) { return; }
+        await repoConnectionService.removeSettings(configRoot);
+        repoLockService.invalidate(configRoot);
+        provider.refresh();
+        vscode.window.showInformationMessage('Хранилище отключено.');
+      }),
+      vscode.commands.registerCommand('v8vscedit.repo.lock', async (node: NodeArg) => {
+        const metaNode = node as MetadataNode;
+        const configRoot = metaNode.configRoot;
+        if (!configRoot || !metaNode.nodeKind || !metaNode.label) { return; }
+        const label = String(metaNode.label);
+        const ok = await vscode.window.showInformationMessage(`Захватить "${label}"?`, { modal: true }, 'Захватить');
+        if (ok !== 'Захватить') { return; }
+        const success = await vscode.window.withProgress(
+          { location: vscode.ProgressLocation.Window, title: `Захват: ${label}...` },
+          () => repoLockService.lockObject(configRoot, metaNode.nodeKind, label)
+        );
+        if (success) { provider.refresh(); vscode.window.showInformationMessage(`"${label}" захвачен.`); }
+        else { vscode.window.showErrorMessage(`Не удалось захватить "${label}".`); }
+      }),
+      vscode.commands.registerCommand('v8vscedit.repo.unlock', async (node: NodeArg) => {
+        const metaNode = node as MetadataNode;
+        const configRoot = metaNode.configRoot;
+        if (!configRoot || !metaNode.nodeKind || !metaNode.label) { return; }
+        const label = String(metaNode.label);
+        const ok = await vscode.window.showInformationMessage(`Снять захват "${label}"?`, { modal: true }, 'Снять захват');
+        if (ok !== 'Снять захват') { return; }
+        const success = await vscode.window.withProgress(
+          { location: vscode.ProgressLocation.Window, title: `Снятие захвата: ${label}...` },
+          () => repoLockService.unlockObject(configRoot, metaNode.nodeKind, label)
+        );
+        if (success) { provider.refresh(); vscode.window.showInformationMessage(`Захват "${label}" снят.`); }
+        else { vscode.window.showErrorMessage(`Не удалось снять захват "${label}".`); }
+      }),
+      vscode.commands.registerCommand('v8vscedit.repo.refreshLocks', async (node: NodeArg) => {
+        const configRoot = extractConfigRoot(node);
+        if (!configRoot) { return; }
+        const success = await vscode.window.withProgress(
+          { location: vscode.ProgressLocation.Window, title: 'Обновление захватов...' },
+          () => repoLockService.refreshLocks(configRoot)
+        );
+        if (success) { provider.refresh(); vscode.window.showInformationMessage('Статус захватов обновлён.'); }
+        else { vscode.window.showErrorMessage('Не удалось получить отчёт из хранилища.'); }
+      }),
+      vscode.commands.registerCommand('v8vscedit.repo.create', async (node: NodeArg) => {
+        const configRoot = extractConfigRoot(node);
+        if (!configRoot) { return; }
+        if (!repoConnectionService.hasSettings(configRoot)) {
+          const s = await repoConnectionService.promptAndSaveSettings(configRoot);
+          if (!s) { return; }
+        }
+        const ok = await vscode.window.showWarningMessage('Создать новое хранилище?', { modal: true }, 'Создать');
+        if (ok !== 'Создать') { return; }
+        const success = await vscode.window.withProgress(
+          { location: vscode.ProgressLocation.Window, title: 'Создание хранилища...' },
+          () => repoLockService.createRepository(configRoot)
+        );
+        if (success) { provider.refresh(); vscode.window.showInformationMessage('Хранилище создано.'); }
+        else { vscode.window.showErrorMessage('Не удалось создать хранилище.'); }
+      }),
+      vscode.commands.registerCommand('v8vscedit.repo.commit', async (node: NodeArg) => {
+        const configRoot = extractConfigRoot(node);
+        if (!configRoot) { return; }
+        const comment = await vscode.window.showInputBox({ title: 'Помещение в хранилище', prompt: 'Комментарий', ignoreFocusOut: true });
+        if (comment === undefined) { return; }
+        const success = await vscode.window.withProgress(
+          { location: vscode.ProgressLocation.Window, title: 'Помещение в хранилище...' },
+          () => repoLockService.commitToRepository(configRoot, comment || undefined)
+        );
+        if (success) { await repoLockService.refreshLocks(configRoot); provider.refresh(); vscode.window.showInformationMessage('Помещено в хранилище.'); }
+        else { vscode.window.showErrorMessage('Не удалось поместить в хранилище.'); }
+      }),
+      vscode.commands.registerCommand('v8vscedit.repo.updateCfg', async (node: NodeArg) => {
+        const configRoot = extractConfigRoot(node);
+        if (!configRoot) { return; }
+        const ok = await vscode.window.showInformationMessage('Получить из хранилища?', { modal: true }, 'Получить');
+        if (ok !== 'Получить') { return; }
+        const success = await vscode.window.withProgress(
+          { location: vscode.ProgressLocation.Window, title: 'Получение из хранилища...' },
+          () => repoLockService.updateFromRepository(configRoot)
+        );
+        if (success) { await repoLockService.refreshLocks(configRoot); provider.refresh(); vscode.window.showInformationMessage('Конфигурация обновлена.'); }
+        else { vscode.window.showErrorMessage('Не удалось получить из хранилища.'); }
+      }),
+      vscode.commands.registerCommand('v8vscedit.repo.history', async (node: NodeArg) => {
+        const configRoot = extractConfigRoot(node);
+        if (!configRoot) { return; }
+        const report = await vscode.window.withProgress(
+          { location: vscode.ProgressLocation.Window, title: 'История хранилища...' },
+          () => repoLockService.getHistory(configRoot)
+        );
+        if (report) {
+          const doc = await vscode.workspace.openTextDocument({ content: report, language: 'plaintext' });
+          await vscode.window.showTextDocument(doc, { preview: true });
+        } else { vscode.window.showErrorMessage('Не удалось получить историю.'); }
+      }),
+    );
+  }
+
   // FileSystemWatcher — перестраиваем дерево при изменении Configuration.xml
   const watcher = vscode.workspace.createFileSystemWatcher(
     new vscode.RelativePattern(workspaceFolder, '**/Configuration.xml'),
@@ -357,4 +478,12 @@ export function registerCommands(
   watcher.onDidDelete(onConfigChange, null, context.subscriptions);
   watcher.onDidChange(onConfigChange, null, context.subscriptions);
   context.subscriptions.push(watcher);
+}
+
+function extractConfigRoot(node: NodeArg): string | null {
+  const metaNode = node as MetadataNode;
+  if (metaNode.configRoot) { return metaNode.configRoot; }
+  const xmlPath = node?.xmlPath;
+  if (!xmlPath) { return null; }
+  return path.dirname(xmlPath);
 }

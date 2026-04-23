@@ -130,7 +130,19 @@
           "light": "./src/icons/light/support-locked.svg",
           "dark": "./src/icons/dark/support-locked.svg"
         }
-      }
+      },
+      { "command": "v8vscedit.repo.connect", "title": "Подключить к хранилищу", "icon": "$(link)" },
+      { "command": "v8vscedit.repo.disconnect", "title": "Отключить от хранилища" },
+      { "command": "v8vscedit.repo.lock", "title": "Захватить в хранилище" },
+      { "command": "v8vscedit.repo.unlock", "title": "Снять захват" },
+      { "command": "v8vscedit.repo.refreshLocks", "title": "Обновить статус захватов", "icon": "$(sync)" },
+      { "command": "v8vscedit.repo.create", "title": "Создать хранилище", "icon": "$(add)" },
+      { "command": "v8vscedit.repo.commit", "title": "Поместить в хранилище", "icon": "$(cloud-upload)" },
+      { "command": "v8vscedit.repo.updateCfg", "title": "Получить из хранилища", "icon": "$(cloud-download)" },
+      { "command": "v8vscedit.repo.history", "title": "История хранилища", "icon": "$(history)" },
+      { "command": "v8vscedit.repo.status.free", "title": "Свободен", "icon": { "light": "./src/icons/light/repo-free.svg", "dark": "./src/icons/dark/repo-free.svg" } },
+      { "command": "v8vscedit.repo.status.lockedByMe", "title": "Захвачен мной", "icon": { "light": "./src/icons/light/repo-locked-mine.svg", "dark": "./src/icons/dark/repo-locked-mine.svg" } },
+      { "command": "v8vscedit.repo.status.lockedByOther", "title": "Захвачен другим", "icon": { "light": "./src/icons/light/repo-locked-other.svg", "dark": "./src/icons/dark/repo-locked-other.svg" } }
     ],
     "menus": {
       "view/title": [
@@ -220,9 +232,27 @@
           "command": "v8vscedit.support.editable",
           "when": "view == v8vsceditTree && viewItem =~ /-support2/",
           "group": "inline"
-        }
+        },
+        { "command": "v8vscedit.repo.create", "when": "view == v8vsceditTree && viewItem =~ /^(configuration|extension)-hasXml/ && !(viewItem =~ /-repoConnected/)", "group": "repo@0" },
+        { "command": "v8vscedit.repo.connect", "when": "view == v8vsceditTree && viewItem =~ /^(configuration|extension)-hasXml/ && !(viewItem =~ /-repoConnected/)", "group": "repo@1" },
+        { "command": "v8vscedit.repo.commit", "when": "view == v8vsceditTree && viewItem =~ /-repoConnected/", "group": "repo@2" },
+        { "command": "v8vscedit.repo.updateCfg", "when": "view == v8vsceditTree && viewItem =~ /-repoConnected/", "group": "repo@3" },
+        { "command": "v8vscedit.repo.refreshLocks", "when": "view == v8vsceditTree && viewItem =~ /-repoConnected/", "group": "repo@4" },
+        { "command": "v8vscedit.repo.history", "when": "view == v8vsceditTree && viewItem =~ /-repoConnected/", "group": "repo@5" },
+        { "command": "v8vscedit.repo.disconnect", "when": "view == v8vsceditTree && viewItem =~ /-repoConnected/", "group": "repo@9" },
+        { "command": "v8vscedit.repo.lock", "when": "view == v8vsceditTree && viewItem =~ /-repoFree/", "group": "repo@0" },
+        { "command": "v8vscedit.repo.unlock", "when": "view == v8vsceditTree && viewItem =~ /-repoLockedByMe/", "group": "repo@1" },
+        { "command": "v8vscedit.repo.status.free", "when": "view == v8vsceditTree && viewItem =~ /-repoFree/", "group": "inline" },
+        { "command": "v8vscedit.repo.status.lockedByMe", "when": "view == v8vsceditTree && viewItem =~ /-repoLockedByMe/", "group": "inline" },
+        { "command": "v8vscedit.repo.status.lockedByOther", "when": "view == v8vsceditTree && viewItem =~ /-repoLockedByOther/", "group": "inline" }
       ]
     },
+    "snippets": [
+      {
+        "language": "bsl",
+        "path": "./snippets/bsl.json"
+      }
+    ],
     "grammars": [
       {
         "language": "bsl",
@@ -292,6 +322,12 @@
           "type": "string",
           "default": "",
           "description": "Путь к исполняемому файлу bsl-analyzer (если пусто — скачивается автоматически)"
+        },
+        "v8vscedit.repository.connections": {
+          "type": "object",
+          "default": {},
+          "description": "Настройки подключения к хранилищам конфигурации 1С",
+          "scope": "window"
         }
       }
     },

@@ -10,6 +10,8 @@ import { LspManager } from './lsp/LspManager';
 import { BslReadonlyGuard } from './ui/readonly/BslReadonlyGuard';
 import { registerSupportIndicatorCommands } from './ui/support/SupportIndicatorCommands';
 import { registerSupportWatcher } from './ui/support/SupportWatcher';
+import { RepoConnectionService } from './infra/repo/RepoConnectionService';
+import { RepoLockService } from './infra/repo/RepoLockService';
 
 /**
  * Композиционный корень расширения. Собирает зависимости в одном месте,
@@ -29,6 +31,8 @@ export class Container {
   readonly treeProvider: MetadataTreeProvider;
   readonly propertiesProvider: PropertiesViewProvider;
   readonly lspManager: LspManager;
+  readonly repoConnectionService: RepoConnectionService;
+  readonly repoLockService: RepoLockService;
 
   private constructor(
     private readonly context: vscode.ExtensionContext,
@@ -56,7 +60,10 @@ export class Container {
       })
     );
 
-    this.treeProvider = new MetadataTreeProvider([], context.extensionUri, this.supportService);
+    this.repoConnectionService = new RepoConnectionService(context.secrets);
+    this.repoLockService = new RepoLockService(this.repoConnectionService, this.outputChannel);
+
+    this.treeProvider = new MetadataTreeProvider([], context.extensionUri, this.supportService, this.repoLockService);
     this.propertiesProvider = new PropertiesViewProvider();
     context.subscriptions.push(this.propertiesProvider);
 
@@ -111,14 +118,37 @@ export class Container {
       this.propertiesProvider,
       this.vfs,
       this.outputChannel,
-      this.supportService
+      this.supportService,
+      this.repoConnectionService,
+      this.repoLockService
     );
     registerSupportIndicatorCommands(this.context);
+    this.registerRepoIndicatorCommands();
   }
 
   private wireReadonlyGuard(): void {
     const guard = new BslReadonlyGuard(this.supportService, this.outputChannel);
     this.context.subscriptions.push(guard.register());
+  }
+
+  private registerRepoIndicatorCommands(): void {
+    const ctx = this.context;
+    const lockService = this.repoLockService;
+    ctx.subscriptions.push(
+      vscode.commands.registerCommand('v8vscedit.repo.status.free', () => {
+        vscode.window.showInformationMessage('Объект свободен в хранилище.');
+      }),
+      vscode.commands.registerCommand('v8vscedit.repo.status.lockedByMe', () => {
+        vscode.window.showInformationMessage('Объект захвачен вами.');
+      }),
+      vscode.commands.registerCommand('v8vscedit.repo.status.lockedByOther', (node: any) => {
+        const info = node?.configRoot
+          ? lockService.getLockInfo(node.configRoot, node.nodeKind, String(node.label ?? ''))
+          : undefined;
+        const who = info?.lockedBy ? ` пользователем "${info.lockedBy}"` : '';
+        vscode.window.showWarningMessage(`Объект захвачен${who} в хранилище.`);
+      }),
+    );
   }
 
   private wireLsp(): void {
