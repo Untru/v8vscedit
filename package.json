@@ -71,6 +71,10 @@
         "title": "Открыть модуль"
       },
       {
+        "command": "v8vscedit.openFormEditor",
+        "title": "Редактировать форму"
+      },
+      {
         "command": "v8vscedit.showProperties",
         "title": "Свойства"
       },
@@ -253,6 +257,11 @@
         {
           "command": "v8vscedit.openConstantModule",
           "when": "view == v8vsceditTree && viewItem =~ /^Constant-hasXml/",
+          "group": "navigation@2"
+        },
+        {
+          "command": "v8vscedit.openFormEditor",
+          "when": "view == v8vsceditTree && viewItem =~ /^(CommonForm|Form)-hasXml/",
           "group": "navigation@2"
         },
         {
