@@ -1,0 +1,422 @@
+import * as fs from 'fs';
+import * as os from 'os';
+import * as path from 'path';
+import * as vscode from 'vscode';
+import { MetadataNode } from '../../tree/TreeNode';
+import { decodeProcessOutput, runProcess } from '../../../infra/process';
+
+type NodeArg = MetadataNode | { xmlPath?: string; nodeKind?: string; label?: string };
+
+interface RunCliOptions {
+  extensionName: string;
+  cliArgs: string[];
+  progressTitle: string;
+  progressStartMessage: string;
+  successMessage: string;
+  errorTitle: string;
+  logPrefix: string;
+  showSuccessModal?: boolean;
+  afterSuccess?: () => Promise<void>;
+}
+
+interface ConnectionParams {
+  infoBasePath?: string;
+  infoBaseServer?: string;
+  infoBaseRef?: string;
+  userName?: string;
+  password?: string;
+}
+
+export function extractExtensionTarget(node: NodeArg): { extensionName: string; extensionRoot: string } | null {
+  const nodeKind = node?.nodeKind;
+  const xmlPath = node?.xmlPath;
+  const extensionName = String((node as MetadataNode | undefined)?.label ?? '');
+  if (nodeKind !== 'extension' || !xmlPath || !extensionName) {
+    return null;
+  }
+  return {
+    extensionName,
+    extensionRoot: path.dirname(xmlPath),
+  };
+}
+
+export async function runDecompileExtension(
+  extensionName: string,
+  extensionRoot: string,
+  workspaceFolder: vscode.WorkspaceFolder,
+  outputChannel: vscode.OutputChannel
+): Promise<boolean> {
+  const settingsPath = resolveSettingsPath(workspaceFolder.uri.fsPath, extensionRoot);
+  const connection = resolveConnectionFromSettings(settingsPath);
+  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'v8vscedit-import-ext-'));
+  const tempConfigDir = path.join(tempRoot, 'cfe', extensionName);
+  fs.mkdirSync(tempConfigDir, { recursive: true });
+  const cliArgs = [
+    'export-configuration',
+    '-ProjectRoot',
+    workspaceFolder.uri.fsPath,
+    '-Target',
+    'cfe',
+    '-ConfigDir',
+    tempConfigDir,
+    '-Mode',
+    'Full',
+    '-Extension',
+    extensionName,
+    ...buildConnectionCliArgs(connection),
+  ];
+  try {
+    return await runInternalCliCommand(
+      {
+        extensionName,
+        cliArgs,
+        progressTitle: `Выгрузка расширения ${extensionName} во внутренний XML`,
+        progressStartMessage: 'Импорт расширения: выгрузка во временный каталог...',
+        successMessage: `Импорт расширения "${extensionName}" успешно завершен.`,
+        errorTitle: `Ошибка импорта расширения "${extensionName}".`,
+        logPrefix: 'export-configuration',
+        afterSuccess: async () => {
+          syncDirectorySnapshot(tempConfigDir, extensionRoot);
+        },
+      },
+      workspaceFolder,
+      outputChannel
+    );
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+}
+
+export async function runCompileExtension(
+  extensionName: string,
+  extensionRoot: string,
+  workspaceFolder: vscode.WorkspaceFolder,
+  outputChannel: vscode.OutputChannel,
+  showSuccessModal = true
+): Promise<boolean> {
+  const settingsPath = resolveSettingsPath(workspaceFolder.uri.fsPath, extensionRoot);
+  const connection = resolveConnectionFromSettings(settingsPath);
+  const cliArgs = [
+    'sync-configuration-full',
+    '-ProjectRoot',
+    workspaceFolder.uri.fsPath,
+    '-Target',
+    'cfe',
+    '-Extension',
+    extensionName,
+    ...buildConnectionCliArgs(connection),
+  ];
+  return runInternalCliCommand(
+    {
+      extensionName,
+      cliArgs,
+      progressTitle: `Полное обновление расширения ${extensionName} в БД`,
+      progressStartMessage: 'Загрузка исходников, применение изменений...',
+      successMessage: `Полное обновление расширения "${extensionName}" успешно завершено.`,
+      errorTitle: `Ошибка загрузки или применения расширения "${extensionName}" в БД.`,
+      logPrefix: 'sync-configuration-full',
+      showSuccessModal,
+    },
+    workspaceFolder,
+    outputChannel
+  );
+}
+
+export async function runUpdateExtension(
+  extensionName: string,
+  extensionRoot: string,
+  workspaceFolder: vscode.WorkspaceFolder,
+  outputChannel: vscode.OutputChannel,
+  showSuccessModal = true
+): Promise<boolean> {
+  const settingsPath = resolveSettingsPath(workspaceFolder.uri.fsPath, extensionRoot);
+  const connection = resolveConnectionFromSettings(settingsPath);
+  const cliArgs = [
+    'update-configuration',
+    '-Extension',
+    extensionName,
+    ...buildConnectionCliArgs(connection),
+  ];
+  return runInternalCliCommand(
+    {
+      extensionName,
+      cliArgs,
+      progressTitle: `Обновление расширения ${extensionName} в БД`,
+      progressStartMessage: 'Запуск внутреннего update-configuration...',
+      successMessage: `Обновление расширения "${extensionName}" в БД успешно завершено.`,
+      errorTitle: `Ошибка обновления расширения "${extensionName}" в БД.`,
+      logPrefix: 'update-configuration',
+      showSuccessModal,
+    },
+    workspaceFolder,
+    outputChannel
+  );
+}
+
+async function runInternalCliCommand(
+  options: RunCliOptions,
+  workspaceFolder: vscode.WorkspaceFolder,
+  outputChannel: vscode.OutputChannel
+): Promise<boolean> {
+  const cliPath = resolveInternalCliPath(workspaceFolder.uri.fsPath);
+  const processArgs = [cliPath, ...options.cliArgs];
+  const commandAsText = `node ${processArgs.join(' ')}`;
+  outputChannel.appendLine(`[actions] Старт: ${commandAsText}`);
+
+  try {
+    let lastStdout = '';
+    let lastStderr = '';
+
+    await vscode.window.withProgress(
+      {
+        location: vscode.ProgressLocation.Window,
+        title: options.progressTitle,
+        cancellable: false,
+      },
+      async (progress) => {
+        progress.report({ message: options.progressStartMessage });
+
+        const result = await runProcess({
+          command: process.execPath,
+          args: processArgs,
+          cwd: workspaceFolder.uri.fsPath,
+          shell: false,
+          onStdout: (chunk) => {
+            const text = decodeProcessOutput(chunk).trim();
+            if (text.length > 0) {
+              lastStdout = text;
+              outputChannel.appendLine(`[${options.logPrefix}] ${text}`);
+              progress.report({ message: trimStatusMessage(text) });
+            }
+          },
+          onStderr: (chunk) => {
+            const text = decodeProcessOutput(chunk).trim();
+            if (text.length > 0) {
+              lastStderr = text;
+              outputChannel.appendLine(`[${options.logPrefix}][stderr] ${text}`);
+              progress.report({ message: trimStatusMessage(`stderr: ${text}`) });
+            }
+          },
+        });
+
+        if (result.exitCode !== 0) {
+          const details = [lastStderr || result.lastStderr, lastStdout || result.lastStdout]
+            .filter(Boolean)
+            .join('\n');
+          const suffix = details ? `\n\n${details}` : '';
+          throw new Error(`Команда завершилась с кодом ${result.exitCode}.${suffix}`);
+        }
+      }
+    );
+
+    outputChannel.appendLine(`[actions] Завершено: ${commandAsText}`);
+    if (options.afterSuccess) {
+      await options.afterSuccess();
+    }
+    if (options.showSuccessModal !== false) {
+      await vscode.window.showInformationMessage(options.successMessage, { modal: true });
+    }
+    return true;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    outputChannel.appendLine(`[actions][error] ${message}`);
+    await vscode.window.showErrorMessage(`${options.errorTitle}\n${message}`, { modal: true });
+    return false;
+  }
+}
+
+function syncDirectorySnapshot(sourceDir: string, targetDir: string): void {
+  if (!fs.existsSync(sourceDir)) {
+    throw new Error(`Временный каталог выгрузки не найден: ${sourceDir}`);
+  }
+  fs.mkdirSync(targetDir, { recursive: true });
+  deleteMissingEntries(sourceDir, targetDir);
+  copyAllEntries(sourceDir, targetDir);
+}
+
+function deleteMissingEntries(sourceDir: string, targetDir: string): void {
+  for (const entry of fs.readdirSync(targetDir, { withFileTypes: true })) {
+    const targetPath = path.join(targetDir, entry.name);
+    const sourcePath = path.join(sourceDir, entry.name);
+    if (!fs.existsSync(sourcePath)) {
+      fs.rmSync(targetPath, { recursive: true, force: true });
+      continue;
+    }
+    if (entry.isDirectory()) {
+      deleteMissingEntries(sourcePath, targetPath);
+    }
+  }
+}
+
+function copyAllEntries(sourceDir: string, targetDir: string): void {
+  for (const entry of fs.readdirSync(sourceDir, { withFileTypes: true })) {
+    const sourcePath = path.join(sourceDir, entry.name);
+    const targetPath = path.join(targetDir, entry.name);
+    if (entry.isDirectory()) {
+      fs.mkdirSync(targetPath, { recursive: true });
+      copyAllEntries(sourcePath, targetPath);
+      continue;
+    }
+    fs.copyFileSync(sourcePath, targetPath);
+  }
+}
+
+function resolveInternalCliPath(workspaceRoot: string): string {
+  const candidates = collectCliCandidates(workspaceRoot);
+
+  for (const candidate of candidates) {
+    if (fs.existsSync(candidate)) {
+      return candidate;
+    }
+  }
+
+  throw new Error(
+    `Не найден внутренний CLI раннер. Ожидался один из путей: ${candidates.join(', ')}`
+  );
+}
+
+function collectCliCandidates(workspaceRoot: string): string[] {
+  const result: string[] = [];
+  const seen = new Set<string>();
+
+  // Основной путь: CLI из пакета самого расширения (dist/cli/onec-tools.js).
+  // В рантайме __dirname указывает на dist/ui/commands/ext.
+  addCandidate(result, seen, path.join(__dirname, '..', '..', '..', 'cli', 'onec-tools.js'));
+  addCandidate(result, seen, path.join(__dirname, '..', '..', '..', '..', 'cli', 'onec-tools.js'));
+
+  // Резерв: dev-режим/нестандартный запуск из workspace.
+  addCandidate(result, seen, path.join(workspaceRoot, 'dist', 'cli', 'onec-tools.js'));
+  addCandidate(result, seen, path.join(workspaceRoot, 'out', 'cli', 'onec-tools.js'));
+
+  // Дополнительный fallback: подъём по родительским каталогам workspace.
+  let current = path.resolve(workspaceRoot);
+  for (let depth = 0; depth < 8; depth += 1) {
+    addCandidate(result, seen, path.join(current, 'dist', 'cli', 'onec-tools.js'));
+    addCandidate(result, seen, path.join(current, 'out', 'cli', 'onec-tools.js'));
+
+    const parent = path.dirname(current);
+    if (parent === current) {
+      break;
+    }
+    current = parent;
+  }
+
+  addCandidate(result, seen, path.join(__dirname, 'cli', 'onec-tools.js'));
+  addCandidate(result, seen, path.join(__dirname, '..', 'cli', 'onec-tools.js'));
+  addCandidate(result, seen, path.join(__dirname, '..', '..', 'cli', 'onec-tools.js'));
+
+  return result;
+}
+
+function addCandidate(target: string[], seen: Set<string>, candidatePath: string): void {
+  const normalized = path.resolve(candidatePath);
+  if (seen.has(normalized)) {
+    return;
+  }
+  seen.add(normalized);
+  target.push(normalized);
+}
+
+function resolveSettingsPath(workspaceRoot: string, extensionRoot: string): string {
+  const extensionParent = path.dirname(extensionRoot);
+  const extensionGrandParent = path.dirname(extensionParent);
+  const candidates = [
+    path.join(workspaceRoot, 'example', 'env.json'),
+    path.join(workspaceRoot, 'env.json'),
+    path.join(extensionGrandParent, 'env.json'),
+    path.join(extensionParent, 'env.json'),
+  ];
+
+  for (const candidate of candidates) {
+    if (fs.existsSync(candidate)) {
+      return candidate;
+    }
+  }
+  return candidates[0];
+}
+
+function resolveConnectionFromSettings(settingsPath: string): ConnectionParams {
+  if (!fs.existsSync(settingsPath)) {
+    throw new Error(`Не найден env.json для подключения к базе: ${settingsPath}`);
+  }
+
+  const raw = fs.readFileSync(settingsPath, 'utf-8');
+  const parsed = JSON.parse(raw) as {
+    default?: Record<string, unknown>;
+  };
+  const defaults = parsed.default ?? {};
+
+  const ibConnectionRaw = asString(defaults['--ibconnection']);
+  if (!ibConnectionRaw) {
+    throw new Error(`В env.json отсутствует "--ibconnection": ${settingsPath}`);
+  }
+
+  const connection: ConnectionParams = parseIbConnection(ibConnectionRaw);
+  connection.userName = asString(defaults['--db-user']) ?? '';
+  connection.password = asString(defaults['--db-pwd']) ?? '';
+  return connection;
+}
+
+function parseIbConnection(rawValue: string): ConnectionParams {
+  const normalized = rawValue.replace(/^"+|"+$/g, '');
+  if (/^\/F/i.test(normalized)) {
+    const infoBasePath = normalizeInfoBasePath(normalized.slice(2).trim());
+    return { infoBasePath };
+  }
+
+  if (/^\/S/i.test(normalized)) {
+    const serverRef = normalized.slice(2).trim();
+    const slashIndex = serverRef.indexOf('/');
+    if (slashIndex > 0) {
+      return {
+        infoBaseServer: serverRef.slice(0, slashIndex),
+        infoBaseRef: serverRef.slice(slashIndex + 1),
+      };
+    }
+  }
+
+  throw new Error(`Не удалось разобрать "--ibconnection": ${rawValue}`);
+}
+
+function normalizeInfoBasePath(rawPath: string): string {
+  let value = rawPath.replace(/^"+|"+$/g, '').trim();
+  value = value.replace(/\//g, '\\');
+  // Нормализуем паттерн вида "C:\\" и "C:\"
+  value = value.replace(/^([A-Za-z]):\\+/, '$1:\\');
+  // Убираем повторные обратные слэши после диска, но не трогаем UNC пути.
+  if (!value.startsWith('\\\\')) {
+    value = value.replace(/\\{2,}/g, '\\');
+  }
+  return value;
+}
+
+function buildConnectionCliArgs(params: ConnectionParams): string[] {
+  const args: string[] = [];
+  if (params.infoBasePath) {
+    args.push('-InfoBasePath', params.infoBasePath);
+  } else if (params.infoBaseServer && params.infoBaseRef) {
+    args.push('-InfoBaseServer', params.infoBaseServer, '-InfoBaseRef', params.infoBaseRef);
+  } else {
+    throw new Error('Недостаточно параметров подключения к базе из env.json');
+  }
+
+  if (params.userName) {
+    args.push('-UserName', params.userName);
+  }
+  if (params.password) {
+    args.push('-Password', params.password);
+  }
+  return args;
+}
+
+function asString(value: unknown): string | undefined {
+  return typeof value === 'string' ? value : undefined;
+}
+
+function trimStatusMessage(text: string): string {
+  const oneLine = text.replace(/\s+/g, ' ').trim();
+  if (oneLine.length <= 80) {
+    return oneLine;
+  }
+  return `${oneLine.slice(0, 77)}...`;
+}

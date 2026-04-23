@@ -10,6 +10,7 @@ module.exports = {
     extension: './src/extension.ts',
     server: './src/lsp/server/server.ts',
     'test/runTests': './src/test/runTests.ts',
+    'cli/onec-tools': './src/cli/onec-tools.ts',
   },
   output: {
     path: path.resolve(__dirname, 'dist'),
