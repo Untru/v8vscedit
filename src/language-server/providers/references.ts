@@ -4,7 +4,7 @@ import { TextDocument } from 'vscode-languageserver-textdocument';
 import { Location, Position } from 'vscode-languageserver/node';
 import { TextDocuments } from 'vscode-languageserver/node';
 import { BslParserService } from '../BslParserService';
-import { getWordAtPosition } from '../lspUtils';
+import { getWordAtPosition, nodeToRange } from '../lspUtils';
 
 export async function provideReferences(
   document: TextDocument,
@@ -23,14 +23,14 @@ export async function provideReferences(
   const processedUris = new Set<string>();
 
   // 1. Current document
-  findRefsInText(document.getText(), document.uri, lowerName, results, includeDeclaration, parserService);
+  findRefsInText(document.getText(), document.uri, lowerName, results, parserService);
   processedUris.add(document.uri);
 
   // 2. Open documents
   for (const doc of documents.all()) {
     if (processedUris.has(doc.uri)) continue;
     processedUris.add(doc.uri);
-    findRefsInText(doc.getText(), doc.uri, lowerName, results, includeDeclaration, parserService);
+    findRefsInText(doc.getText(), doc.uri, lowerName, results, parserService);
   }
 
   // 3. Files in workspace
@@ -48,11 +48,92 @@ export async function provideReferences(
       // Quick check — skip file if word is not present at all
       if (!text.toLowerCase().includes(lowerName)) continue;
 
-      findRefsInText(text, uri, lowerName, results, includeDeclaration, parserService);
+      findRefsInText(text, uri, lowerName, results, parserService);
+    }
+  }
+
+  // When includeDeclaration is false, filter out the declaration location
+  if (!includeDeclaration) {
+    return filterOutDeclaration(results, lowerName, parserService, documents, workspaceRoots);
+  }
+
+  return results;
+}
+
+/**
+ * Finds the declaration (procedure/function definition) location for the given name
+ * across all available sources, and filters it out from results.
+ */
+async function filterOutDeclaration(
+  results: Location[],
+  lowerName: string,
+  parserService: BslParserService,
+  documents: TextDocuments<TextDocument>,
+  workspaceRoots: string[],
+): Promise<Location[]> {
+  await parserService.ensureInit();
+
+  // Search for declaration in open documents first
+  for (const doc of documents.all()) {
+    const declLoc = findDeclarationInText(doc.getText(), doc.uri, lowerName, parserService);
+    if (declLoc) {
+      return results.filter(loc => !locationEquals(loc, declLoc));
+    }
+  }
+
+  // Search in workspace files
+  for (const root of workspaceRoots) {
+    const files = await findBslFiles(root);
+    for (const filePath of files) {
+      let text: string;
+      try { text = await fs.promises.readFile(filePath, 'utf-8'); }
+      catch { continue; }
+      if (!text.toLowerCase().includes(lowerName)) continue;
+      const uri = pathToUri(filePath);
+      const declLoc = findDeclarationInText(text, uri, lowerName, parserService);
+      if (declLoc) {
+        return results.filter(loc => !locationEquals(loc, declLoc));
+      }
     }
   }
 
   return results;
+}
+
+/**
+ * Finds the declaration (procedure/function definition) of a name using tree-sitter.
+ */
+function findDeclarationInText(
+  text: string,
+  uri: string,
+  lowerName: string,
+  parserService: BslParserService,
+): Location | null {
+  let root;
+  try { root = parserService.parse(text, uri).rootNode; }
+  catch { return null; }
+
+  for (const node of root.namedChildren) {
+    if (!node) continue;
+    const t = node.type;
+    if (t !== 'procedure_definition' && t !== 'function_definition') continue;
+    const nameNode = node.childForFieldName('name');
+    if (nameNode?.text.toLowerCase() === lowerName) {
+      return { uri, range: nodeToRange(nameNode) };
+    }
+  }
+  return null;
+}
+
+/**
+ * Compares two Location objects for equality.
+ */
+function locationEquals(a: Location, b: Location): boolean {
+  return a.uri === b.uri
+    && a.range.start.line === b.range.start.line
+    && a.range.start.character === b.range.start.character
+    && a.range.end.line === b.range.end.line
+    && a.range.end.character === b.range.end.character;
 }
 
 /**
@@ -64,7 +145,6 @@ function findRefsInText(
   uri: string,
   lowerName: string,
   results: Location[],
-  _includeDeclaration: boolean,
   _parserService: BslParserService,
 ): void {
   const lines = text.split('\n');
