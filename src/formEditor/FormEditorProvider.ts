@@ -17,6 +17,12 @@ class FormDocument implements vscode.CustomDocument {
   private _xmlDoc: FormXmlDocument;
   private _isDirty = false;
 
+  /** Стек undo: XML-снапшоты до каждого изменения */
+  private undoStack: string[] = [];
+  /** Стек redo: XML-снапшоты отменённых изменений */
+  private redoStack: string[] = [];
+  private static readonly MAX_UNDO = 50;
+
   private readonly _onDidChange = new vscode.EventEmitter<void>();
   readonly onDidChange = this._onDidChange.event;
 
@@ -32,6 +38,45 @@ class FormDocument implements vscode.CustomDocument {
     return this._isDirty;
   }
 
+  /** Сохранить снапшот перед изменением */
+  pushUndo(): void {
+    this.undoStack.push(this._xmlDoc.serialize());
+    if (this.undoStack.length > FormDocument.MAX_UNDO) {
+      this.undoStack.shift();
+    }
+    this.redoStack.length = 0;
+  }
+
+  /** Отменить последнее изменение */
+  undo(): boolean {
+    const snapshot = this.undoStack.pop();
+    if (!snapshot) return false;
+    this.redoStack.push(this._xmlDoc.serialize());
+    this._xmlDoc = new FormXmlDocument(snapshot);
+    this._isDirty = this.undoStack.length > 0;
+    this._onDidChange.fire();
+    return true;
+  }
+
+  /** Повторить отменённое изменение */
+  redo(): boolean {
+    const snapshot = this.redoStack.pop();
+    if (!snapshot) return false;
+    this.undoStack.push(this._xmlDoc.serialize());
+    this._xmlDoc = new FormXmlDocument(snapshot);
+    this._isDirty = true;
+    this._onDidChange.fire();
+    return true;
+  }
+
+  get canUndo(): boolean {
+    return this.undoStack.length > 0;
+  }
+
+  get canRedo(): boolean {
+    return this.redoStack.length > 0;
+  }
+
   markDirty(): void {
     this._isDirty = true;
     this._onDidChange.fire();
@@ -44,6 +89,8 @@ class FormDocument implements vscode.CustomDocument {
   reload(content: string): void {
     this._xmlDoc = new FormXmlDocument(content);
     this._isDirty = false;
+    this.undoStack.length = 0;
+    this.redoStack.length = 0;
   }
 
   dispose(): void {
@@ -182,6 +229,7 @@ export class FormEditorProvider implements vscode.CustomEditorProvider<FormDocum
   ): void {
     switch (msg.type) {
       case 'moveElement': {
+        document.pushUndo();
         const ok = document.xmlDoc.moveElement(
           msg.elementId!,
           msg.targetParentId!,
@@ -195,6 +243,7 @@ export class FormEditorProvider implements vscode.CustomEditorProvider<FormDocum
       }
 
       case 'updateProperty': {
+        document.pushUndo();
         const ok = document.xmlDoc.updateElementProperty(
           msg.elementId!,
           msg.propertyName!,
@@ -208,6 +257,7 @@ export class FormEditorProvider implements vscode.CustomEditorProvider<FormDocum
       }
 
       case 'deleteElement': {
+        document.pushUndo();
         const ok = document.xmlDoc.deleteElement(msg.elementId!);
         if (ok) {
           this.markChanged(document);
@@ -219,6 +269,22 @@ export class FormEditorProvider implements vscode.CustomEditorProvider<FormDocum
       case 'selectElement':
         // Только визуальная синхронизация, обрабатывается в webview
         break;
+
+      case 'undo': {
+        if (document.undo()) {
+          this._onDidChangeCustomDocument.fire({ document });
+          this.sendModel(document, webview);
+        }
+        break;
+      }
+
+      case 'redo': {
+        if (document.redo()) {
+          this._onDidChangeCustomDocument.fire({ document });
+          this.sendModel(document, webview);
+        }
+        break;
+      }
     }
   }
 

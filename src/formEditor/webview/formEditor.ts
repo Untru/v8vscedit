@@ -163,9 +163,22 @@ window.addEventListener('message', (event: MessageEvent) => {
 // ── Горячие клавиши ─────────────────────────────────────────────────────────
 
 document.addEventListener('keydown', (e: KeyboardEvent) => {
-  if (selectedElementId === null || selectedElementId === 0) return;
+  // Undo: Ctrl+Z
+  if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
+    e.preventDefault();
+    vscode.postMessage({ type: 'undo' });
+    return;
+  }
 
-  if (e.key === 'Delete') {
+  // Redo: Ctrl+Y or Ctrl+Shift+Z
+  if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.key === 'z' && e.shiftKey))) {
+    e.preventDefault();
+    vscode.postMessage({ type: 'redo' });
+    return;
+  }
+
+  // Delete
+  if (e.key === 'Delete' && selectedElementId !== null && selectedElementId !== 0) {
     e.preventDefault();
     vscode.postMessage({ type: 'deleteElement', elementId: selectedElementId });
   }
