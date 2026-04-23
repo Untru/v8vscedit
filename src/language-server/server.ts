@@ -20,6 +20,7 @@ import { provideCompletionItems, invalidateMetaCache } from './providers/complet
 import { provideDefinition, invalidateDefinitionCache } from './providers/definition';
 import { provideSignatureHelp } from './providers/signatureHelp';
 import { provideDocumentFormatting } from './providers/formatting';
+import { provideWorkspaceSymbols, invalidateWorkspaceSymbolCache } from './providers/workspaceSymbols';
 import { uriToFsPath } from './lspUtils';
 
 const connection = createConnection(ProposedFeatures.all);
@@ -53,6 +54,7 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
       definitionProvider: true,
       documentFormattingProvider: true,
       documentSymbolProvider: true,
+      workspaceSymbolProvider: true,
       foldingRangeProvider: true,
 
       semanticTokensProvider: {
@@ -111,6 +113,7 @@ connection.onDidChangeWatchedFiles((params) => {
     if (uri.endsWith('.bsl')) {
       parserService.invalidate(uri);
       invalidateDefinitionCache();
+      invalidateWorkspaceSymbolCache();
       // Перезапускаем диагностику для открытых документов
       if (change.type !== FileChangeType.Deleted) {
         const doc = documents.get(uri);
@@ -232,6 +235,14 @@ connection.onDocumentFormatting((params) => {
   }
   try {
     return provideDocumentFormatting(doc, params);
+  } catch {
+    return [];
+  }
+});
+
+connection.onWorkspaceSymbol(async (params) => {
+  try {
+    return await provideWorkspaceSymbols(params.query, workspaceRoots, parserService);
   } catch {
     return [];
   }
