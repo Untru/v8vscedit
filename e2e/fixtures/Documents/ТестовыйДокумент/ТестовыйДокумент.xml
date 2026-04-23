@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<MetaDataObject xmlns="http://v8.1c.ru/8.3/MDClasses" xmlns:v8="http://v8.1c.ru/8.1/data/core">
+<Document uuid="a1b2c3d4-e5f6-7890-abcd-ef1234567890">
+<Properties>
+  <Name>ТестовыйДокумент</Name>
+  <Synonym>
+    <v8:item>
+      <v8:content>Тестовый документ</v8:content>
+    </v8:item>
+  </Synonym>
+</Properties>
+<ChildObjects>
+  <Attribute uuid="11111111-2222-3333-4444-555555555555">
+    <Properties>
+      <Name>Контрагент</Name>
+      <Synonym>
+        <v8:item>
+          <v8:content>Контрагент</v8:content>
+        </v8:item>
+      </Synonym>
+    </Properties>
+  </Attribute>
+  <Attribute uuid="22222222-3333-4444-5555-666666666666">
+    <Properties>
+      <Name>Сумма</Name>
+      <Synonym>
+        <v8:item>
+          <v8:content>Сумма</v8:content>
+        </v8:item>
+      </Synonym>
+    </Properties>
+  </Attribute>
+  <TabularSection uuid="33333333-4444-5555-6666-777777777777">
+    <Properties>
+      <Name>Товары</Name>
+    </Properties>
+    <ChildObjects>
+      <Attribute uuid="44444444-5555-6666-7777-888888888888">
+        <Properties>
+          <Name>Номенклатура</Name>
+        </Properties>
+      </Attribute>
+      <Attribute uuid="55555555-6666-7777-8888-999999999999">
+        <Properties>
+          <Name>Количество</Name>
+        </Properties>
+      </Attribute>
+    </ChildObjects>
+  </TabularSection>
+  <Form>ФормаДокумента</Form>
+</ChildObjects>
+</Document>
+</MetaDataObject>

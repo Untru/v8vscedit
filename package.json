@@ -519,9 +519,11 @@
     "watch": "webpack --mode development --watch",
     "compile": "tsc -p ./",
     "test": "node ./dist/test/runTests.js",
-    "pretest": "webpack --mode development"
+    "pretest": "webpack --mode development",
+    "test:e2e": "npx playwright test --config=e2e/playwright.config.ts"
   },
   "devDependencies": {
+    "@playwright/test": "^1.59.1",
     "@types/glob": "^8.1.0",
     "@types/mocha": "^10.0.10",
     "@types/node": "^20.0.0",
@@ -530,6 +532,7 @@
     "copy-webpack-plugin": "^12.0.2",
     "glob": "^13.0.6",
     "mocha": "^11.7.5",
+    "playwright": "^1.59.1",
     "ts-loader": "^9.5.0",
     "typescript": "^5.3.0",
     "webpack": "^5.89.0",

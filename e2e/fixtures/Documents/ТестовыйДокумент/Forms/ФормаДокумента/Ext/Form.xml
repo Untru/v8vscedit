@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Form xmlns="http://v8.1c.ru/8.3/xcf/readable"
+      xmlns:v8="http://v8.1c.ru/8.1/data/core"
+      xmlns:xs="http://www.w3.org/2001/XMLSchema">
+  <ChildItems>
+    <UsualGroup name="ГруппаШапка" id="1">
+      <Group>Vertical</Group>
+      <Title>
+        <v8:item>
+          <v8:content>Шапка</v8:content>
+        </v8:item>
+      </Title>
+      <ChildItems>
+        <InputField name="Контрагент" id="2">
+          <DataPath>Объект.Контрагент</DataPath>
+          <Title>
+            <v8:item>
+              <v8:content>Контрагент</v8:content>
+            </v8:item>
+          </Title>
+        </InputField>
+        <InputField name="Сумма" id="3">
+          <DataPath>Объект.Сумма</DataPath>
+          <Title>
+            <v8:item>
+              <v8:content>Сумма</v8:content>
+            </v8:item>
+          </Title>
+          <Width>15</Width>
+        </InputField>
+      </ChildItems>
+    </UsualGroup>
+    <Table name="Товары" id="4">
+      <DataPath>Объект.Товары</DataPath>
+      <Title>
+        <v8:item>
+          <v8:content>Товары</v8:content>
+        </v8:item>
+      </Title>
+      <ChildItems>
+        <InputField name="Номенклатура" id="5">
+          <DataPath>Объект.Товары.Номенклатура</DataPath>
+        </InputField>
+        <InputField name="Количество" id="6">
+          <DataPath>Объект.Товары.Количество</DataPath>
+        </InputField>
+      </ChildItems>
+    </Table>
+    <Button name="КнопкаЗаписать" id="7">
+      <Title>
+        <v8:item>
+          <v8:content>Записать и закрыть</v8:content>
+        </v8:item>
+      </Title>
+    </Button>
+  </ChildItems>
+  <Attributes>
+    <Attribute name="Объект" id="1">
+      <Type>
+        <v8:Type>xs:string</v8:Type>
+      </Type>
+      <MainAttribute>true</MainAttribute>
+    </Attribute>
+  </Attributes>
+  <Commands>
+    <Command name="Записать" id="1">
+      <Title>
+        <v8:item>
+          <v8:content>Записать и закрыть</v8:content>
+        </v8:item>
+      </Title>
+      <Action>Записать</Action>
+    </Command>
+  </Commands>
+</Form>
