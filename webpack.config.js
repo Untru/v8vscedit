@@ -10,6 +10,7 @@ const nodeConfig = {
     extension: './src/extension.ts',
     server: './src/language-server/server.ts',
     'test/runTests': './src/test/runTests.ts',
+    'test/suite/index': './src/test/suite/index.ts',
   },
   output: {
     path: path.resolve(__dirname, 'dist'),
