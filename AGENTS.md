@@ -204,28 +204,110 @@ export function deactivate(): Promise<void> | undefined {
 
 ## Инвариант изменений — как добавлять функциональность
 
+Для каждого сценария указано, какие файлы трогать. Если требуется править что-то сверх списка — это признак, что задача решается в другом слое.
+
 ### Новый тип метаданных
 
 1. Добавить запись в `META_TYPES` (`domain/MetaTypes.ts`).
-2. Если у объекта есть специфический модуль — добавить `ModuleSlot` в `domain/ModuleSlot.ts` и в карту слотов `MetaPathResolver`.
+2. Если у объекта есть специфический модуль — добавить `ModuleSlot` в `domain/ModuleSlot.ts` и в карту слотов внутри `infra/fs/MetaPathResolver.ts`.
 3. Если нужен набор свойств — добавить схему в `PROPERTY_SCHEMAS` (`infra/xml/PropertySchema.ts`).
-4. Иконку положить в `src/icons/{light,dark}/<icon>.svg`.
-5. Больше ничего менять не нужно.
+4. Иконку положить в `src/icons/{light,dark}/<icon>.svg` (имя — ровно то, что указано в `icon` записи `META_TYPES`).
+5. При нестандартной логике сборки узла (например, рекурсия подсистем) — добавить builder в `ui/tree/nodeBuilders/<имя>.ts` и подключить в диспетчере `metaObjectTreeBuilder.ts`. Иначе — ничего.
+6. Добавить тест `ObjectXmlReader` на реальный пример из `example/`.
+
+### Новый слот модуля (`ModuleSlot`)
+
+Нужен, когда появляется новый BSL-файл объекта (например, `VariantChangeModule` у отчёта).
+
+1. Добавить литерал в `domain/ModuleSlot.ts`.
+2. Зарегистрировать путь в карте слотов внутри `infra/fs/MetaPathResolver.ts` (`Ext/<Имя>.bsl`).
+3. Если нужна команда «Открыть модуль …» — добавить `OpenModuleCommandId` и команду в `ui/commands/CommandRegistry.ts`.
+4. Подвязать к типам: расширить поле `modules` в нужных записях `META_TYPES`.
+
+### Новый тип дочернего элемента (`ChildTag`)
+
+Нужен, когда в XML объекта появляется новый вложенный тег (например, `AddressingAttribute` у задачи).
+
+1. Добавить значение в `domain/ChildTag.ts` + `CHILD_TAG_CONFIG` (иконка, лейбл, порядок сортировки).
+2. Если элемент идёт внутри собственного контейнера ТЧ-подобного типа — расширить `ObjectXmlReader.parseChildren`.
+3. В нужных записях `META_TYPES` добавить тег в `childTags`.
+
+### Новая схема свойств объекта
+
+1. Добавить объект-схему в `infra/xml/PropertySchema.ts → PROPERTY_SCHEMAS` (ключ = значение `propertySchema` в `META_TYPES`).
+2. Если появляется новый `PropertyValueKind` (например, ссылка на другой объект) — расширить `ui/views/properties/_types.ts` и добавить рендер в `PropertyBuilder.ts`.
+3. Регулярки для парсинга свойств — только в `infra/xml/`, не в UI.
 
 ### Новая команда
 
-1. Создать класс в `ui/commands/...` с методами `readonly id: string`, `handler(arg: unknown): Promise<void>`.
-2. Зарегистрировать в `CommandRegistry.registerAll`.
-3. Описать в `package.json → contributes.commands`.
-4. Если команда привязана к типу узла — `package.json → contributes.menus.view/item/context` с `when: viewItem =~ /…/`.
+1. Класс (или функция) в `ui/commands/...` с явным `readonly id: string` и обработчиком.
+2. Регистрация в `CommandRegistry.registerAll(ctx, services)`.
+3. `package.json → contributes.commands` — title/category/icon.
+4. Если команда должна появляться в контекстном меню узла дерева — `contributes.menus.view/item/context` c предикатом `when: viewItem =~ /…/`. Контекст-значения задаются в `TreeNode` через `contextValue` и формируются из `MetaKind` + опциональных суффиксов (`-supportN`, `-own`, `-borrowed`).
+5. Если нужна горячая клавиша — `contributes.keybindings`.
 
-### Новое свойство объекта
+### Новый builder узла дерева
 
-- **Не** писать парсер регулярками в handler'е. Добавить описание в `PROPERTY_SCHEMAS` и, при необходимости, расширить `PropertyBuilder` новым `PropertyValueKind`.
+Нужен только когда тип имеет нестандартное поведение (рекурсия, группировка, спец-дети).
 
-### Новая подсистема на уровне приложения
+1. Создать `ui/tree/nodeBuilders/<имя>.ts` с функцией `build<Имя>(ctx: HandlerContext): MetadataNode[]` или `build<Имя>Children(node): MetadataNode[]`.
+2. Зарегистрировать в диспетчере `ui/tree/nodeBuilders/metaObjectTreeBuilder.ts` (или напрямую в `MetadataTreeProvider` для корневых групп).
+3. Любые XML-чтения — через `parseObjectXml` / `ObjectXmlReader`, никаких прямых регулярок.
+4. `MetadataTreeProvider` остаётся тонким — он только делегирует в builder.
 
-- Создать сервис в `infra/` или `ui/`, зарегистрировать в `Container`. Не инициализировать напрямую из `extension.ts`.
+### Новая декорация узла (цвет / бейдж / суффикс контекста)
+
+1. Если декорация зависит от состояния файла (поддержка, блокировка, «свой/заимствованный») — создать класс в `ui/tree/decorations/` по образцу `SupportDecorationProvider.ts`, реализовать `vscode.FileDecorationProvider`.
+2. Зарегистрировать провайдер в `Container.wireTreeView`.
+3. Для суффикса `contextValue` (чтобы команды появлялись в меню) — расширять формирование `contextValue` только в `TreeNode`, а признак пробрасывать через POJO-поле узла.
+
+### Новый view / webview-панель
+
+1. Класс в `ui/views/<Имя>ViewProvider.ts` — работа со своим `WebviewPanel`, без прямых XML/FS-вызовов.
+2. Данные готовит отдельный сервис в `ui/views/.../` (как `MetadataXmlPropertiesService`).
+3. Создание и команда «открыть панель» — через `Container`, не из команд напрямую.
+
+### Новый сервис инфраструктуры
+
+1. Класс в `infra/<подпапка>/<Имя>Service.ts` без `vscode`-импортов. Логгер принимать через параметр конструктора (`Logger`).
+2. Если сервис нужен UI — создать его в `Container.bootstrap` и прокинуть как зависимость в потребителей.
+3. Добавить тест в `src/test/suite/<имя>.test.ts` на пример из `example/`.
+
+### Новый LSP-провайдер (completion / hover / signature / …)
+
+1. Файл в `src/lsp/server/providers/<имя>.ts` — чистая логика провайдера, без зависимостей от `vscode` (сервер работает через `vscode-languageserver`).
+2. Регистрация обработчика в `src/lsp/server/server.ts`.
+3. Если требуются дополнительные поля в парсере BSL — расширять `BslParserService` и `BslContextService`, не провайдер.
+4. Для режима `bsl-analyzer` дополнительно проверить, что `LspManager` не перехватывает эти возможности.
+
+### Новая настройка расширения
+
+1. Блок в `package.json → contributes.configuration.properties` с префиксом `v8vscedit.<область>.<ключ>`, обязательный `description` на русском, тип и default.
+2. Чтение — только через `vscode.workspace.getConfiguration('v8vscedit')` и только в UI-слое или `Container`. В `domain/` и `infra/` настройки пробрасываются параметрами.
+3. Если настройка влияет на поведение во время работы — подписаться на `workspace.onDidChangeConfiguration` в `Container`.
+
+### Новый watcher / реакция на файловую систему
+
+1. Регистрация `FileSystemWatcher` — только в `Container` или выделенном файле в `ui/support/` (как `SupportWatcher.ts`).
+2. Обработчик делегирует в сервис (`SupportInfoService.invalidate`, `MetadataTreeProvider.refresh`), не выполняет работу напрямую.
+
+### Новая внешняя интеграция (vrunner и прочие CLI)
+
+1. Код запуска процесса — в `ui/commands/ext/` (после миграции `CommandRegistry`), пока — в `CommandRegistry.ts`.
+2. Декодирование OEM/Win1251 вывода — через `iconv-lite`, централизованно.
+3. Прогресс/отмена — через `vscode.window.withProgress`. Длительные операции не блокируют extension host.
+
+### Новое виртуальное имя файла (`onec://`)
+
+1. Шаблон URI собирать только в `ui/vfs/OnecUriBuilder.ts`. Ни один другой слой не должен строить `onec://…` руками.
+2. Обработка чтения — в `OnecFileSystemProvider.readFile`; там же определяется, какой модуль возвращать по `uri.path`.
+3. Русские человекочитаемые части пути (`CommonModules → Общие модули`) — только в словарях `OnecUriBuilder`.
+
+### Новый тест
+
+1. Файл в `src/test/suite/<имя>.test.ts`, Mocha (`suite` / `test`).
+2. Использовать `example/cf` и `example/cfe/EVOLC` как фикстуры. Не создавать временные XML — правила тестирования опираются на реальные файлы.
+3. Для тестов домена и `infra` — никаких mock-ов VS Code. Для UI — `@vscode/test-electron`.
 
 ---
 
