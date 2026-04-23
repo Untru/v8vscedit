@@ -541,7 +541,7 @@ function buildManagerMethodItems(
 
   return methods.map((m) => ({
     label: m.name,
-    kind: m.isFunction ? CompletionItemKind.Method : CompletionItemKind.Method,
+    kind: m.isFunction ? CompletionItemKind.Function : CompletionItemKind.Method,
     detail: m.detail,
     documentation: `${prefix}.${objectName}.${m.name}()`,
   }));
