@@ -6,10 +6,12 @@ import {
   ObjectPropertyItem,
 } from '../handlers/_types';
 import { getHandlerForNode } from '../handlers';
+import { updateSimpleTag, updateLocalizedTag, updateBooleanTag } from '../services/MetaXmlWriter';
 
 /** Управляет вкладкой свойств объекта метаданных (singleton WebviewPanel) */
 export class PropertiesViewProvider implements vscode.Disposable {
   private panel: vscode.WebviewPanel | undefined;
+  private currentNode: MetadataNode | undefined;
 
   /**
    * Открывает вкладку свойств для узла.
@@ -17,6 +19,8 @@ export class PropertiesViewProvider implements vscode.Disposable {
    * новую группу редактора не создаёт.
    */
   show(node: MetadataNode): void {
+    this.currentNode = node;
+
     if (this.panel) {
       this.panel.title = this.buildTitle(node);
       this.panel.webview.html = this.renderHtml(node);
@@ -26,12 +30,48 @@ export class PropertiesViewProvider implements vscode.Disposable {
         '1cPropertiesView',
         this.buildTitle(node),
         { viewColumn: vscode.ViewColumn.Active, preserveFocus: false },
-        { enableScripts: false, retainContextWhenHidden: false }
+        { enableScripts: true, retainContextWhenHidden: false }
       );
       this.panel.webview.html = this.renderHtml(node);
+
+      // Обработка сообщений от webview
+      this.panel.webview.onDidReceiveMessage((msg) => {
+        this.handleMessage(msg);
+      });
+
       this.panel.onDidDispose(() => {
         this.panel = undefined;
+        this.currentNode = undefined;
       });
+    }
+  }
+
+  private handleMessage(msg: { type: string; key?: string; value?: string | boolean }): void {
+    if (msg.type !== 'updateProperty' || !this.currentNode?.xmlPath || !msg.key) return;
+
+    const xmlPath = this.currentNode.xmlPath;
+    const key = msg.key;
+    const value = msg.value;
+
+    // Определить тип свойства и записать
+    const LOCALIZED_TAGS = new Set(['Synonym', 'Comment', 'ToolTip', 'Explanation']);
+    const BOOLEAN_TAGS = new Set([
+      'PasswordMode', 'MultiLine', 'ExtendedEdit', 'FillFromFillingValue',
+      'CreateOnInput', 'QuickChoice', 'FullTextSearch', 'UseStandardCommands',
+      'IncludeHelpInContents', 'CheckUnique', 'Autonumbering',
+    ]);
+
+    let ok = false;
+    if (LOCALIZED_TAGS.has(key)) {
+      ok = updateLocalizedTag(xmlPath, key, String(value));
+    } else if (BOOLEAN_TAGS.has(key)) {
+      ok = updateBooleanTag(xmlPath, key, value === true || value === 'true');
+    } else {
+      ok = updateSimpleTag(xmlPath, key, String(value));
+    }
+
+    if (ok) {
+      vscode.window.setStatusBarMessage(`Свойство "${key}" сохранено`, 2000);
     }
   }
 
@@ -151,6 +191,7 @@ export class PropertiesViewProvider implements vscode.Disposable {
 </head>
 <body>
   ${content}
+  ${this.getWebviewScript()}
 </body>
 </html>`;
   }
@@ -210,11 +251,22 @@ export class PropertiesViewProvider implements vscode.Disposable {
     `;
   }
 
+  /** Свойства, которые можно редактировать */
+  private static EDITABLE_KEYS = new Set([
+    'Name', 'Synonym', 'Comment', 'ToolTip',
+    'PasswordMode', 'MultiLine', 'ExtendedEdit', 'FillFromFillingValue',
+    'CreateOnInput', 'QuickChoice', 'FullTextSearch', 'UseStandardCommands',
+    'IncludeHelpInContents', 'CheckUnique', 'Autonumbering',
+    'FillChecking', 'Indexing',
+  ]);
+
   /** Формирует HTML значения свойства */
   private renderPropertyValue(property: ObjectPropertyItem): string {
+    const editable = this.currentNode?.xmlPath && PropertiesViewProvider.EDITABLE_KEYS.has(property.key);
+
     switch (property.kind) {
       case 'boolean':
-        return `<div class="checkbox-row"><input class="checkbox" type="checkbox" ${property.value === true ? 'checked' : ''} disabled /></div>`;
+        return `<div class="checkbox-row"><input class="checkbox" type="checkbox" ${property.value === true ? 'checked' : ''} ${editable ? `data-key="${escapeHtml(property.key)}" onchange="onBoolChange(this)"` : 'disabled'} /></div>`;
       case 'enum': {
         const enumValue = property.value as EnumPropertyValue;
         const options = enumValue.allowedValues
@@ -222,7 +274,7 @@ export class PropertiesViewProvider implements vscode.Disposable {
             return `<option value="${escapeHtml(option.value)}" ${option.value === enumValue.current ? 'selected' : ''}>${escapeHtml(option.label)}</option>`;
           })
           .join('');
-        return `<select class="select" disabled>${options}</select>`;
+        return `<select class="select" ${editable ? `data-key="${escapeHtml(property.key)}" onchange="onSelectChange(this)"` : 'disabled'}>${options}</select>`;
       }
       case 'localizedString': {
         const localized = property.value as LocalizedStringValue;
@@ -233,14 +285,31 @@ export class PropertiesViewProvider implements vscode.Disposable {
           .join('');
 
         return `
-          <input class="input" type="text" value="${escapeHtml(localized.presentation)}" readonly />
+          <input class="input" type="text" value="${escapeHtml(localized.presentation)}" ${editable ? `data-key="${escapeHtml(property.key)}" onchange="onTextChange(this)"` : 'readonly'} />
           ${items ? `<div class="property-note">Локализации:</div>${items}` : ''}
         `;
       }
       case 'string':
       default:
-        return `<input class="input" type="text" value="${escapeHtml(String(property.value ?? ''))}" readonly />`;
+        return `<input class="input" type="text" value="${escapeHtml(String(property.value ?? ''))}" ${editable ? `data-key="${escapeHtml(property.key)}" onchange="onTextChange(this)"` : 'readonly'} />`;
     }
+  }
+
+  /** JS для webview — отправка изменений через postMessage */
+  private getWebviewScript(): string {
+    return `
+    <script>
+      const vscode = acquireVsCodeApi();
+      function onTextChange(el) {
+        vscode.postMessage({ type: 'updateProperty', key: el.dataset.key, value: el.value });
+      }
+      function onBoolChange(el) {
+        vscode.postMessage({ type: 'updateProperty', key: el.dataset.key, value: el.checked });
+      }
+      function onSelectChange(el) {
+        vscode.postMessage({ type: 'updateProperty', key: el.dataset.key, value: el.value });
+      }
+    </script>`;
   }
 }
 
