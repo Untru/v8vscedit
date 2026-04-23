@@ -106,6 +106,10 @@
         "icon": "$(search)"
       },
       {
+        "command": "v8vscedit.deleteMetadataObject",
+        "title": "Удалить объект"
+      },
+      {
         "command": "v8vscedit.bslAnalyzer.showMenu",
         "title": "BSL Analyzer: Меню"
       },
@@ -299,6 +303,11 @@
           "command": "v8vscedit.showProperties",
           "when": "view == v8vsceditTree && !(viewItem =~ /-propertiesHidden/)",
           "group": "navigation@9"
+        },
+        {
+          "command": "v8vscedit.deleteMetadataObject",
+          "when": "view == v8vsceditTree && viewItem =~ /^(Catalog|Document|Enum|Report|DataProcessor|InformationRegister|AccumulationRegister|CommonModule|CommonForm|CommonCommand|Role|Subsystem|ExchangePlan|Constant|BusinessProcess|Task|HTTPService|WebService|ScheduledJob|EventSubscription)-hasXml/",
+          "group": "7_modification@1"
         },
         {
           "command": "v8vscedit.showConfigActions",
