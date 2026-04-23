@@ -19,6 +19,7 @@ import { provideHover } from './providers/hover';
 import { provideCompletionItems, invalidateMetaCache } from './providers/completion';
 import { provideDefinition, invalidateDefinitionCache } from './providers/definition';
 import { provideSignatureHelp } from './providers/signatureHelp';
+import { provideDocumentFormatting } from './providers/formatting';
 import { uriToFsPath } from './lspUtils';
 
 const connection = createConnection(ProposedFeatures.all);
@@ -50,6 +51,7 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
 
       hoverProvider: true,
       definitionProvider: true,
+      documentFormattingProvider: true,
       documentSymbolProvider: true,
       foldingRangeProvider: true,
 
@@ -220,6 +222,18 @@ connection.onDefinition(async (params) => {
     return await provideDefinition(doc, params.position, parserService, workspaceRoots, documents);
   } catch {
     return null;
+  }
+});
+
+connection.onDocumentFormatting((params) => {
+  const doc = documents.get(params.textDocument.uri);
+  if (!doc) {
+    return [];
+  }
+  try {
+    return provideDocumentFormatting(doc, params);
+  } catch {
+    return [];
   }
 });
 
