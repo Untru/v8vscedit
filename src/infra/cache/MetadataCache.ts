@@ -46,7 +46,7 @@ export type MetadataCacheAddTarget =
   };
 
 export interface MetadataCacheSnapshot {
-  schemaVersion: 9;
+  schemaVersion: 10;
   scopeKey: string;
   generatedAt: string;
   rootPath: string;
@@ -60,7 +60,7 @@ export interface MetadataCacheUpdateResult {
 }
 
 const METADATA_CACHE_DIR = path.join('.v8vscedit', 'meta');
-const CACHE_SCHEMA_VERSION = 9;
+const CACHE_SCHEMA_VERSION = 10;
 
 /**
  * Строит полный снимок дерева метаданных без ленивых загрузчиков, чтобы UI мог восстановить дерево из JSON.
@@ -394,6 +394,7 @@ function buildObjectNode(
     label,
     xmlPath,
     decorationPath: resolveObjectDecorationPath(xmlPath),
+    gitDecorationTarget: buildObjectGitDecorationTarget(type, xmlPath),
     tooltip: objectInfo?.synonym || undefined,
     ownershipTag,
     canRemoveMetadata: true,
@@ -618,6 +619,23 @@ function resolveObjectDecorationPath(xmlPath: string): string {
   return fs.existsSync(loc.objectDir) ? loc.objectDir : xmlPath;
 }
 
+function buildObjectGitDecorationTarget(
+  kind: MetaKind,
+  xmlPath: string
+): MetadataGitDecorationTarget | undefined {
+  if (kind !== 'CommonModule') {
+    return undefined;
+  }
+
+  const loc = getObjectLocationFromXml(xmlPath);
+  return {
+    kind: 'paths',
+    ownerXmlPath: xmlPath,
+    childKind: kind,
+    paths: [xmlPath, loc.objectDir],
+  };
+}
+
 function resolveChildDecorationPaths(objectXmlPath: string, tag: ChildTag, itemName: string): string[] {
   const loc = getObjectLocationFromXml(objectXmlPath);
   switch (tag) {
@@ -745,6 +763,7 @@ function rebuildObjectNodeFromXml(
     label,
     xmlPath: existing.xmlPath,
     decorationPath: resolveObjectDecorationPath(existing.xmlPath),
+    gitDecorationTarget: buildObjectGitDecorationTarget(existing.type, existing.xmlPath),
     tooltip: objectInfo.synonym || undefined,
     ownershipTag: getOwnershipTag(entry, info, label),
     canRemoveMetadata: existing.canRemoveMetadata,
