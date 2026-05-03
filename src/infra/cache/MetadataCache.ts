@@ -46,7 +46,7 @@ export type MetadataCacheAddTarget =
   };
 
 export interface MetadataCacheSnapshot {
-  schemaVersion: 10;
+  schemaVersion: 11;
   scopeKey: string;
   generatedAt: string;
   rootPath: string;
@@ -60,7 +60,7 @@ export interface MetadataCacheUpdateResult {
 }
 
 const METADATA_CACHE_DIR = path.join('.v8vscedit', 'meta');
-const CACHE_SCHEMA_VERSION = 10;
+const CACHE_SCHEMA_VERSION = 11;
 
 /**
  * Строит полный снимок дерева метаданных без ленивых загрузчиков, чтобы UI мог восстановить дерево из JSON.
@@ -558,6 +558,7 @@ function buildSubsystemNode(
       label: `${label} (цикл)`,
       xmlPath,
       decorationPath: resolveObjectDecorationPath(xmlPath),
+      gitDecorationTarget: buildObjectGitDecorationTarget('Subsystem', xmlPath),
       children: [],
     });
   }
@@ -582,6 +583,7 @@ function buildSubsystemNode(
     label: name,
     xmlPath,
     decorationPath: resolveObjectDecorationPath(xmlPath),
+    gitDecorationTarget: buildObjectGitDecorationTarget('Subsystem', xmlPath),
     tooltip: objectInfo?.synonym || undefined,
     ownershipTag: getOwnershipTag(entry, info, name),
     canRemoveMetadata: true,
@@ -623,11 +625,13 @@ function buildObjectGitDecorationTarget(
   kind: MetaKind,
   xmlPath: string
 ): MetadataGitDecorationTarget | undefined {
-  if (kind !== 'CommonModule') {
+  const loc = getObjectLocationFromXml(xmlPath);
+  const xmlDir = path.resolve(path.dirname(xmlPath));
+  const objectDir = path.resolve(loc.objectDir);
+  if (xmlDir === objectDir || !fs.existsSync(loc.objectDir)) {
     return undefined;
   }
 
-  const loc = getObjectLocationFromXml(xmlPath);
   return {
     kind: 'paths',
     ownerXmlPath: xmlPath,
