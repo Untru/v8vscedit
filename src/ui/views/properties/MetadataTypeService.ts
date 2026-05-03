@@ -203,6 +203,18 @@ export function buildMetadataTypeInnerXml(typeValue: MetadataTypeValue): string 
     .join('\n');
 }
 
+/** Формирует тип параметра команды: только ссылочные типы конфигурации и определяемые типы, без квалификаторов. */
+export function buildCommandParameterTypeInnerXml(typeValue: MetadataTypeValue): string {
+  return typeValue.items
+    .map((item) => {
+      if (item.canonical.startsWith('DefinedType.')) {
+        return `<v8:TypeSet>cfg:${item.canonical}</v8:TypeSet>`;
+      }
+      return `<v8:Type>cfg:${item.canonical}</v8:Type>`;
+    })
+    .join('\n');
+}
+
 /** Приводит модель типов к правилам 1С (как в meta-edit.py): добавляет дефолтные квалификаторы примитивов */
 export function ensureDefaultQualifiers(typeValue: MetadataTypeValue): MetadataTypeValue {
   const hasString = typeValue.items.some((item) => item.canonical === 'String');

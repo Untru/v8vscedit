@@ -70,6 +70,7 @@ export const BOOLEAN_PROPERTY_TAGS: ReadonlySet<string> = new Set([
   'SendData',
   'ReceiveData',
   'SequentialDataExchange',
+  'ModifiesData',
 ]);
 
 export const ENUM_OPTIONS: EnumOptionsMap = {
@@ -78,10 +79,31 @@ export const ENUM_OPTIONS: EnumOptionsMap = {
     { value: 'ShowError', label: 'Выдавать ошибку' },
     { value: 'ShowWarning', label: 'Показывать предупреждение' },
   ],
+  Group: [
+    { value: 'NavigationPanelImportant', label: 'Панель навигации: важное' },
+    { value: 'NavigationPanelOrdinary', label: 'Панель навигации: обычное' },
+    { value: 'NavigationPanelSeeAlso', label: 'Панель навигации: см. также' },
+    { value: 'ActionsPanelCreate', label: 'Панель действий: создать' },
+    { value: 'ActionsPanelReports', label: 'Панель действий: отчёты' },
+    { value: 'ActionsPanelTools', label: 'Панель действий: сервис' },
+    { value: 'FormNavigationPanelImportant', label: 'Панель навигации формы: важное' },
+    { value: 'FormNavigationPanelGoTo', label: 'Панель навигации формы: перейти' },
+    { value: 'FormNavigationPanelSeeAlso', label: 'Панель навигации формы: см. также' },
+    { value: 'FormCommandBarImportant', label: 'Командная панель формы: важное' },
+    { value: 'FormCommandBarCreateBasedOn', label: 'Командная панель формы: создать на основании' },
+  ],
   Indexing: [
     { value: 'DontIndex', label: 'Не индексировать' },
     { value: 'Index', label: 'Индексировать' },
     { value: 'IndexWithAdditionalOrder', label: 'Индексировать с дополнительным упорядочиванием' },
+  ],
+  ParameterUseMode: [
+    { value: 'Single', label: 'Одиночный' },
+    { value: 'Multiple', label: 'Множественный' },
+  ],
+  OnMainServerUnavalableBehavior: [
+    { value: 'Auto', label: 'Авто' },
+    { value: 'DontChangeBehavior', label: 'Не изменять поведение' },
   ],
 };
 
@@ -155,6 +177,7 @@ export const PROPERTY_TITLE_RU: Readonly<Record<string, string>> = {
   ReceiveData: 'Получение данных',
   SequentialDataExchange: 'Последовательный обмен данными',
   Group: 'Группа командного интерфейса',
+  CommandParameterType: 'Тип параметра команды',
   Representation: 'Представление',
   Modality: 'Модальность',
   IncludeHelpInContents: 'Включать справку в содержимое',
@@ -170,6 +193,11 @@ export const PROPERTY_TITLE_RU: Readonly<Record<string, string>> = {
   ExtendedObjectPresentation: 'Расширенное представление объекта',
   ListPresentation: 'Представление списка',
   ExtendedListPresentation: 'Расширенное представление списка',
+  ParameterUseMode: 'Режим использования параметра',
+  ModifiesData: 'Изменяет данные',
+  OnMainServerUnavalableBehavior: 'Поведение при недоступности основного сервера',
+  Shortcut: 'Сочетание клавиш',
+  Picture: 'Картинка',
 };
 
 // ── Наборы ключей по типам ─────────────────────────────────────────────
@@ -285,7 +313,21 @@ const TABULAR_SECTION_KEYS = [
 ] as const;
 
 const FORM_KEYS = ['Name', 'Synonym', 'Comment', 'FormType', 'IncludeHelpInContents', 'UseStandardCommands'] as const;
-const COMMAND_KEYS = ['Name', 'Synonym', 'Comment', 'Group', 'Representation', 'Modality', 'IncludeHelpInContents'] as const;
+const COMMAND_KEYS = [
+  'Name',
+  'Synonym',
+  'Comment',
+  'Group',
+  'CommandParameterType',
+  'ParameterUseMode',
+  'ModifiesData',
+  'OnMainServerUnavalableBehavior',
+  'Representation',
+  'ToolTip',
+  'Shortcut',
+  'Picture',
+  'IncludeHelpInContents',
+] as const;
 const ENUM_VALUE_KEYS = ['Name', 'Synonym', 'Comment', 'Color'] as const;
 const TEMPLATE_KEYS = ['Name', 'Synonym', 'Comment', 'TemplateType'] as const;
 

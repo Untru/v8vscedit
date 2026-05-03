@@ -201,7 +201,7 @@ export const META_TYPES: Readonly<Record<MetaKind, MetaTypeDef>> = {
     folder: 'SettingsStorages', icon: 'attribute', group: 'common', groupOrder: 140 }),
   CommonCommand: def({ kind: 'CommonCommand', label: 'Общая команда', pluralLabel: 'Общие команды',
     folder: 'CommonCommands', icon: 'command', group: 'common', groupOrder: 150,
-    singleClickCommand: 'openCommandModule' }),
+    singleClickCommand: 'openCommandModule', propertySchema: 'command' }),
   CommandGroup: def({ kind: 'CommandGroup', label: 'Группа команд', pluralLabel: 'Группы команд',
     folder: 'CommandGroups', icon: 'command', group: 'common', groupOrder: 160 }),
   CommonForm: def({ kind: 'CommonForm', label: 'Общая форма', pluralLabel: 'Общие формы',

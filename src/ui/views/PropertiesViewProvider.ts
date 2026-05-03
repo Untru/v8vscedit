@@ -11,8 +11,12 @@ import {
   ObjectPropertiesCollection,
 } from '../tree/nodeBuilders/_types';
 import { getHandlerForNode } from '../tree/nodeBuilders/index';
-import { TypeRegistryService } from './properties/TypeRegistryService';
-import { buildMetadataTypeInnerXml, ensureDefaultQualifiers } from './properties/MetadataTypeService';
+import { TypeRegistryFilter, TypeRegistryService } from './properties/TypeRegistryService';
+import {
+  buildCommandParameterTypeInnerXml,
+  buildMetadataTypeInnerXml,
+  ensureDefaultQualifiers,
+} from './properties/MetadataTypeService';
 import { buildEventSourceInnerXml } from './properties/EventSubscriptionPropertyService';
 import { toCanonicalPropertyInput } from './properties/PropertyPresentationRegistry';
 import { ConfigurationXmlEditor } from '../../infra/xml';
@@ -951,9 +955,8 @@ export class PropertiesViewProvider implements vscode.Disposable {
     if (!current) {
       return;
     }
-    const groups = key === 'Source'
-      ? this.typeRegistry.getAvailableEventSourceTypes(this.activeNode.xmlPath)
-      : this.typeRegistry.getAvailableTypes(this.activeNode.xmlPath);
+    const filter = resolveTypeRegistryFilter(key);
+    const groups = this.typeRegistry.getAvailableTypes(this.activeNode.xmlPath, filter);
     const items: Array<vscode.QuickPickItem & { canonical?: string }> = [];
     for (const group of groups) {
       items.push({ label: group.title, kind: vscode.QuickPickItemKind.Separator });
@@ -1041,12 +1044,14 @@ export class PropertiesViewProvider implements vscode.Disposable {
     }
     const typeInnerXml = key === 'Source'
       ? buildEventSourceInnerXml(typeValue)
+      : key === 'CommandParameterType'
+      ? buildCommandParameterTypeInnerXml(typeValue)
       : buildMetadataTypeInnerXml(typeValue);
     const typeSaved = this.xmlEditor.modifyObjectType(typeTarget.xmlPath, {
       targetKind: typeTarget.targetKind,
       targetName: typeTarget.targetName,
       tabularSectionName: typeTarget.tabularSectionName,
-      propertyName: key === 'Source' ? 'Source' : 'Type',
+      propertyName: key === 'Source' ? 'Source' : key === 'CommandParameterType' ? 'CommandParameterType' : 'Type',
       typeInnerXml,
     });
     if (!typeSaved.success) {
@@ -1422,7 +1427,9 @@ function resolveTypeTarget(node: MetadataNode, propertyName = 'Type'): {
     | 'CommonAttribute'
     | 'Constant'
     | 'DefinedType'
-    | 'EventSubscription';
+    | 'EventSubscription'
+    | 'CommonCommand'
+    | 'Command';
   targetName: string;
   tabularSectionName?: string;
 } | null {
@@ -1435,6 +1442,23 @@ function resolveTypeTarget(node: MetadataNode, propertyName = 'Type'): {
       targetKind: 'EventSubscription',
       targetName: node.textLabel,
     };
+  }
+  if (propertyName === 'CommandParameterType') {
+    if (node.nodeKind === 'CommonCommand') {
+      return {
+        xmlPath: node.xmlPath,
+        targetKind: 'CommonCommand',
+        targetName: node.textLabel,
+      };
+    }
+    if (node.nodeKind === 'Command') {
+      return {
+        xmlPath: node.metaContext?.ownerObjectXmlPath ?? node.xmlPath,
+        targetKind: 'Command',
+        targetName: node.textLabel,
+      };
+    }
+    return null;
   }
   if (
     node.nodeKind === 'SessionParameter' ||
@@ -1467,22 +1491,33 @@ function resolveTypeTarget(node: MetadataNode, propertyName = 'Type'): {
   };
 }
 
+function resolveTypeRegistryFilter(key: string): TypeRegistryFilter {
+  if (key === 'Source') {
+    return 'eventSource';
+  }
+  if (key === 'CommandParameterType') {
+    return 'commandParameter';
+  }
+  return 'value';
+}
+
 function resolvePropertyTarget(node: MetadataNode): {
   xmlPath: string;
-  targetKind: 'Self' | 'Attribute' | 'AddressingAttribute' | 'Dimension' | 'Resource' | 'Column' | 'TabularSection' | 'EnumValue';
+  targetKind: 'Self' | 'Attribute' | 'AddressingAttribute' | 'Dimension' | 'Resource' | 'Column' | 'TabularSection' | 'Command' | 'EnumValue';
   targetName: string;
   tabularSectionName?: string;
 } | null {
   if (!node.xmlPath) {
     return null;
   }
-  const directKinds: Record<string, 'Attribute' | 'AddressingAttribute' | 'Dimension' | 'Resource' | 'Column' | 'TabularSection' | 'EnumValue'> = {
+  const directKinds: Record<string, 'Attribute' | 'AddressingAttribute' | 'Dimension' | 'Resource' | 'Column' | 'TabularSection' | 'Command' | 'EnumValue'> = {
     Attribute: 'Attribute',
     AddressingAttribute: 'AddressingAttribute',
     Dimension: 'Dimension',
     Resource: 'Resource',
     Column: 'Column',
     TabularSection: 'TabularSection',
+    Command: 'Command',
     EnumValue: 'EnumValue',
   };
   const mapped = directKinds[node.nodeKind];
@@ -1553,7 +1588,7 @@ function isValidMetadataName(value: string): boolean {
 
 function isRootObjectNode(
   node: MetadataNode,
-  target: { targetKind: 'Self' | 'Attribute' | 'AddressingAttribute' | 'Dimension' | 'Resource' | 'Column' | 'TabularSection' | 'EnumValue' }
+  target: { targetKind: 'Self' | 'Attribute' | 'AddressingAttribute' | 'Dimension' | 'Resource' | 'Column' | 'TabularSection' | 'Command' | 'EnumValue' }
 ): boolean {
   if (target.targetKind !== 'Self') {
     return false;

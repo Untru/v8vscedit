@@ -14,6 +14,7 @@ import { MetaChild, parseObjectXml, resolveObjectXmlPath, extractSynonym } from 
 import { getObjectLocationFromXml } from '../../../infra/fs/MetaPathResolver';
 import { buildRootMetaObjectProperties } from '../../views/properties/PropertyBuilder';
 import { readInheritedObjectXmlForBorrowed } from '../../views/properties/BorrowedPropertiesResolver';
+import { enrichCommandInterfaceGroupOptions } from '../../views/properties/CommandInterfaceGroupOptions';
 import { HandlerContext, ObjectPropertiesCollection } from './_types';
 
 /** Строит плоский список узлов объекта без дочерней структуры ChildObjects */
@@ -122,7 +123,8 @@ export function rootMetaObjectGetProperties(node: MetadataNode, nodeKind: NodeKi
     const inheritedXml = node.ownershipTag === 'BORROWED'
       ? readInheritedObjectXmlForBorrowed(node.xmlPath)
       : null;
-    return buildRootMetaObjectProperties(xml, nodeKind, inheritedXml);
+    const properties = buildRootMetaObjectProperties(xml, nodeKind, inheritedXml);
+    return enrichCommandInterfaceGroupOptions(properties, getObjectLocationFromXml(node.xmlPath).configRoot);
   } catch {
     return [];
   }

@@ -19,6 +19,7 @@ import {
   readInheritedObjectXmlForBorrowed,
   resolveInheritedDefinitionXmlPath,
 } from '../../views/properties/BorrowedPropertiesResolver';
+import { enrichCommandInterfaceGroupOptions } from '../../views/properties/CommandInterfaceGroupOptions';
 
 /** Виды дочерних узлов, для которых есть общий разбор свойств из XML */
 const SUPPORTED_CHILD_KINDS = new Set<NodeKind>([
@@ -123,14 +124,17 @@ export const structuredMetaChildHandler: ObjectHandler = {
           return buildFormLikeProperties(readXmlOrEmpty(formPath), readXmlOrEmpty(inheritedFormPath));
         }
         case 'Command': {
-          const cmdPath = resolveCommandDefinitionXmlPath(objectMainXmlPath, label);
-          const inheritedCmdPath = inheritedObjectXml
-            ? resolveInheritedDefinitionXmlPath(objectMainXmlPath, 'Commands', label)
+          const commandXml = extractChildMetaElementXml(objectXml, 'Command', label);
+          const inheritedCommandXml = inheritedObjectXml
+            ? extractChildMetaElementXml(inheritedObjectXml, 'Command', label)
             : null;
-          if (!cmdPath && !inheritedCmdPath) {
-            return notFoundProps('Файл описания команды не найден');
+          if (!commandXml && !inheritedCommandXml) {
+            return notFoundProps('Описание команды не найдено в XML объекта');
           }
-          return buildCommandProperties(readXmlOrEmpty(cmdPath), readXmlOrEmpty(inheritedCmdPath));
+          return enrichCommandInterfaceGroupOptions(
+            buildCommandProperties(commandXml ?? '', inheritedCommandXml),
+            getObjectLocationFromXml(objectMainXmlPath).configRoot
+          );
         }
         case 'Template': {
           const tplPath = resolveTemplateDefinitionXmlPath(objectMainXmlPath, label);
@@ -189,21 +193,6 @@ function resolveFormDefinitionXmlPath(objectMainXmlPath: string, formName: strin
   const candidates = [
     path.join(loc.objectDir, 'Forms', formName, `${formName}.xml`),
     path.join(loc.objectDir, 'Forms', `${formName}.xml`),
-  ];
-  for (const c of candidates) {
-    if (fs.existsSync(c)) {
-      return c;
-    }
-  }
-  return null;
-}
-
-/** Путь к XML описания команды объекта */
-function resolveCommandDefinitionXmlPath(objectMainXmlPath: string, commandName: string): string | null {
-  const loc = getObjectLocationFromXml(objectMainXmlPath);
-  const candidates = [
-    path.join(loc.objectDir, 'Commands', commandName, `${commandName}.xml`),
-    path.join(loc.objectDir, 'Commands', `${commandName}.xml`),
   ];
   for (const c of candidates) {
     if (fs.existsSync(c)) {

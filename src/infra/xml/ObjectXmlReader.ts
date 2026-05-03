@@ -179,10 +179,12 @@ export class ObjectXmlReader {
         | 'CommonAttribute'
         | 'Constant'
         | 'DefinedType'
-        | 'EventSubscription';
+        | 'EventSubscription'
+        | 'CommonCommand'
+        | 'Command';
       targetName: string;
       tabularSectionName?: string;
-      propertyName?: 'Type' | 'Source';
+      propertyName?: 'Type' | 'Source' | 'CommandParameterType';
       typeInnerXml: string;
     }
   ): boolean {
@@ -227,7 +229,7 @@ export class ObjectXmlReader {
   updatePropertyInObject(
     xmlPath: string,
     options: {
-      targetKind: 'Self' | 'Attribute' | 'AddressingAttribute' | 'Dimension' | 'Resource' | 'Column' | 'TabularSection' | 'EnumValue';
+      targetKind: 'Self' | 'Attribute' | 'AddressingAttribute' | 'Dimension' | 'Resource' | 'Column' | 'TabularSection' | 'Command' | 'EnumValue';
       targetName: string;
       tabularSectionName?: string;
       propertyKey: string;
@@ -301,11 +303,20 @@ function collectDirectText(nodes: XmlNodeList): string {
   return result.trim();
 }
 
-function updateTypeInElement(elementXml: string, typeInnerXml: string, propertyName: 'Type' | 'Source' = 'Type'): string {
+function updateTypeInElement(
+  elementXml: string,
+  typeInnerXml: string,
+  propertyName: 'Type' | 'Source' | 'CommandParameterType' = 'Type'
+): string {
   const typeBlock = `<${propertyName}>\n${typeInnerXml}\n</${propertyName}>`;
   const propertyRe = new RegExp(`<${propertyName}>[\\s\\S]*?<\\/${propertyName}>`);
   if (propertyRe.test(elementXml)) {
     const updated = elementXml.replace(propertyRe, typeBlock);
+    return propertyName === 'Type' ? normalizeTypedFieldProperties(updated, typeInnerXml) : updated;
+  }
+  const selfClosingRe = new RegExp(`<${propertyName}(?:\\s[^>]*)?\\/>`);
+  if (selfClosingRe.test(elementXml)) {
+    const updated = elementXml.replace(selfClosingRe, typeBlock);
     return propertyName === 'Type' ? normalizeTypedFieldProperties(updated, typeInnerXml) : updated;
   }
   const propertiesMatch = /<Properties>([\s\S]*?)<\/Properties>/.exec(elementXml);
@@ -351,7 +362,8 @@ function isRootTypeTargetKind(kind: string): boolean {
     || kind === 'CommonAttribute'
     || kind === 'Constant'
     || kind === 'DefinedType'
-    || kind === 'EventSubscription';
+    || kind === 'EventSubscription'
+    || kind === 'CommonCommand';
 }
 
 function indentTypeInner(typeInnerXml: string): string {
@@ -376,10 +388,13 @@ function updatePropertyInElement(
   const propsInner = propertiesMatch[1];
   const nextValueBlock = buildPropertyValueBlock(propertyKey, valueKind, value);
   const propertyRe = new RegExp(`<${propertyKey}>[\\s\\S]*?<\\/${propertyKey}>`);
+  const selfClosingRe = new RegExp(`<${propertyKey}(?:\\s[^>]*)?\\/>`);
 
   let nextPropsInner = propsInner;
   if (propertyRe.test(propsInner)) {
     nextPropsInner = propsInner.replace(propertyRe, nextValueBlock);
+  } else if (selfClosingRe.test(propsInner)) {
+    nextPropsInner = propsInner.replace(selfClosingRe, nextValueBlock);
   } else if (/<Comment[\s\S]*?<\/Comment>/.test(propsInner)) {
     nextPropsInner = propsInner.replace(/(<Comment[\s\S]*?<\/Comment>)/, `$1\n${nextValueBlock}`);
   } else if (/<Name[\s\S]*?<\/Name>/.test(propsInner)) {

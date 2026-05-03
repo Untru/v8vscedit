@@ -39,6 +39,9 @@ const LOCALIZED_PROPERTY_TAGS = new Set([
   'ExtendedExplanation',
 ]);
 
+/** Свойства, внутри которых хранится состав типа 1С. */
+const TYPE_PROPERTY_TAGS = new Set(['Type', 'CommandParameterType']);
+
 /** Теги булевых свойств в блоке Properties */
 const BOOLEAN_PROPERTY_TAGS = new Set([
   'PasswordMode',
@@ -55,6 +58,7 @@ const BOOLEAN_PROPERTY_TAGS = new Set([
   'IncludeHelpInContents',
   'Modality',
   'Representation',
+  'ModifiesData',
   'CheckUnique',
   'Autonumbering',
   'DefaultPresentation',
@@ -83,6 +87,20 @@ const INDEXING_OPTIONS: EnumPropertyOption[] = [
   { value: 'DontIndex', label: 'Не индексировать' },
   { value: 'Index', label: 'Индексировать' },
   { value: 'IndexWithAdditionalOrder', label: 'Индексировать с дополнительным упорядочиванием' },
+];
+
+const COMMAND_INTERFACE_GROUP_OPTIONS: EnumPropertyOption[] = [
+  { value: 'NavigationPanelImportant', label: 'Панель навигации: важное' },
+  { value: 'NavigationPanelOrdinary', label: 'Панель навигации: обычное' },
+  { value: 'NavigationPanelSeeAlso', label: 'Панель навигации: см. также' },
+  { value: 'ActionsPanelCreate', label: 'Панель действий: создать' },
+  { value: 'ActionsPanelReports', label: 'Панель действий: отчёты' },
+  { value: 'ActionsPanelTools', label: 'Панель действий: сервис' },
+  { value: 'FormNavigationPanelImportant', label: 'Панель навигации формы: важное' },
+  { value: 'FormNavigationPanelGoTo', label: 'Панель навигации формы: перейти' },
+  { value: 'FormNavigationPanelSeeAlso', label: 'Панель навигации формы: см. также' },
+  { value: 'FormCommandBarImportant', label: 'Командная панель формы: важное' },
+  { value: 'FormCommandBarCreateBasedOn', label: 'Командная панель формы: создать на основании' },
 ];
 
 const COMPATIBILITY_MODE_OPTIONS: EnumPropertyOption[] = [
@@ -236,6 +254,7 @@ const ENUM_PROPERTY_OPTIONS: Readonly<Record<string, readonly EnumPropertyOption
     { value: 'Picture', label: 'Картинка' },
     { value: 'PictureAndText', label: 'Картинка и текст' },
   ],
+  Group: COMMAND_INTERFACE_GROUP_OPTIONS,
   TemplateType: [
     { value: 'SpreadsheetDocument', label: 'Табличный документ' },
     { value: 'TextDocument', label: 'Текстовый документ' },
@@ -280,6 +299,10 @@ const ENUM_PROPERTY_OPTIONS: Readonly<Record<string, readonly EnumPropertyOption
   ParameterUseMode: [
     { value: 'Single', label: 'Одиночный' },
     { value: 'Multiple', label: 'Множественный' },
+  ],
+  OnMainServerUnavalableBehavior: [
+    { value: 'Auto', label: 'Авто' },
+    { value: 'DontChangeBehavior', label: 'Не изменять поведение' },
   ],
   HierarchyType: [
     { value: 'HierarchyFoldersAndItems', label: 'Иерархия групп и элементов' },
@@ -398,6 +421,7 @@ const PROPERTY_TITLE_RU: Record<string, string> = {
   Format: 'Формат',
   EditFormat: 'Формат редактирования',
   ToolTip: 'Подсказка',
+  Picture: 'Картинка',
   MarkNegatives: 'Отметка отрицательных',
   Mask: 'Маска',
   MultiLine: 'Многострочный режим',
@@ -525,6 +549,7 @@ const PROPERTY_TITLE_RU: Record<string, string> = {
   PostInPrivilegedMode: 'Проведение в привилегированном режиме',
   UnpostInPrivilegedMode: 'Отмена проведения в привилегированном режиме',
   Group: 'Группа командного интерфейса',
+  CommandParameterType: 'Тип параметра команды',
   Representation: 'Представление',
   Modality: 'Модальность',
   IncludeHelpInContents: 'Включать справку в содержимое',
@@ -576,6 +601,8 @@ const PROPERTY_TITLE_RU: Record<string, string> = {
   PredefinedDataUpdate: 'Обновление предопределённых данных',
   Predefined: 'Предопределённый',
   ModifiesData: 'Изменяет данные',
+  OnMainServerUnavalableBehavior: 'Поведение при недоступности основного сервера',
+  Shortcut: 'Сочетание клавиш',
   Transactioned: 'Транзакционный',
   UpdateDataHistoryImmediatelyAfterWrite: 'Обновлять историю данных сразу после записи',
   ExecuteAfterWriteDataHistoryVersionProcessing: 'Выполнять обработку версии истории данных после записи',
@@ -738,8 +765,14 @@ const COMMAND_PROPERTY_KEYS: string[] = [
   'Synonym',
   'Comment',
   'Group',
+  'CommandParameterType',
+  'ParameterUseMode',
+  'ModifiesData',
+  'OnMainServerUnavalableBehavior',
   'Representation',
-  'Modality',
+  'ToolTip',
+  'Shortcut',
+  'Picture',
   'IncludeHelpInContents',
 ];
 
@@ -836,6 +869,9 @@ export function getRootPropertyKeyOrder(rootMetaKind: NodeKind): string[] {
   if (rootMetaKind === 'Document') {
     return mergePropertyKeys(COMMON_ROOT_META_PROPERTY_KEYS, DOCUMENT_ROOT_EXTRA_KEYS);
   }
+  if (rootMetaKind === 'CommonCommand') {
+    return COMMAND_PROPERTY_KEYS;
+  }
   return COMMON_ROOT_META_PROPERTY_KEYS;
 }
 
@@ -891,7 +927,11 @@ function isBooleanScalar(value: string | undefined): value is string {
 }
 
 function summarizeTypeBlock(propertiesSource: string): string {
-  const m = /<Type>([\s\S]*?)<\/Type>/.exec(propertiesSource);
+  return extractTypePropertyInner(propertiesSource, 'Type');
+}
+
+function extractTypePropertyInner(propertiesSource: string, key: string): string {
+  const m = new RegExp(`<${key}>([\\s\\S]*?)<\\/${key}>`).exec(propertiesSource);
   if (!m) {
     return '';
   }
@@ -902,8 +942,8 @@ function propertyTitle(key: string): string {
   return getPropertyTitle(key, PROPERTY_TITLE_RU);
 }
 
-function buildEnumValue(current: string, options: EnumPropertyOption[]): EnumPropertyValue {
-  const completeOptions = ensureCurrentOption(options, current);
+function buildEnumValueForKey(key: string, current: string, options: EnumPropertyOption[]): EnumPropertyValue {
+  const completeOptions = ensureCurrentOptionForKey(key, options, current);
   const opt = completeOptions.find((o) => o.value === current);
   return {
     current,
@@ -912,12 +952,26 @@ function buildEnumValue(current: string, options: EnumPropertyOption[]): EnumPro
   };
 }
 
-function ensureCurrentOption(options: readonly EnumPropertyOption[], current: string): EnumPropertyOption[] {
+function ensureCurrentOptionForKey(
+  key: string,
+  options: readonly EnumPropertyOption[],
+  current: string
+): EnumPropertyOption[] {
   const result = [...options];
   if (current && !result.some((option) => option.value === current)) {
-    result.push({ value: current, label: formatEnumDisplayValue(current) });
+    result.push({ value: current, label: formatEnumValueForKey(key, current) });
   }
   return result;
+}
+
+function formatEnumValueForKey(key: string, value: string): string {
+  if (key === 'Group') {
+    const customGroup = /^CommandGroup\.(.+)$/.exec(value);
+    if (customGroup) {
+      return `Группа команд: ${customGroup[1]}`;
+    }
+  }
+  return formatEnumDisplayValue(value);
 }
 
 function ensureSelectedOptions(options: readonly EnumPropertyOption[], selected: readonly string[]): EnumPropertyOption[] {
@@ -946,14 +1000,14 @@ export function buildPropertyItemsForKeys(
   const items: ObjectPropertyItem[] = [];
 
   for (const key of orderedKeys) {
-    if (key === 'Type') {
-      const typeInner = summarizeTypeBlock(typeSource.includes('<Properties>') ? typeSource : propsInner);
-      if (!typeInner) {
+    if (TYPE_PROPERTY_TAGS.has(key)) {
+      const typeInner = extractTypePropertyInner(typeSource.includes('<Properties>') ? typeSource : propsInner, key);
+      if (!typeInner && !propsInner.includes(`<${key}`)) {
         continue;
       }
       items.push({
-        key: 'Type',
-        title: propertyTitle('Type'),
+        key,
+        title: propertyTitle(key),
         kind: 'metadataType',
         value: parseMetadataType(typeInner),
       });
@@ -975,7 +1029,7 @@ export function buildPropertyItemsForKeys(
 
     if (LOCALIZED_PROPERTY_TAGS.has(key)) {
       const loc = extractLocalizedStringValue(propsInner, key);
-      if (!loc.presentation && loc.values.length === 0) {
+      if (!loc.presentation && loc.values.length === 0 && !propsInner.includes(`<${key}`)) {
         continue;
       }
       items.push({
@@ -1012,7 +1066,7 @@ export function buildPropertyItemsForKeys(
         key,
         title: propertyTitle(key),
         kind: 'enum',
-        value: buildEnumValue(current, [...enumOptions]),
+        value: buildEnumValueForKey(key, current, [...enumOptions]),
       });
       continue;
     }
@@ -1222,7 +1276,7 @@ export function buildConfigurationProperties(fullConfigXml: string): ObjectPrope
         key,
         title: propertyTitle(key),
         kind: 'enum',
-        value: buildEnumValue((rawSimpleValue ?? '').trim(), [...enumOptions]),
+        value: buildEnumValueForKey(key, (rawSimpleValue ?? '').trim(), [...enumOptions]),
       });
       continue;
     }

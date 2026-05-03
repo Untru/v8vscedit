@@ -54,10 +54,12 @@ export function updateObjectTypeProperty(
       | 'CommonAttribute'
       | 'Constant'
       | 'DefinedType'
-      | 'EventSubscription';
+      | 'EventSubscription'
+      | 'CommonCommand'
+      | 'Command';
     targetName: string;
     tabularSectionName?: string;
-    propertyName?: 'Type' | 'Source';
+    propertyName?: 'Type' | 'Source' | 'CommandParameterType';
     typeInnerXml: string;
   }
 ): boolean {
@@ -68,7 +70,7 @@ export function updateObjectTypeProperty(
 export function updateObjectProperty(
   xmlPath: string,
   options: {
-    targetKind: 'Self' | 'Attribute' | 'AddressingAttribute' | 'Dimension' | 'Resource' | 'Column' | 'TabularSection' | 'EnumValue';
+    targetKind: 'Self' | 'Attribute' | 'AddressingAttribute' | 'Dimension' | 'Resource' | 'Column' | 'TabularSection' | 'Command' | 'EnumValue';
     targetName: string;
     tabularSectionName?: string;
     propertyKey: string;

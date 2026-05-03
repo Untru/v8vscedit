@@ -10,19 +10,24 @@ export interface TypeRegistryTreeGroup {
   items: MetadataTypeItem[];
 }
 
+/** Набор типов, который нужен конкретному свойству панели. */
+export type TypeRegistryFilter = 'value' | 'commandParameter' | 'eventSource';
+
 /**
  * Реестр доступных типов для окна выбора:
  * сначала стандартные типы платформы, затем типы текущей конфигурации.
  */
 export class TypeRegistryService {
-  getAvailableTypes(sourceXmlPath: string | undefined): TypeRegistryTreeGroup[] {
-    const base = this.getBaseTypes();
-    const config = this.getConfigurationTypes(sourceXmlPath);
-    return [base, ...config];
-  }
-
-  getAvailableEventSourceTypes(sourceXmlPath: string | undefined): TypeRegistryTreeGroup[] {
-    return [this.getGenericEventSourceTypes(), ...buildEventSourceItemsFromConfiguration(sourceXmlPath)];
+  getAvailableTypes(sourceXmlPath: string | undefined, filter: TypeRegistryFilter = 'value'): TypeRegistryTreeGroup[] {
+    switch (filter) {
+      case 'commandParameter':
+        return this.getConfigurationTypes(sourceXmlPath);
+      case 'eventSource':
+        return [this.getGenericEventSourceTypes(), ...buildEventSourceItemsFromConfiguration(sourceXmlPath)];
+      case 'value':
+      default:
+        return [this.getBaseTypes(), ...this.getConfigurationTypes(sourceXmlPath)];
+    }
   }
 
   private getBaseTypes(): TypeRegistryTreeGroup {
