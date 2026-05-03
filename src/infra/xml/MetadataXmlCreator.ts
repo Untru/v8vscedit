@@ -7,6 +7,144 @@ import { ConfigurationXmlEditor, EditResult } from './ConfigurationXmlEditor';
 import { getObjectLocationFromXml } from '../fs/MetaPathResolver';
 import { buildTypedFieldPropertyBlocks } from './TypedFieldPropertyRules';
 
+const DEFAULT_FORMAT_VERSION = '2.18';
+const METADATA_OBJECT_XMLNS = 'xmlns="http://v8.1c.ru/8.3/MDClasses" xmlns:v8="http://v8.1c.ru/8.1/data/core" xmlns:xr="http://v8.1c.ru/8.3/xcf/readable" xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"';
+
+interface GeneratedTypeDef {
+  readonly prefix: string;
+  readonly category: string;
+}
+
+const GENERATED_TYPES: Partial<Record<MetaKind, readonly GeneratedTypeDef[]>> = {
+  Catalog: [
+    { prefix: 'CatalogObject', category: 'Object' },
+    { prefix: 'CatalogRef', category: 'Ref' },
+    { prefix: 'CatalogSelection', category: 'Selection' },
+    { prefix: 'CatalogList', category: 'List' },
+    { prefix: 'CatalogManager', category: 'Manager' },
+  ],
+  Document: [
+    { prefix: 'DocumentObject', category: 'Object' },
+    { prefix: 'DocumentRef', category: 'Ref' },
+    { prefix: 'DocumentSelection', category: 'Selection' },
+    { prefix: 'DocumentList', category: 'List' },
+    { prefix: 'DocumentManager', category: 'Manager' },
+  ],
+  Enum: [
+    { prefix: 'EnumRef', category: 'Ref' },
+    { prefix: 'EnumManager', category: 'Manager' },
+    { prefix: 'EnumList', category: 'List' },
+  ],
+  Constant: [
+    { prefix: 'ConstantManager', category: 'Manager' },
+    { prefix: 'ConstantValueManager', category: 'ValueManager' },
+    { prefix: 'ConstantValueKey', category: 'ValueKey' },
+  ],
+  InformationRegister: [
+    { prefix: 'InformationRegisterRecord', category: 'Record' },
+    { prefix: 'InformationRegisterManager', category: 'Manager' },
+    { prefix: 'InformationRegisterSelection', category: 'Selection' },
+    { prefix: 'InformationRegisterList', category: 'List' },
+    { prefix: 'InformationRegisterRecordSet', category: 'RecordSet' },
+    { prefix: 'InformationRegisterRecordKey', category: 'RecordKey' },
+    { prefix: 'InformationRegisterRecordManager', category: 'RecordManager' },
+  ],
+  AccumulationRegister: [
+    { prefix: 'AccumulationRegisterRecord', category: 'Record' },
+    { prefix: 'AccumulationRegisterManager', category: 'Manager' },
+    { prefix: 'AccumulationRegisterSelection', category: 'Selection' },
+    { prefix: 'AccumulationRegisterList', category: 'List' },
+    { prefix: 'AccumulationRegisterRecordSet', category: 'RecordSet' },
+    { prefix: 'AccumulationRegisterRecordKey', category: 'RecordKey' },
+  ],
+  AccountingRegister: [
+    { prefix: 'AccountingRegisterRecord', category: 'Record' },
+    { prefix: 'AccountingRegisterExtDimensions', category: 'ExtDimensions' },
+    { prefix: 'AccountingRegisterRecordSet', category: 'RecordSet' },
+    { prefix: 'AccountingRegisterRecordKey', category: 'RecordKey' },
+    { prefix: 'AccountingRegisterSelection', category: 'Selection' },
+    { prefix: 'AccountingRegisterList', category: 'List' },
+    { prefix: 'AccountingRegisterManager', category: 'Manager' },
+  ],
+  CalculationRegister: [
+    { prefix: 'CalculationRegisterRecord', category: 'Record' },
+    { prefix: 'CalculationRegisterManager', category: 'Manager' },
+    { prefix: 'CalculationRegisterSelection', category: 'Selection' },
+    { prefix: 'CalculationRegisterList', category: 'List' },
+    { prefix: 'CalculationRegisterRecordSet', category: 'RecordSet' },
+    { prefix: 'CalculationRegisterRecordKey', category: 'RecordKey' },
+    { prefix: 'RecalculationsManager', category: 'Recalcs' },
+  ],
+  ChartOfAccounts: [
+    { prefix: 'ChartOfAccountsObject', category: 'Object' },
+    { prefix: 'ChartOfAccountsRef', category: 'Ref' },
+    { prefix: 'ChartOfAccountsSelection', category: 'Selection' },
+    { prefix: 'ChartOfAccountsList', category: 'List' },
+    { prefix: 'ChartOfAccountsManager', category: 'Manager' },
+    { prefix: 'ChartOfAccountsExtDimensionTypes', category: 'ExtDimensionTypes' },
+    { prefix: 'ChartOfAccountsExtDimensionTypesRow', category: 'ExtDimensionTypesRow' },
+  ],
+  ChartOfCharacteristicTypes: [
+    { prefix: 'ChartOfCharacteristicTypesObject', category: 'Object' },
+    { prefix: 'ChartOfCharacteristicTypesRef', category: 'Ref' },
+    { prefix: 'ChartOfCharacteristicTypesSelection', category: 'Selection' },
+    { prefix: 'ChartOfCharacteristicTypesList', category: 'List' },
+    { prefix: 'ChartOfCharacteristicTypesCharacteristic', category: 'Characteristic' },
+    { prefix: 'ChartOfCharacteristicTypesManager', category: 'Manager' },
+  ],
+  ChartOfCalculationTypes: [
+    { prefix: 'ChartOfCalculationTypesObject', category: 'Object' },
+    { prefix: 'ChartOfCalculationTypesRef', category: 'Ref' },
+    { prefix: 'ChartOfCalculationTypesSelection', category: 'Selection' },
+    { prefix: 'ChartOfCalculationTypesList', category: 'List' },
+    { prefix: 'ChartOfCalculationTypesManager', category: 'Manager' },
+    { prefix: 'DisplacingCalculationTypes', category: 'DisplacingCalculationTypes' },
+    { prefix: 'DisplacingCalculationTypesRow', category: 'DisplacingCalculationTypesRow' },
+    { prefix: 'BaseCalculationTypes', category: 'BaseCalculationTypes' },
+    { prefix: 'BaseCalculationTypesRow', category: 'BaseCalculationTypesRow' },
+    { prefix: 'LeadingCalculationTypes', category: 'LeadingCalculationTypes' },
+    { prefix: 'LeadingCalculationTypesRow', category: 'LeadingCalculationTypesRow' },
+  ],
+  BusinessProcess: [
+    { prefix: 'BusinessProcessObject', category: 'Object' },
+    { prefix: 'BusinessProcessRef', category: 'Ref' },
+    { prefix: 'BusinessProcessSelection', category: 'Selection' },
+    { prefix: 'BusinessProcessList', category: 'List' },
+    { prefix: 'BusinessProcessManager', category: 'Manager' },
+    { prefix: 'BusinessProcessRoutePointRef', category: 'RoutePointRef' },
+  ],
+  Task: [
+    { prefix: 'TaskObject', category: 'Object' },
+    { prefix: 'TaskRef', category: 'Ref' },
+    { prefix: 'TaskSelection', category: 'Selection' },
+    { prefix: 'TaskList', category: 'List' },
+    { prefix: 'TaskManager', category: 'Manager' },
+  ],
+  ExchangePlan: [
+    { prefix: 'ExchangePlanObject', category: 'Object' },
+    { prefix: 'ExchangePlanRef', category: 'Ref' },
+    { prefix: 'ExchangePlanSelection', category: 'Selection' },
+    { prefix: 'ExchangePlanList', category: 'List' },
+    { prefix: 'ExchangePlanManager', category: 'Manager' },
+  ],
+  DefinedType: [
+    { prefix: 'DefinedType', category: 'DefinedType' },
+  ],
+  DocumentJournal: [
+    { prefix: 'DocumentJournalSelection', category: 'Selection' },
+    { prefix: 'DocumentJournalList', category: 'List' },
+    { prefix: 'DocumentJournalManager', category: 'Manager' },
+  ],
+  Report: [
+    { prefix: 'ReportObject', category: 'Object' },
+    { prefix: 'ReportManager', category: 'Manager' },
+  ],
+  DataProcessor: [
+    { prefix: 'DataProcessorObject', category: 'Object' },
+    { prefix: 'DataProcessorManager', category: 'Manager' },
+  ],
+};
+
 export interface AddRootMetadataOptions {
   configRoot: string;
   kind: MetaKind;
@@ -46,7 +184,8 @@ export class MetadataXmlCreator {
     }
 
     fs.mkdirSync(typeDir, { recursive: true });
-    fs.writeFileSync(xmlPath, buildRootObjectXml(options.kind, options.name), 'utf-8');
+    const formatVersion = resolveConfigFormatVersion(options.configRoot);
+    fs.writeFileSync(xmlPath, buildRootObjectXml(options.kind, options.name, formatVersion), 'utf-8');
 
     const changedFiles = [xmlPath];
     for (const modulePath of getDefaultModulePaths(options.kind, objectDir)) {
@@ -56,7 +195,7 @@ export class MetadataXmlCreator {
     if (options.kind === 'CommonForm') {
       const formXmlPath = path.join(objectDir, 'Ext', 'Form.xml');
       fs.mkdirSync(path.dirname(formXmlPath), { recursive: true });
-      fs.writeFileSync(formXmlPath, buildManagedFormXml(), 'utf-8');
+      fs.writeFileSync(formXmlPath, buildManagedFormXml(formatVersion), 'utf-8');
       changedFiles.push(formXmlPath);
     }
 
@@ -70,7 +209,7 @@ export class MetadataXmlCreator {
     if (options.kind === 'BusinessProcess') {
       const flowchartPath = path.join(objectDir, 'Ext', 'Flowchart.xml');
       fs.mkdirSync(path.dirname(flowchartPath), { recursive: true });
-      fs.writeFileSync(flowchartPath, buildBusinessProcessFlowchartXml(), 'utf-8');
+      fs.writeFileSync(flowchartPath, buildBusinessProcessFlowchartXml(formatVersion), 'utf-8');
       changedFiles.push(flowchartPath);
     }
 
@@ -99,8 +238,9 @@ export class MetadataXmlCreator {
     }
 
     fs.writeFileSync(options.ownerObjectXmlPath, nextXml.xml, 'utf-8');
+    const formatVersion = resolveObjectFormatVersion(options.ownerObjectXmlPath);
     const changedFiles = [options.ownerObjectXmlPath];
-    changedFiles.push(...ensureAuxiliaryChildFiles(options));
+    changedFiles.push(...ensureAuxiliaryChildFiles(options, formatVersion));
     return ok(changedFiles);
   }
 }
@@ -126,7 +266,8 @@ function addChildToObjectXml(xml: string, options: AddChildMetadataOptions): { c
   }
 
   const indent = detectChildIndent(childObjects.inner, '\t\t\t');
-  const fragment = buildChildFragment(options.childTag, options.name, indent);
+  const ownerName = extractObjectName(xml);
+  const fragment = buildChildFragment(options.childTag, options.name, indent, objectMatch[1], ownerName);
   const replacement = buildChildObjectsReplacement(childObjects, fragment, indent);
   return { changed: true, xml: `${xml.slice(0, childObjects.start)}${replacement}${xml.slice(childObjects.end)}` };
 }
@@ -155,11 +296,12 @@ function addColumnToTabularSectionXml(xml: string, tabularSectionName: string, c
   };
 }
 
-function buildRootObjectXml(kind: MetaKind, name: string): string {
+function buildRootObjectXml(kind: MetaKind, name: string, formatVersion: string): string {
   const parts = [
     '<?xml version="1.0" encoding="utf-8"?>',
-    '<MetaDataObject xmlns="http://v8.1c.ru/8.3/MDClasses" xmlns:v8="http://v8.1c.ru/8.1/data/core" xmlns:xr="http://v8.1c.ru/8.3/xcf/readable" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" version="2.18">',
+    `<MetaDataObject ${METADATA_OBJECT_XMLNS} version="${formatVersion}">`,
     `\t<${kind} uuid="${newUuid()}">`,
+    buildInternalInfo(kind, name, '\t\t'),
     `\t\t<Properties>${buildRootProperties(kind, name)}\n\t\t</Properties>`,
     needsChildObjects(kind) ? '\t\t<ChildObjects/>' : '',
     `\t</${kind}>`,
@@ -201,12 +343,12 @@ function buildRootProperties(kind: MetaKind, name: string): string {
   }
 }
 
-function buildChildFragment(tag: ChildTag, name: string, indent: string): string {
+function buildChildFragment(tag: ChildTag, name: string, indent: string, ownerKind?: string, ownerName?: string): string {
   if (tag === 'Attribute' || tag === 'AddressingAttribute' || tag === 'Dimension' || tag === 'Resource') {
     return buildTypedFieldFragment(tag, name, indent);
   }
   if (tag === 'TabularSection') {
-    return buildTabularSectionFragment(name, indent);
+    return buildTabularSectionFragment(name, indent, ownerKind, ownerName);
   }
   if (tag === 'Form') {
     return buildSimpleChildFragment('Form', name, indent, ['FormType>Managed']);
@@ -232,9 +374,10 @@ function buildTypedFieldFragment(tag: 'Attribute' | 'AddressingAttribute' | 'Dim
   ].join('\n');
 }
 
-function buildTabularSectionFragment(name: string, indent: string): string {
+function buildTabularSectionFragment(name: string, indent: string, ownerKind?: string, ownerName?: string): string {
   return [
     `${indent}<TabularSection uuid="${newUuid()}">`,
+    ownerKind && ownerName ? buildTabularSectionInternalInfo(ownerKind, ownerName, name, `${indent}\t`) : '',
     `${indent}\t<Properties>`,
     `${indent}\t\t<Name>${escapeXml(name)}</Name>`,
     buildLocalizedTag(`${indent}\t\t`, 'Synonym', splitCamelCase(name)),
@@ -242,7 +385,47 @@ function buildTabularSectionFragment(name: string, indent: string): string {
     `${indent}\t</Properties>`,
     `${indent}\t<ChildObjects/>`,
     `${indent}</TabularSection>`,
+  ].filter((item) => item.length > 0).join('\n');
+}
+
+function buildInternalInfo(kind: MetaKind, objectName: string, indent: string): string {
+  const types = GENERATED_TYPES[kind];
+  if (!types?.length) {
+    return '';
+  }
+  const lines = [`${indent}<InternalInfo>`];
+  if (kind === 'ExchangePlan') {
+    lines.push(`${indent}\t<xr:ThisNode>${newUuid()}</xr:ThisNode>`);
+  }
+  for (const generatedType of types) {
+    lines.push(...buildGeneratedTypeLines(
+      `${generatedType.prefix}.${objectName}`,
+      generatedType.category,
+      `${indent}\t`
+    ));
+  }
+  lines.push(`${indent}</InternalInfo>`);
+  return lines.join('\n');
+}
+
+function buildTabularSectionInternalInfo(ownerKind: string, ownerName: string, sectionName: string, indent: string): string {
+  const typePrefix = `${ownerKind}TabularSection`;
+  const rowPrefix = `${ownerKind}TabularSectionRow`;
+  return [
+    `${indent}<InternalInfo>`,
+    ...buildGeneratedTypeLines(`${typePrefix}.${ownerName}.${sectionName}`, 'TabularSection', `${indent}\t`),
+    ...buildGeneratedTypeLines(`${rowPrefix}.${ownerName}.${sectionName}`, 'TabularSectionRow', `${indent}\t`),
+    `${indent}</InternalInfo>`,
   ].join('\n');
+}
+
+function buildGeneratedTypeLines(name: string, category: string, indent: string): string[] {
+  return [
+    `${indent}<xr:GeneratedType name="${escapeXml(name)}" category="${escapeXml(category)}">`,
+    `${indent}\t<xr:TypeId>${newUuid()}</xr:TypeId>`,
+    `${indent}\t<xr:ValueId>${newUuid()}</xr:ValueId>`,
+    `${indent}</xr:GeneratedType>`,
+  ];
 }
 
 function buildSimpleChildFragment(tag: 'Form' | 'Command' | 'Template' | 'EnumValue', name: string, indent: string, extraRawTags: string[] = []): string {
@@ -307,7 +490,11 @@ function hasChildName(inner: string, tag: string, name: string): boolean {
   return new RegExp(`<${tag}\\b[^>]*>[\\s\\S]*?<Name>${escapeRegExp(name)}<\\/Name>[\\s\\S]*?<\\/${tag}>`).test(inner);
 }
 
-function ensureAuxiliaryChildFiles(options: AddChildMetadataOptions): string[] {
+function extractObjectName(xml: string): string | undefined {
+  return /<Properties>[\s\S]*?<Name>([^<]+)<\/Name>/.exec(xml)?.[1];
+}
+
+function ensureAuxiliaryChildFiles(options: AddChildMetadataOptions, formatVersion: string): string[] {
   const loc = getObjectLocationFromXml(options.ownerObjectXmlPath);
   if (options.childTag === 'Command') {
     const commandModule = path.join(loc.objectDir, 'Commands', options.name, 'Ext', 'CommandModule.bsl');
@@ -318,7 +505,7 @@ function ensureAuxiliaryChildFiles(options: AddChildMetadataOptions): string[] {
     const formModule = path.join(loc.objectDir, 'Forms', options.name, 'Ext', 'Form', 'Module.bsl');
     const formXml = path.join(loc.objectDir, 'Forms', options.name, 'Ext', 'Form.xml');
     fs.mkdirSync(path.dirname(formXml), { recursive: true });
-    fs.writeFileSync(formXml, buildManagedFormXml(), 'utf-8');
+    fs.writeFileSync(formXml, buildManagedFormXml(formatVersion), 'utf-8');
     ensureEmptyFile(formModule);
     return [formXml, formModule];
   }
@@ -326,7 +513,7 @@ function ensureAuxiliaryChildFiles(options: AddChildMetadataOptions): string[] {
     const templateXml = path.join(loc.objectDir, 'Templates', `${options.name}.xml`);
     const templateBin = path.join(loc.objectDir, 'Templates', options.name, 'Ext', 'Template.bin');
     fs.mkdirSync(path.dirname(templateXml), { recursive: true });
-    fs.writeFileSync(templateXml, buildTemplateXml(options.name), 'utf-8');
+    fs.writeFileSync(templateXml, buildTemplateXml(options.name, formatVersion), 'utf-8');
     ensureEmptyFile(templateBin);
     return [templateXml, templateBin];
   }
@@ -405,18 +592,18 @@ function buildEmptyRightsXml(): string {
   ].join('\n');
 }
 
-function buildBusinessProcessFlowchartXml(): string {
+function buildBusinessProcessFlowchartXml(formatVersion: string): string {
   return [
     '<?xml version="1.0" encoding="utf-8"?>',
-    '<Flowchart xmlns="http://v8.1c.ru/8.3/MDClasses" version="2.18"/>',
+    `<Flowchart xmlns="http://v8.1c.ru/8.3/MDClasses" version="${formatVersion}"/>`,
     '',
   ].join('\n');
 }
 
-function buildManagedFormXml(): string {
+function buildManagedFormXml(formatVersion: string): string {
   return [
     '<?xml version="1.0" encoding="utf-8"?>',
-    '<Form xmlns="http://v8.1c.ru/8.3/managed-application/forms" version="2.18">',
+    `<Form xmlns="http://v8.1c.ru/8.3/managed-application/forms" version="${formatVersion}">`,
     '\t<AutoCommandBar name="ФормаКоманднаяПанель" id="-1"/>',
     '\t<ChildItems/>',
     '\t<Attributes/>',
@@ -426,10 +613,10 @@ function buildManagedFormXml(): string {
   ].join('\n');
 }
 
-function buildTemplateXml(name: string): string {
+function buildTemplateXml(name: string, formatVersion: string): string {
   return [
     '<?xml version="1.0" encoding="utf-8"?>',
-    '<MetaDataObject xmlns="http://v8.1c.ru/8.3/MDClasses" xmlns:v8="http://v8.1c.ru/8.1/data/core" xmlns:xr="http://v8.1c.ru/8.3/xcf/readable" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" version="2.18">',
+    `<MetaDataObject ${METADATA_OBJECT_XMLNS} version="${formatVersion}">`,
     `\t<Template uuid="${newUuid()}">`,
     '\t\t<Properties>',
     `\t\t\t<Name>${escapeXml(name)}</Name>`,
@@ -441,6 +628,31 @@ function buildTemplateXml(name: string): string {
     '</MetaDataObject>',
     '',
   ].join('\n');
+}
+
+function resolveObjectFormatVersion(xmlPath: string): string {
+  const configRoot = getObjectLocationFromXml(xmlPath).configRoot;
+  return detectConfigFormatVersion(configRoot)
+    ?? readFormatVersionFromFile(xmlPath)
+    ?? DEFAULT_FORMAT_VERSION;
+}
+
+function resolveConfigFormatVersion(configRoot: string): string {
+  return detectConfigFormatVersion(configRoot)
+    ?? DEFAULT_FORMAT_VERSION;
+}
+
+function detectConfigFormatVersion(configRoot: string): string | null {
+  return readFormatVersionFromFile(path.join(configRoot, 'ConfigDumpInfo.xml'))
+    ?? readFormatVersionFromFile(path.join(configRoot, 'Configuration.xml'));
+}
+
+function readFormatVersionFromFile(filePath: string): string | null {
+  if (!fs.existsSync(filePath)) {
+    return null;
+  }
+  const head = fs.readFileSync(filePath, 'utf-8').slice(0, 4000);
+  return /<(?!\?xml\b)[A-Za-z_:][\w:.-]*\b[^>]*\bversion="([\d.]+)"/.exec(head)?.[1] ?? null;
 }
 
 function detectChildIndent(inner: string, fallback: string): string {

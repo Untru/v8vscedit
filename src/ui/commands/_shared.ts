@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import { ChangedConfiguration } from '../../infra/fs/ConfigurationChangeDetector';
 import { RepositoryService } from '../../infra/repository/RepositoryService';
 import { AiSkillsInstaller } from '../../infra/skills/AiSkillsInstaller';
+import { StandaloneServerService } from '../../infra/standalone';
 import { SupportInfoService } from '../../infra/support/SupportInfoService';
 import { MetadataXmlCreator, MetadataXmlRemover } from '../../infra/xml';
 import { BslAnalyzerConfigService } from '../../infra/environment';
@@ -11,6 +12,7 @@ import { PropertiesViewProvider } from '../views/PropertiesViewProvider';
 import { RepositoryCommitViewProvider } from '../views/RepositoryCommitViewProvider';
 import { RepositoryConnectionViewProvider } from '../views/RepositoryConnectionViewProvider';
 import { ProjectEnvironmentViewProvider } from '../views/environment/ProjectEnvironmentViewProvider';
+import { StandaloneServerViewProvider } from '../views/standalone/StandaloneServerViewProvider';
 import { SubsystemEditorViewProvider } from '../views/subsystem/SubsystemEditorViewProvider';
 import { OnecFileSystemProvider } from '../vfs/OnecFileSystemProvider';
 
@@ -32,6 +34,8 @@ export interface CommandServices {
   repositoryCommitViewProvider: RepositoryCommitViewProvider;
   bslAnalyzerConfigService: BslAnalyzerConfigService;
   projectEnvironmentViewProvider: ProjectEnvironmentViewProvider;
+  standaloneServerService: StandaloneServerService;
+  standaloneServerViewProvider: StandaloneServerViewProvider;
   aiSkillsInstaller: AiSkillsInstaller;
   refreshChangedConfigurationState: () => void;
   markChangedConfigurationByFiles: (filePaths: string[]) => void;

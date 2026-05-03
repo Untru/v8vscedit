@@ -12,6 +12,7 @@ import { registerInitializeProjectCommand } from './project/InitializeProjectCom
 import { registerRepositoryCommands } from './repository/RepositoryCommands';
 import { registerTreeSearchCommands } from './search/TreeSearchCommands';
 import { registerInstallAiSkillsCommand } from './skills/InstallAiSkillsCommand';
+import { registerStandaloneServerCommands } from './standalone/StandaloneServerCommands';
 
 /**
  * Тонкий реестр команд: только связывает команды с конкретными регистраторами.
@@ -35,6 +36,7 @@ export function registerCommands(
   registerTreeSearchCommands(context, services);
   registerInitializeProjectCommand(context, services);
   registerDbCommands(context, services);
+  registerStandaloneServerCommands(context, services);
   registerInstallAiSkillsCommand(context, services);
   registerExtensionCommands(context, services);
   registerRepositoryCommands(context, services);

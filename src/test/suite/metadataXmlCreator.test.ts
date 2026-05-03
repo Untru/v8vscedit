@@ -33,6 +33,69 @@ suite('metadataXmlCreator', () => {
     assert.ok(changed[0].changedFilesCount > 0);
   });
 
+  test('наследует версию формата XML из текущей выгрузки', () => {
+    const configRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'v8vscedit-format-version-'));
+    fs.writeFileSync(path.join(configRoot, 'Configuration.xml'), buildConfigXml('2.21'), 'utf-8');
+    fs.writeFileSync(path.join(configRoot, 'ConfigDumpInfo.xml'), buildDumpInfoXml('2.21'), 'utf-8');
+
+    const creator = new MetadataXmlCreator();
+    assert.strictEqual(creator.addRootObject({ configRoot, kind: 'Catalog', name: 'Товары' }).success, true);
+    assert.strictEqual(creator.addRootObject({ configRoot, kind: 'BusinessProcess', name: 'Процесс' }).success, true);
+    assert.strictEqual(creator.addRootObject({ configRoot, kind: 'CommonForm', name: 'ФормаНастроек' }).success, true);
+
+    const catalogXmlPath = path.join(configRoot, 'Catalogs', 'Товары.xml');
+    assert.strictEqual(creator.addChildElement({ ownerObjectXmlPath: catalogXmlPath, childTag: 'Form', name: 'ФормаЭлемента' }).success, true);
+    assert.strictEqual(creator.addChildElement({ ownerObjectXmlPath: catalogXmlPath, childTag: 'Template', name: 'Печать' }).success, true);
+
+    const generatedXmlPaths = [
+      catalogXmlPath,
+      path.join(configRoot, 'BusinessProcesses', 'Процесс.xml'),
+      path.join(configRoot, 'BusinessProcesses', 'Процесс', 'Ext', 'Flowchart.xml'),
+      path.join(configRoot, 'CommonForms', 'ФормаНастроек.xml'),
+      path.join(configRoot, 'CommonForms', 'ФормаНастроек', 'Ext', 'Form.xml'),
+      path.join(configRoot, 'Catalogs', 'Товары', 'Forms', 'ФормаЭлемента', 'Ext', 'Form.xml'),
+      path.join(configRoot, 'Catalogs', 'Товары', 'Templates', 'Печать.xml'),
+    ];
+
+    for (const xmlPath of generatedXmlPaths) {
+      const xml = fs.readFileSync(xmlPath, 'utf-8');
+      assert.ok(xml.includes('version="2.21"'), `${xmlPath} не содержит version="2.21"`);
+      assert.ok(!xml.includes('version="2.18"'), `${xmlPath} содержит устаревшую версию 2.18`);
+    }
+  });
+
+  test('объявляет namespace xs для стандартных типов XDTO', () => {
+    const configRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'v8vscedit-xs-namespace-'));
+    fs.writeFileSync(path.join(configRoot, 'Configuration.xml'), buildConfigXml('2.21'), 'utf-8');
+
+    const creator = new MetadataXmlCreator();
+    assert.strictEqual(creator.addRootObject({ configRoot, kind: 'Document', name: 'Заказ' }).success, true);
+    const xmlPath = path.join(configRoot, 'Documents', 'Заказ.xml');
+    assert.strictEqual(creator.addChildElement({ ownerObjectXmlPath: xmlPath, childTag: 'Attribute', name: 'Комментарий' }).success, true);
+
+    const xml = fs.readFileSync(xmlPath, 'utf-8');
+    assert.ok(xml.includes('xmlns:xs="http://www.w3.org/2001/XMLSchema"'));
+    assert.ok(xml.includes('<v8:Type>xs:string</v8:Type>'));
+  });
+
+  test('создаёт InternalInfo для объектов и табличных частей по правилам meta-compile', () => {
+    const configRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'v8vscedit-internal-info-'));
+    fs.writeFileSync(path.join(configRoot, 'Configuration.xml'), buildConfigXml('2.21'), 'utf-8');
+
+    const creator = new MetadataXmlCreator();
+    assert.strictEqual(creator.addRootObject({ configRoot, kind: 'Document', name: 'Заказ' }).success, true);
+    const xmlPath = path.join(configRoot, 'Documents', 'Заказ.xml');
+    assert.strictEqual(creator.addChildElement({ ownerObjectXmlPath: xmlPath, childTag: 'TabularSection', name: 'Товары' }).success, true);
+
+    const xml = fs.readFileSync(xmlPath, 'utf-8');
+    assert.ok(xml.includes('<InternalInfo>'));
+    assert.ok(xml.includes('name="DocumentObject.Заказ" category="Object"'));
+    assert.ok(xml.includes('name="DocumentRef.Заказ" category="Ref"'));
+    assert.ok(xml.includes('name="DocumentManager.Заказ" category="Manager"'));
+    assert.ok(xml.includes('name="DocumentTabularSection.Заказ.Товары" category="TabularSection"'));
+    assert.ok(xml.includes('name="DocumentTabularSectionRow.Заказ.Товары" category="TabularSectionRow"'));
+  });
+
   test('добавляет реквизит и колонку табличной части без внешних скриптов', () => {
     const configRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'v8vscedit-meta-cf-'));
     fs.writeFileSync(path.join(configRoot, 'Configuration.xml'), buildConfigXml(), 'utf-8');
@@ -283,9 +346,10 @@ suite('metadataXmlCreator', () => {
   });
 });
 
-function buildConfigXml(): string {
+function buildConfigXml(formatVersion?: string): string {
+  const versionAttr = formatVersion ? ` version="${formatVersion}"` : '';
   return `<?xml version="1.0" encoding="utf-8"?>
-<MetaDataObject>
+<MetaDataObject${versionAttr}>
   <Configuration>
     <Properties>
       <Name>ТестоваяКонфигурация</Name>
@@ -294,4 +358,11 @@ function buildConfigXml(): string {
     <ChildObjects/>
   </Configuration>
 </MetaDataObject>`;
+}
+
+function buildDumpInfoXml(formatVersion: string): string {
+  return `<?xml version="1.0" encoding="utf-8"?>
+<ConfigDumpInfo xmlns="http://v8.1c.ru/8.3/xcf/dumpinfo" format="Hierarchical" version="${formatVersion}">
+  <ConfigVersions/>
+</ConfigDumpInfo>`;
 }

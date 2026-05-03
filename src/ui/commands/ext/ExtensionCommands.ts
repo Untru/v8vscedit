@@ -63,40 +63,46 @@ export function registerExtensionCommands(
       await yieldToUi();
       const completedRootPaths: string[] = [];
       try {
-        const ordered = orderImportTargets(selected);
-        for (let index = 0; index < ordered.length; index += 1) {
-          const target = ordered[index];
-          setConfigurationOperationStatus(
-            'Импорт конфигураций',
-            `${index + 1}/${ordered.length}: ${target.name}`,
-            true
-          );
-          const ok = target.kind === 'cf'
-            ? await runDecompileMainConfiguration(
-                target.name,
-                target.rootPath,
-                services.workspaceFolder,
-                services.outputChannel
-              )
-            : await runDecompileExtension(
-                target.name,
-                target.rootPath,
-                services.workspaceFolder,
-                services.outputChannel
-              );
+        const ok = await runWithStandaloneServerStopped(services, 'Импорт конфигураций', async () => {
+          const ordered = orderImportTargets(selected);
+          for (let index = 0; index < ordered.length; index += 1) {
+            const target = ordered[index];
+            setConfigurationOperationStatus(
+              'Импорт конфигураций',
+              `${index + 1}/${ordered.length}: ${target.name}`,
+              true
+            );
+            const imported = target.kind === 'cf'
+              ? await runDecompileMainConfiguration(
+                  target.name,
+                  target.rootPath,
+                  services.workspaceFolder,
+                  services.outputChannel
+                )
+              : await runDecompileExtension(
+                  target.name,
+                  target.rootPath,
+                  services.workspaceFolder,
+                  services.outputChannel
+                );
 
-          if (!ok) {
-            setConfigurationOperationStatus('Импорт конфигураций', `остановлено на "${target.name}"`, false);
-            return;
+            if (!imported) {
+              setConfigurationOperationStatus('Импорт конфигураций', `остановлено на "${target.name}"`, false);
+              return false;
+            }
+            completedRootPaths.push(target.rootPath);
           }
-          completedRootPaths.push(target.rootPath);
-        }
 
-        if (ordered.length > 1) {
-          await vscode.window.showInformationMessage(`Импортировано конфигураций: ${ordered.length}.`);
+          if (ordered.length > 1) {
+            void vscode.window.showInformationMessage(`Импортировано конфигураций: ${ordered.length}.`);
+          }
+          setConfigurationOperationStatus('Импорт конфигураций', 'завершено', false);
+          await services.reloadEntries();
+          return true;
+        });
+        if (!ok) {
+          return;
         }
-        setConfigurationOperationStatus('Импорт конфигураций', 'завершено', false);
-        await services.reloadEntries();
       } catch (error) {
         setConfigurationOperationStatus('Импорт конфигураций', 'ошибка', false);
         showConfigurationCommandError('Ошибка импорта конфигураций.', error, services);
@@ -135,42 +141,44 @@ export function registerExtensionCommands(
           return false;
         }
 
-        const ordered = orderUpdateTargets(selected);
-        for (let index = 0; index < ordered.length; index += 1) {
-          const target = ordered[index];
-          setConfigurationOperationStatus(
-            'Обновление конфигураций',
-            `${index + 1}/${ordered.length}: ${target.name}`,
-            true
-          );
-          const ok = target.kind === 'cf'
-            ? await runUpdateMainConfiguration(
-                target.name,
-                target.rootPath,
-                services.workspaceFolder,
-                services.outputChannel,
-                ordered.length === 1
-              )
-            : await runUpdateExtension(
-                target.name,
-                target.rootPath,
-                services.workspaceFolder,
-                services.outputChannel,
-                ordered.length === 1
-              );
+        return await runWithStandaloneServerStopped(services, 'Обновление конфигураций', async () => {
+          const ordered = orderUpdateTargets(selected);
+          for (let index = 0; index < ordered.length; index += 1) {
+            const target = ordered[index];
+            setConfigurationOperationStatus(
+              'Обновление конфигураций',
+              `${index + 1}/${ordered.length}: ${target.name}`,
+              true
+            );
+            const updated = target.kind === 'cf'
+              ? await runUpdateMainConfiguration(
+                  target.name,
+                  target.rootPath,
+                  services.workspaceFolder,
+                  services.outputChannel,
+                  ordered.length === 1
+                )
+              : await runUpdateExtension(
+                  target.name,
+                  target.rootPath,
+                  services.workspaceFolder,
+                  services.outputChannel,
+                  ordered.length === 1
+                );
 
-          if (!ok) {
-            setConfigurationOperationStatus('Обновление конфигураций', `остановлено на "${target.name}"`, false);
-            return false;
+            if (!updated) {
+              setConfigurationOperationStatus('Обновление конфигураций', `остановлено на "${target.name}"`, false);
+              return false;
+            }
+            completedRootPaths.push(target.rootPath);
           }
-          completedRootPaths.push(target.rootPath);
-        }
 
-        if (ordered.length > 1) {
-          await vscode.window.showInformationMessage(`Обновлено конфигураций: ${ordered.length}.`);
-        }
-        setConfigurationOperationStatus('Обновление конфигураций', 'завершено', false);
-        return true;
+          if (ordered.length > 1) {
+            void vscode.window.showInformationMessage(`Обновлено конфигураций: ${ordered.length}.`);
+          }
+          setConfigurationOperationStatus('Обновление конфигураций', 'завершено', false);
+          return true;
+        });
       } catch (error) {
         setConfigurationOperationStatus('Обновление конфигураций', 'ошибка', false);
         showConfigurationCommandError('Ошибка обновления конфигураций.', error, services);
@@ -205,11 +213,13 @@ export function registerExtensionCommands(
       }
 
       fs.mkdirSync(extensionRoot, { recursive: true });
-      const ok = await runDecompileExtension(
-        normalizedExtensionName,
-        extensionRoot,
-        services.workspaceFolder,
-        services.outputChannel
+      const ok = await runWithStandaloneServerStopped(services, `Подключение расширения ${normalizedExtensionName}`, () =>
+        runDecompileExtension(
+          normalizedExtensionName,
+          extensionRoot,
+          services.workspaceFolder,
+          services.outputChannel
+        )
       );
       if (!ok) {
         fs.rmSync(extensionRoot, { recursive: true, force: true });
@@ -306,11 +316,13 @@ export function registerExtensionCommands(
         return;
       }
 
-      const ok = await runDecompileExtension(
-        target.extensionName,
-        target.extensionRoot,
-        services.workspaceFolder,
-        services.outputChannel
+      const ok = await runWithStandaloneServerStopped(services, `Импорт расширения ${target.extensionName}`, () =>
+        runDecompileExtension(
+          target.extensionName,
+          target.extensionRoot,
+          services.workspaceFolder,
+          services.outputChannel
+        )
       );
       if (ok) {
         services.markConfigurationsClean([target.extensionRoot]);
@@ -324,11 +336,13 @@ export function registerExtensionCommands(
         return;
       }
 
-      const ok = await runCompileExtension(
-        target.extensionName,
-        target.extensionRoot,
-        services.workspaceFolder,
-        services.outputChannel
+      const ok = await runWithStandaloneServerStopped(services, `Загрузка расширения ${target.extensionName}`, () =>
+        runCompileExtension(
+          target.extensionName,
+          target.extensionRoot,
+          services.workspaceFolder,
+          services.outputChannel
+        )
       );
       if (ok) {
         services.markConfigurationsClean([target.extensionRoot]);
@@ -342,11 +356,13 @@ export function registerExtensionCommands(
         return;
       }
 
-      const ok = await runUpdateExtension(
-        target.extensionName,
-        target.extensionRoot,
-        services.workspaceFolder,
-        services.outputChannel
+      const ok = await runWithStandaloneServerStopped(services, `Обновление расширения ${target.extensionName}`, () =>
+        runUpdateExtension(
+          target.extensionName,
+          target.extensionRoot,
+          services.workspaceFolder,
+          services.outputChannel
+        )
       );
       if (ok) {
         services.markConfigurationsClean([target.extensionRoot]);
@@ -360,34 +376,101 @@ export function registerExtensionCommands(
         return;
       }
 
-      const compiled = await runCompileExtension(
-        target.extensionName,
-        target.extensionRoot,
-        services.workspaceFolder,
-        services.outputChannel,
-        false
-      );
-      if (!compiled) {
+      const ok = await runWithStandaloneServerStopped(services, `Полное обновление расширения ${target.extensionName}`, async () => {
+        const compiled = await runCompileExtension(
+          target.extensionName,
+          target.extensionRoot,
+          services.workspaceFolder,
+          services.outputChannel,
+          false
+        );
+        if (!compiled) {
+          return false;
+        }
+
+        const updated = await runUpdateExtension(
+          target.extensionName,
+          target.extensionRoot,
+          services.workspaceFolder,
+          services.outputChannel,
+          false
+        );
+        if (!updated) {
+          return false;
+        }
+
+        void vscode.window.showInformationMessage(
+          `Загрузка и обновление расширения "${target.extensionName}" в БД успешно завершены.`
+        );
+        return true;
+      });
+      if (!ok) {
         return;
       }
 
-      const updated = await runUpdateExtension(
-        target.extensionName,
-        target.extensionRoot,
-        services.workspaceFolder,
-        services.outputChannel,
-        false
-      );
-      if (!updated) {
-        return;
-      }
-
-      await vscode.window.showInformationMessage(
-        `Загрузка и обновление расширения "${target.extensionName}" в БД успешно завершены.`
-      );
       services.markConfigurationsClean([target.extensionRoot]);
     })
   );
+}
+
+async function runWithStandaloneServerStopped(
+  services: CommandServices,
+  operationTitle: string,
+  operation: () => Promise<boolean>
+): Promise<boolean> {
+  const status = await services.standaloneServerService.refreshHealth();
+  const shouldRestart = status.configured && (
+    status.state === 'running' || status.state === 'unresponsive'
+  );
+
+  services.outputChannel.appendLine(
+    `[standalone] Перед операцией "${operationTitle}": state=${status.state}, pid=${status.pid ?? '-'}, restart=${shouldRestart ? 'yes' : 'no'}`
+  );
+
+  if (!shouldRestart) {
+    return operation();
+  }
+
+  services.outputChannel.appendLine(`[standalone] Перед операцией "${operationTitle}" автономный сервер будет остановлен.`);
+  setConfigurationOperationStatus(operationTitle, 'остановка автономного сервера', true);
+  await services.standaloneServerService.stop();
+  services.refreshActionsView();
+
+  let ok = false;
+  try {
+    const result = await operation();
+    ok = result === true;
+    services.outputChannel.appendLine(`[standalone] Операция "${operationTitle}" вернула: ${String(result)}`);
+    return ok;
+  } finally {
+    if (ok) {
+      services.outputChannel.appendLine(`[standalone] Операция "${operationTitle}" завершена успешно, запускаю автономный сервер.`);
+      setConfigurationOperationStatus(operationTitle, 'запуск автономного сервера', true);
+      try {
+        const restartedStatus = await services.standaloneServerService.start();
+        services.outputChannel.appendLine(
+          `[standalone] После операции "${operationTitle}": state=${restartedStatus.state}, pid=${restartedStatus.pid ?? '-'}, url=${restartedStatus.url ?? '-'}`
+        );
+        if (restartedStatus.state !== 'running') {
+          void vscode.window.showWarningMessage(
+            `Операция "${operationTitle}" выполнена, но автономный сервер не перешёл в состояние "запущен": ${restartedStatus.message}`
+          );
+        }
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        services.outputChannel.appendLine(`[standalone][error] Не удалось запустить сервер после операции "${operationTitle}": ${message}`);
+        void vscode.window.showErrorMessage(
+          `Операция "${operationTitle}" выполнена, но автономный сервер не запустился.\n${message}`
+        );
+      } finally {
+        setConfigurationOperationStatus(operationTitle, 'завершено', false);
+        services.refreshActionsView();
+      }
+    } else {
+      services.outputChannel.appendLine(`[standalone] Операция "${operationTitle}" завершилась неуспешно, автономный сервер не запускается.`);
+      services.refreshActionsView();
+    }
+  }
 }
 
 function collectImportTargets(entries: ConfigEntry[], workspaceRoot: string): ImportTarget[] {
@@ -466,7 +549,7 @@ function validateExtensionName(value: string): string | undefined {
     return 'Укажите имя расширения.';
   }
   if (/[\\/:*?"<>|]/.test(name) || name === '.' || name === '..') {
-    return 'Имя не должно содержать символы пути.';
+    return 'Имя не должно содержать символов пути.';
   }
   return undefined;
 }
@@ -728,7 +811,7 @@ async function runExclusiveConfigurationOperation(
   setConfigurationOperationStatus(options.title, options.startMessage, true);
   await yieldToUi();
   try {
-    const ok = await operation();
+    const ok = await runWithStandaloneServerStopped(options.services, options.title, operation);
     if (ok) {
       options.services.markConfigurationsClean([options.cleanRootPath]);
       setConfigurationOperationStatus(options.title, 'завершено', false);

@@ -17,6 +17,7 @@ import { SubsystemXmlService } from './infra/xml/SubsystemXmlService';
 import { RepositoryService } from './infra/repository/RepositoryService';
 import { GitMetadataStatusService } from './infra/git/GitMetadataStatusService';
 import { AiSkillsInstaller } from './infra/skills/AiSkillsInstaller';
+import { StandaloneServerService } from './infra/standalone';
 import { SupportDecorationProvider } from './ui/tree/decorations/SupportDecorationProvider';
 import { GitMetadataDecorationProvider } from './ui/tree/decorations/GitMetadataDecorationProvider';
 import { LspManager } from './lsp/LspManager';
@@ -28,6 +29,7 @@ import { RepositoryConnectionViewProvider } from './ui/views/RepositoryConnectio
 import { updateMetadataCacheAfterRename } from './infra/cache/MetadataCache';
 import { BslAnalyzerConfigService, ProjectEnvironmentService } from './infra/environment';
 import { ProjectEnvironmentViewProvider } from './ui/views/environment/ProjectEnvironmentViewProvider';
+import { StandaloneServerViewProvider } from './ui/views/standalone/StandaloneServerViewProvider';
 
 /**
  * Композиционный корень расширения. Собирает зависимости в одном месте,
@@ -55,6 +57,8 @@ export class Container {
   readonly bslAnalyzerConfigService: BslAnalyzerConfigService;
   readonly projectEnvironmentService: ProjectEnvironmentService;
   readonly projectEnvironmentViewProvider: ProjectEnvironmentViewProvider;
+  readonly standaloneServerService: StandaloneServerService;
+  readonly standaloneServerViewProvider: StandaloneServerViewProvider;
   readonly aiSkillsInstaller: AiSkillsInstaller;
   readonly metadataXmlCreator: MetadataXmlCreator;
   readonly metadataXmlRemover: MetadataXmlRemover;
@@ -83,6 +87,7 @@ export class Container {
     this.repositoryService = new RepositoryService(workspaceFolder.uri.fsPath);
     this.bslAnalyzerConfigService = new BslAnalyzerConfigService(workspaceFolder.uri.fsPath);
     this.projectEnvironmentService = new ProjectEnvironmentService(workspaceFolder.uri.fsPath);
+    this.standaloneServerService = new StandaloneServerService(workspaceFolder.uri.fsPath, this.outputChannel);
     this.gitMetadataStatusService = new GitMetadataStatusService(workspaceFolder.uri.fsPath);
     this.gitMetadataDecorationProvider = new GitMetadataDecorationProvider(this.gitMetadataStatusService);
 
@@ -142,13 +147,19 @@ export class Container {
       this.projectEnvironmentService,
       this.outputChannel
     );
+    this.standaloneServerViewProvider = new StandaloneServerViewProvider(
+      this.standaloneServerService,
+      this.outputChannel,
+      () => this.treeSearchViewProvider.refresh()
+    );
     this.aiSkillsInstaller = new AiSkillsInstaller(this.outputChannel);
     this.metadataXmlCreator = new MetadataXmlCreator();
     this.metadataXmlRemover = new MetadataXmlRemover();
     context.subscriptions.push(
       this.propertiesProvider,
       this.subsystemEditorViewProvider,
-      this.projectEnvironmentViewProvider
+      this.projectEnvironmentViewProvider,
+      this.standaloneServerViewProvider
     );
     this.treeSearchViewProvider = new TreeSearchViewProvider(context.extensionUri, {
       treeProvider: this.treeProvider,
@@ -158,6 +169,7 @@ export class Container {
         }
       },
       isProjectInitialized: () => this.isProjectInitialized(),
+      getStandaloneServerStatus: () => this.standaloneServerService.getStatus(),
     });
     this.changeDetector = new ConfigurationChangeDetector(workspaceFolder.uri.fsPath);
 
@@ -212,6 +224,12 @@ export class Container {
         { webviewOptions: { retainContextWhenHidden: true } }
       )
     );
+    const statusTimer = setInterval(() => {
+      void this.standaloneServerService.refreshHealth().finally(() => this.treeSearchViewProvider.refresh());
+    }, 5_000);
+    this.context.subscriptions.push({
+      dispose: () => clearInterval(statusTimer),
+    });
   }
 
   private wireSupportWatcher(): void {
@@ -241,6 +259,8 @@ export class Container {
       repositoryCommitViewProvider: this.repositoryCommitViewProvider,
       bslAnalyzerConfigService: this.bslAnalyzerConfigService,
       projectEnvironmentViewProvider: this.projectEnvironmentViewProvider,
+      standaloneServerService: this.standaloneServerService,
+      standaloneServerViewProvider: this.standaloneServerViewProvider,
       aiSkillsInstaller: this.aiSkillsInstaller,
       refreshChangedConfigurationState: () => this.refreshChangedConfigurationState(),
       markChangedConfigurationByFiles: (filePaths) => this.markChangedConfigurationByFiles(filePaths),

@@ -99,6 +99,36 @@
         "icon": "$(extensions)"
       },
       {
+        "command": "v8vscedit.standalone.configure",
+        "title": "Автономный сервер: Настроить",
+        "icon": "$(settings-gear)"
+      },
+      {
+        "command": "v8vscedit.standalone.start",
+        "title": "Автономный сервер: Запустить",
+        "icon": "$(run)"
+      },
+      {
+        "command": "v8vscedit.standalone.restart",
+        "title": "Автономный сервер: Перезапустить",
+        "icon": "$(debug-restart)"
+      },
+      {
+        "command": "v8vscedit.standalone.stop",
+        "title": "Автономный сервер: Остановить",
+        "icon": "$(debug-stop)"
+      },
+      {
+        "command": "v8vscedit.standalone.openWebClient",
+        "title": "Автономный сервер: Открыть веб-клиент",
+        "icon": "$(browser)"
+      },
+      {
+        "command": "v8vscedit.standalone.showLog",
+        "title": "Автономный сервер: Открыть лог",
+        "icon": "$(output)"
+      },
+      {
         "command": "v8vscedit.borrowToExtension",
         "title": "Добавить в расширение"
       },

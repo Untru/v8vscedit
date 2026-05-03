@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import { StandaloneServerStatus } from '../../../infra/standalone';
 import { MetadataTreeProvider } from '../../tree/MetadataTreeProvider';
 
 type TreeSearchMessage =
@@ -10,6 +11,7 @@ interface TreeSearchViewServices {
   readonly treeProvider: MetadataTreeProvider;
   readonly setTreeMessage: (message: string | undefined) => void;
   readonly isProjectInitialized: () => boolean;
+  readonly getStandaloneServerStatus: () => StandaloneServerStatus;
 }
 
 /**
@@ -82,6 +84,7 @@ export class TreeSearchViewProvider implements vscode.WebviewViewProvider {
     const nonce = getNonce();
     const initialSearch = escapeHtml(this.services.treeProvider.getSearchQuery());
     const initialized = this.services.isProjectInitialized();
+    const serverStatus = this.services.getStandaloneServerStatus();
     const updateIconLight = webview.asWebviewUri(vscode.Uri.joinPath(
       this.extensionUri,
       'src',
@@ -162,6 +165,58 @@ export class TreeSearchViewProvider implements vscode.WebviewViewProvider {
       min-height: 30px;
     }
 
+    .standalone {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+      padding: 6px 0 7px;
+      margin-bottom: 7px;
+      border-top: 1px solid var(--vscode-sideBarSectionHeader-border, var(--vscode-panel-border));
+      border-bottom: 1px solid var(--vscode-sideBarSectionHeader-border, var(--vscode-panel-border));
+    }
+
+    .standalone-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 7px;
+      min-height: 18px;
+    }
+
+    .standalone-title {
+      min-width: 0;
+      font-weight: 600;
+      color: var(--vscode-sideBarTitle-foreground, var(--vscode-foreground));
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .standalone-state {
+      flex: 0 0 auto;
+      color: var(--vscode-descriptionForeground);
+      font-size: 11px;
+    }
+
+    .standalone-state.running {
+      color: var(--vscode-testing-iconPassed, var(--vscode-descriptionForeground));
+    }
+
+    .standalone-state.stale,
+    .standalone-state.unresponsive {
+      color: var(--vscode-inputValidation-warningForeground, var(--vscode-descriptionForeground));
+    }
+
+    .standalone-state.busy {
+      color: var(--vscode-progressBar-background, var(--vscode-descriptionForeground));
+    }
+
+    .standalone-actions {
+      display: flex;
+      align-items: center;
+      gap: 3px;
+    }
+
     input {
       width: 100%;
       height: 30px;
@@ -209,6 +264,7 @@ export class TreeSearchViewProvider implements vscode.WebviewViewProvider {
     }
 
     .uninitialized .actions,
+    .uninitialized .standalone,
     .uninitialized .search {
       display: none;
     }
@@ -270,6 +326,7 @@ export class TreeSearchViewProvider implements vscode.WebviewViewProvider {
       ${skillsIcon()}
     </button>
   </div>
+  ${renderStandaloneServer(serverStatus)}
   <div class="search">
     <input id="search" type="text" value="${initialSearch}" placeholder="Поиск по метаданным" aria-label="Поиск по метаданным" autocomplete="off" spellcheck="false">
     <button id="clear" class="clear" type="button" title="Очистить поиск" aria-label="Очистить поиск">${closeIcon()}</button>
@@ -368,5 +425,90 @@ function skillsIcon(): string {
 function closeIcon(): string {
   return `<svg class="icon" viewBox="0 0 16 16" aria-hidden="true">
     <path fill="currentColor" d="M4.6 4 8 7.4 11.4 4l.6.6L8.6 8l3.4 3.4-.6.6L8 8.6 4.6 12l-.6-.6L7.4 8 4 4.6 4.6 4Z"/>
+  </svg>`;
+}
+
+function renderStandaloneServer(status: StandaloneServerStatus): string {
+  if (!status.configured) {
+    return `<section class="standalone" aria-label="Автономный сервер">
+      <div class="standalone-header">
+        <span class="standalone-title">Автономный сервер</span>
+        <span class="standalone-state">не настроен</span>
+      </div>
+      <button class="primary-action" type="button" data-command="v8vscedit.standalone.configure">Настроить автономный сервер</button>
+    </section>`;
+  }
+
+  const running = status.state === 'running';
+  const busy = status.state === 'busy';
+  const stateLabel = getStandaloneStateLabel(status.state);
+  return `<section class="standalone" aria-label="Автономный сервер">
+    <div class="standalone-header">
+      <span class="standalone-title">Автономный сервер</span>
+      <span class="standalone-state ${status.state}">${escapeHtml(stateLabel)}</span>
+    </div>
+    <div class="standalone-actions">
+      <button type="button" data-command="v8vscedit.standalone.start" title="Запустить автономный сервер" aria-label="Запустить автономный сервер"${running || busy ? ' disabled' : ''}>
+        ${runIcon()}
+      </button>
+      <button type="button" data-command="v8vscedit.standalone.restart" title="Перезапустить автономный сервер" aria-label="Перезапустить автономный сервер"${busy ? ' disabled' : ''}>
+        ${restartIcon()}
+      </button>
+      <button type="button" data-command="v8vscedit.standalone.stop" title="Остановить автономный сервер" aria-label="Остановить автономный сервер"${!running || busy ? ' disabled' : ''}>
+        ${stopIcon()}
+      </button>
+      <button type="button" data-command="v8vscedit.standalone.openWebClient" title="Открыть веб-клиент" aria-label="Открыть веб-клиент"${busy ? ' disabled' : ''}>
+        ${browserIcon()}
+      </button>
+      <button type="button" data-command="v8vscedit.standalone.showLog" title="Открыть лог автономного сервера" aria-label="Открыть лог автономного сервера">
+        ${logIcon()}
+      </button>
+      <button type="button" data-command="v8vscedit.standalone.configure" title="Настройки автономного сервера" aria-label="Настройки автономного сервера">
+        ${settingsIcon()}
+      </button>
+    </div>
+  </section>`;
+}
+
+function getStandaloneStateLabel(state: StandaloneServerStatus['state']): string {
+  switch (state) {
+    case 'running':
+      return 'запущен';
+    case 'unresponsive':
+      return 'нет HTTP';
+    case 'busy':
+      return 'операция';
+    case 'stale':
+      return 'pid устарел';
+    case 'stopped':
+      return 'остановлен';
+    case 'unconfigured':
+      return 'не настроен';
+    default:
+      return state;
+  }
+}
+
+function restartIcon(): string {
+  return `<svg class="icon" viewBox="0 0 16 16" aria-hidden="true">
+    <path fill="currentColor" d="M13 3v4H9l1.7-1.7A4 4 0 1 0 12 8h1a5 5 0 1 1-1.6-3.7L13 2.7V3Z"/>
+  </svg>`;
+}
+
+function stopIcon(): string {
+  return `<svg class="icon" viewBox="0 0 16 16" aria-hidden="true">
+    <path fill="currentColor" d="M4 4h8v8H4V4Z"/>
+  </svg>`;
+}
+
+function logIcon(): string {
+  return `<svg class="icon" viewBox="0 0 16 16" aria-hidden="true">
+    <path fill="currentColor" d="M3 2h10v12H3V2Zm1 1v10h8V3H4Zm1 2h6v1H5V5Zm0 2h6v1H5V7Zm0 2h4v1H5V9Z"/>
+  </svg>`;
+}
+
+function browserIcon(): string {
+  return `<svg class="icon" viewBox="0 0 16 16" aria-hidden="true">
+    <path fill="currentColor" d="M2 3h12v10H2V3Zm1 3v6h10V6H3Zm0-2v1h10V4H3Zm2 4h6v1H5V8Zm0 2h4v1H5v-1Z"/>
   </svg>`;
 }
