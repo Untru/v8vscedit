@@ -13,6 +13,7 @@ import {
 import { getHandlerForNode } from '../tree/nodeBuilders/index';
 import { TypeRegistryService } from './properties/TypeRegistryService';
 import { buildMetadataTypeInnerXml, ensureDefaultQualifiers } from './properties/MetadataTypeService';
+import { buildEventSourceInnerXml } from './properties/EventSubscriptionPropertyService';
 import { toCanonicalPropertyInput } from './properties/PropertyPresentationRegistry';
 import { ConfigurationXmlEditor } from '../../infra/xml';
 import { extractChildMetaElementXml, extractColumnXmlFromTabularSection } from '../../infra/xml';
@@ -657,10 +658,10 @@ export class PropertiesViewProvider implements vscode.Disposable {
     return `
       <div class="type-control">
         <div class="type-row">
-          <input class="input" id="typePresentation" type="text" value="${escapeHtml(value.presentation)}" readonly />
-          <button class="btn" id="pickTypeBtn" ${disabledAttr}>Выбрать</button>
+          <input class="input" data-type-presentation="${escapeHtml(property.key)}" type="text" value="${escapeHtml(value.presentation)}" readonly />
+          <button class="btn" data-type-key="${escapeHtml(property.key)}" ${disabledAttr}>Выбрать</button>
         </div>
-        ${this.renderTypeQualifiers(value, isLocked)}
+        ${property.key === 'Type' ? this.renderTypeQualifiers(value, isLocked) : ''}
       </div>
     `;
   }
@@ -723,7 +724,6 @@ export class PropertiesViewProvider implements vscode.Disposable {
   private renderScript(isEditLocked: boolean, hasSubsystemTab: boolean): string {
     return `
       const vscode = acquireVsCodeApi();
-      const typeBtn = document.getElementById('pickTypeBtn');
       const isEditLocked = ${isEditLocked ? 'true' : 'false'};
       const hasSubsystemTab = ${hasSubsystemTab ? 'true' : 'false'};
       const isValidMetadataName = (value) => /^[\\p{L}][\\p{L}\\p{Nd}_]*$/u.test(value);
@@ -773,18 +773,19 @@ export class PropertiesViewProvider implements vscode.Disposable {
         numberAllowedSign: document.getElementById('qNumberAllowedSign')?.value,
         dateFractions: document.getElementById('qDateFractions')?.value,
       });
-      if (typeBtn) {
+      document.querySelectorAll('[data-type-key]').forEach((typeBtn) => {
         typeBtn.addEventListener('click', () => {
           if (isEditLocked) return;
-          vscode.postMessage({ type: 'openTypePicker', qualifiers: collectQualifiers() });
+          const key = typeBtn.getAttribute('data-type-key') || 'Type';
+          vscode.postMessage({ type: 'openTypePicker', key, qualifiers: key === 'Type' ? collectQualifiers() : {} });
         });
-      }
+      });
       for (const id of ['qStringLength','qStringAllowedLength','qNumberDigits','qNumberFractionDigits','qNumberAllowedSign','qDateFractions']) {
         const el = document.getElementById(id);
         if (!el) continue;
         el.addEventListener('change', () => {
           if (isEditLocked) return;
-          vscode.postMessage({ type: 'updateTypeQualifiers', qualifiers: collectQualifiers() });
+          vscode.postMessage({ type: 'updateTypeQualifiers', key: 'Type', qualifiers: collectQualifiers() });
         });
       }
       const postPropertyChange = (el, key, kind) => {
@@ -897,11 +898,12 @@ export class PropertiesViewProvider implements vscode.Disposable {
       return;
     }
     if (msg.type === 'openTypePicker') {
-      if (this.isCurrentTypeReadonly()) {
-        this.showReadonlyPropertyWarning(this.activeProperties.find((item) => item.key === 'Type'));
+      const key = msg.key ?? 'Type';
+      if (this.isCurrentTypeReadonly(key)) {
+        this.showReadonlyPropertyWarning(this.activeProperties.find((item) => item.key === key));
         return;
       }
-      await this.enqueuePropertyOperation(() => this.handleOpenTypePicker());
+      await this.enqueuePropertyOperation(() => this.handleOpenTypePicker(key));
       return;
     }
     if (msg.type === 'invalidName') {
@@ -909,7 +911,7 @@ export class PropertiesViewProvider implements vscode.Disposable {
       return;
     }
     if (msg.type === 'updateTypeQualifiers') {
-      if (this.isCurrentTypeReadonly()) {
+      if (this.isCurrentTypeReadonly('Type')) {
         this.showReadonlyPropertyWarning(this.activeProperties.find((item) => item.key === 'Type'));
         return;
       }
@@ -941,15 +943,17 @@ export class PropertiesViewProvider implements vscode.Disposable {
     await run;
   }
 
-  private async handleOpenTypePicker(): Promise<void> {
+  private async handleOpenTypePicker(key: string): Promise<void> {
     if (!this.activeNode) {
       return;
     }
-    const current = this.getCurrentTypeValue();
+    const current = this.getCurrentTypeValue(key);
     if (!current) {
       return;
     }
-    const groups = this.typeRegistry.getAvailableTypes(this.activeNode.xmlPath);
+    const groups = key === 'Source'
+      ? this.typeRegistry.getAvailableEventSourceTypes(this.activeNode.xmlPath)
+      : this.typeRegistry.getAvailableTypes(this.activeNode.xmlPath);
     const items: Array<vscode.QuickPickItem & { canonical?: string }> = [];
     for (const group of groups) {
       items.push({ label: group.title, kind: vscode.QuickPickItemKind.Separator });
@@ -977,20 +981,20 @@ export class PropertiesViewProvider implements vscode.Disposable {
         display: item.label,
         group: String(item.canonical).startsWith('DefinedType.')
           ? 'defined'
-          : String(item.canonical).includes('Ref.')
+          : String(item.canonical).includes('Ref.') || key === 'Source'
           ? 'reference'
           : 'primitive',
       })) as MetadataTypeValue['items'];
-    const nextType: MetadataTypeValue = ensureDefaultQualifiers({
+    const nextType: MetadataTypeValue = this.normalizeTypeValueForProperty(key, {
       ...current,
       items: nextItems,
       presentation: nextItems.map((item) => item.display).join(', '),
     });
-    await this.applyTypeValue(nextType);
+    await this.applyTypeValue(key, nextType);
   }
 
   private async applyQualifierChanges(qualifiers: Record<string, string>): Promise<void> {
-    const current = this.getCurrentTypeValue();
+    const current = this.getCurrentTypeValue('Type');
     if (!current) {
       return;
     }
@@ -1015,31 +1019,35 @@ export class PropertiesViewProvider implements vscode.Disposable {
           }
         : undefined,
     });
-    await this.applyTypeValue(next);
+    await this.applyTypeValue('Type', next);
   }
 
-  private getCurrentTypeValue(): MetadataTypeValue | null {
-    const original = this.activeProperties.find((item) => item.key === 'Type');
+  private getCurrentTypeValue(key = 'Type'): MetadataTypeValue | null {
+    const original = this.activeProperties.find((item) => item.key === key);
     if (!original || original.kind !== 'metadataType') {
       return null;
     }
-    return ensureDefaultQualifiers(original.value as MetadataTypeValue);
+    return this.normalizeTypeValueForProperty(key, original.value as MetadataTypeValue);
   }
 
-  private async applyTypeValue(typeValue: MetadataTypeValue): Promise<void> {
+  private async applyTypeValue(key: string, typeValue: MetadataTypeValue): Promise<void> {
     if (!this.activeNode) {
       return;
     }
-    const typeTarget = resolveTypeTarget(this.activeNode);
+    const typeTarget = resolveTypeTarget(this.activeNode, key);
     if (!typeTarget) {
       void vscode.window.showWarningMessage('Для выбранного узла изменение типа пока не поддерживается.');
       return;
     }
+    const typeInnerXml = key === 'Source'
+      ? buildEventSourceInnerXml(typeValue)
+      : buildMetadataTypeInnerXml(typeValue);
     const typeSaved = this.xmlEditor.modifyObjectType(typeTarget.xmlPath, {
       targetKind: typeTarget.targetKind,
       targetName: typeTarget.targetName,
       tabularSectionName: typeTarget.tabularSectionName,
-      typeInnerXml: buildMetadataTypeInnerXml(typeValue),
+      propertyName: key === 'Source' ? 'Source' : 'Type',
+      typeInnerXml,
     });
     if (!typeSaved.success) {
       void vscode.window.showErrorMessage(typeSaved.errors[0] ?? 'Не удалось применить изменение типа.');
@@ -1221,11 +1229,15 @@ export class PropertiesViewProvider implements vscode.Disposable {
   }
 
   private getRenderTypeValue(property: ObjectPropertyItem): MetadataTypeValue {
-    return ensureDefaultQualifiers(property.value as MetadataTypeValue);
+    return this.normalizeTypeValueForProperty(property.key, property.value as MetadataTypeValue);
   }
 
-  private isCurrentTypeReadonly(): boolean {
-    const original = this.activeProperties.find((item) => item.key === 'Type');
+  private normalizeTypeValueForProperty(key: string, value: MetadataTypeValue): MetadataTypeValue {
+    return key === 'Type' ? ensureDefaultQualifiers(value) : value;
+  }
+
+  private isCurrentTypeReadonly(key = 'Type'): boolean {
+    const original = this.activeProperties.find((item) => item.key === key);
     return original?.readonly === true;
   }
 
@@ -1398,7 +1410,7 @@ function arePropertyEditValuesEqual(left: string | boolean | string[], right: st
   return left === right;
 }
 
-function resolveTypeTarget(node: MetadataNode): {
+function resolveTypeTarget(node: MetadataNode, propertyName = 'Type'): {
   xmlPath: string;
   targetKind:
     | 'Attribute'
@@ -1409,12 +1421,20 @@ function resolveTypeTarget(node: MetadataNode): {
     | 'SessionParameter'
     | 'CommonAttribute'
     | 'Constant'
-    | 'DefinedType';
+    | 'DefinedType'
+    | 'EventSubscription';
   targetName: string;
   tabularSectionName?: string;
 } | null {
   if (!node.xmlPath) {
     return null;
+  }
+  if (propertyName === 'Source' && node.nodeKind === 'EventSubscription') {
+    return {
+      xmlPath: node.xmlPath,
+      targetKind: 'EventSubscription',
+      targetName: node.textLabel,
+    };
   }
   if (
     node.nodeKind === 'SessionParameter' ||

@@ -2,6 +2,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { parseConfigXml } from '../../../infra/xml';
 import { MetadataTypeItem } from './_types';
+import { buildEventSourceItemsFromConfiguration } from './EventSubscriptionPropertyService';
 
 export interface TypeRegistryTreeGroup {
   id: string;
@@ -20,6 +21,10 @@ export class TypeRegistryService {
     return [base, ...config];
   }
 
+  getAvailableEventSourceTypes(sourceXmlPath: string | undefined): TypeRegistryTreeGroup[] {
+    return [this.getGenericEventSourceTypes(), ...buildEventSourceItemsFromConfiguration(sourceXmlPath)];
+  }
+
   private getBaseTypes(): TypeRegistryTreeGroup {
     return {
       id: 'base',
@@ -31,6 +36,36 @@ export class TypeRegistryService {
         { canonical: 'Date', display: 'Дата', group: 'primitive' },
         { canonical: 'DateTime', display: 'ДатаВремя', group: 'primitive' },
         { canonical: 'ValueStorage', display: 'ХранилищеЗначения', group: 'primitive' },
+      ],
+    };
+  }
+
+  private getGenericEventSourceTypes(): TypeRegistryTreeGroup {
+    return {
+      id: 'eventSourceKinds',
+      title: 'Типы источников',
+      items: [
+        { canonical: 'CatalogObject', display: 'СправочникОбъект', group: 'reference' },
+        { canonical: 'CatalogManager', display: 'СправочникМенеджер', group: 'reference' },
+        { canonical: 'DocumentObject', display: 'ДокументОбъект', group: 'reference' },
+        { canonical: 'DocumentManager', display: 'ДокументМенеджер', group: 'reference' },
+        { canonical: 'ConstantValueManager', display: 'КонстантаМенеджерЗначения', group: 'reference' },
+        { canonical: 'ExchangePlanObject', display: 'ПланОбменаОбъект', group: 'reference' },
+        { canonical: 'BusinessProcessObject', display: 'БизнесПроцессОбъект', group: 'reference' },
+        { canonical: 'BusinessProcessManager', display: 'БизнесПроцессМенеджер', group: 'reference' },
+        { canonical: 'TaskObject', display: 'ЗадачаОбъект', group: 'reference' },
+        { canonical: 'ChartOfAccountsObject', display: 'ПланСчетовОбъект', group: 'reference' },
+        { canonical: 'ChartOfCalculationTypesObject', display: 'ПланВидовРасчетаОбъект', group: 'reference' },
+        { canonical: 'ChartOfCharacteristicTypesObject', display: 'ПланВидовХарактеристикОбъект', group: 'reference' },
+        { canonical: 'InformationRegisterRecordSet', display: 'РегистрСведенийНаборЗаписей', group: 'reference' },
+        { canonical: 'InformationRegisterManager', display: 'РегистрСведенийМенеджер', group: 'reference' },
+        { canonical: 'AccumulationRegisterRecordSet', display: 'РегистрНакопленияНаборЗаписей', group: 'reference' },
+        { canonical: 'AccountingRegisterRecordSet', display: 'РегистрБухгалтерииНаборЗаписей', group: 'reference' },
+        { canonical: 'CalculationRegisterRecordSet', display: 'РегистрРасчетаНаборЗаписей', group: 'reference' },
+        { canonical: 'SequenceRecordSet', display: 'ПоследовательностьНаборЗаписей', group: 'reference' },
+        { canonical: 'RecalculationRecordSet', display: 'ПерерасчетНаборЗаписей', group: 'reference' },
+        { canonical: 'ReportManager', display: 'ОтчетМенеджер', group: 'reference' },
+        { canonical: 'DataProcessorManager', display: 'ОбработкаМенеджер', group: 'reference' },
       ],
     };
   }

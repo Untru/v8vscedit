@@ -22,6 +22,27 @@ const DISPLAY_BY_CANONICAL: Record<string, string> = {
   Date: 'Дата',
   DateTime: 'ДатаВремя',
   ValueStorage: 'ХранилищеЗначения',
+  CatalogObject: 'СправочникОбъект',
+  CatalogManager: 'СправочникМенеджер',
+  DocumentObject: 'ДокументОбъект',
+  DocumentManager: 'ДокументМенеджер',
+  ConstantValueManager: 'КонстантаМенеджерЗначения',
+  ExchangePlanObject: 'ПланОбменаОбъект',
+  BusinessProcessObject: 'БизнесПроцессОбъект',
+  BusinessProcessManager: 'БизнесПроцессМенеджер',
+  TaskObject: 'ЗадачаОбъект',
+  ChartOfAccountsObject: 'ПланСчетовОбъект',
+  ChartOfCalculationTypesObject: 'ПланВидовРасчетаОбъект',
+  ChartOfCharacteristicTypesObject: 'ПланВидовХарактеристикОбъект',
+  InformationRegisterRecordSet: 'РегистрСведенийНаборЗаписей',
+  InformationRegisterManager: 'РегистрСведенийМенеджер',
+  AccumulationRegisterRecordSet: 'РегистрНакопленияНаборЗаписей',
+  AccountingRegisterRecordSet: 'РегистрБухгалтерииНаборЗаписей',
+  CalculationRegisterRecordSet: 'РегистрРасчетаНаборЗаписей',
+  SequenceRecordSet: 'ПоследовательностьНаборЗаписей',
+  RecalculationRecordSet: 'ПерерасчетНаборЗаписей',
+  ReportManager: 'ОтчетМенеджер',
+  DataProcessorManager: 'ОбработкаМенеджер',
 };
 
 const REF_PREFIXES: Array<{ canonical: string; display: string }> = [
@@ -52,6 +73,10 @@ function toDisplay(canonical: string): string {
   if (canonical.startsWith('DefinedType.')) {
     return `ОпределяемыйТип.${canonical.slice('DefinedType.'.length)}`;
   }
+  const sourceMatch = /^([A-Za-z]+(?:Object|Manager|RecordSet|ValueManager))\.(.+)$/.exec(canonical);
+  if (sourceMatch && DISPLAY_BY_CANONICAL[sourceMatch[1]]) {
+    return `${DISPLAY_BY_CANONICAL[sourceMatch[1]]}.${sourceMatch[2]}`;
+  }
   return canonical;
 }
 
@@ -62,7 +87,19 @@ function detectGroup(canonical: string): MetadataTypeItem['group'] {
   if (canonical.includes('Ref.')) {
     return 'reference';
   }
+  if (/^[A-Za-z]+(?:Object|Manager|RecordSet|ValueManager)(?:\..+)?$/.test(canonical)) {
+    return 'reference';
+  }
   return 'primitive';
+}
+
+/** Создает элемент состава типа из канонической записи XML */
+export function buildMetadataTypeItem(canonical: string): MetadataTypeItem {
+  return {
+    canonical,
+    display: toDisplay(canonical),
+    group: detectGroup(canonical),
+  };
 }
 
 /** Разбирает внутренность `<Type>...</Type>` в структурированную модель */
@@ -79,11 +116,7 @@ export function parseMetadataType(typeInner: string): MetadataTypeValue {
       continue;
     }
     seen.add(canonical);
-    items.push({
-      canonical,
-      display: toDisplay(canonical),
-      group: detectGroup(canonical),
-    });
+    items.push(buildMetadataTypeItem(canonical));
   }
 
   const stringBlockMatch = /<v8:StringQualifiers>([\s\S]*?)<\/v8:StringQualifiers>/.exec(typeInner);

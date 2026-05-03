@@ -178,9 +178,11 @@ export class ObjectXmlReader {
         | 'SessionParameter'
         | 'CommonAttribute'
         | 'Constant'
-        | 'DefinedType';
+        | 'DefinedType'
+        | 'EventSubscription';
       targetName: string;
       tabularSectionName?: string;
+      propertyName?: 'Type' | 'Source';
       typeInnerXml: string;
     }
   ): boolean {
@@ -208,7 +210,7 @@ export class ObjectXmlReader {
       return false;
     }
 
-    const updatedTarget = updateTypeInElement(targetXml, normalizedType);
+    const updatedTarget = updateTypeInElement(targetXml, normalizedType, options.propertyName ?? 'Type');
     if (updatedTarget === targetXml) {
       return false;
     }
@@ -299,11 +301,12 @@ function collectDirectText(nodes: XmlNodeList): string {
   return result.trim();
 }
 
-function updateTypeInElement(elementXml: string, typeInnerXml: string): string {
-  const typeBlock = `<Type>\n${typeInnerXml}\n</Type>`;
-  if (/<Type>[\s\S]*?<\/Type>/.test(elementXml)) {
-    const updated = elementXml.replace(/<Type>[\s\S]*?<\/Type>/, typeBlock);
-    return normalizeTypedFieldProperties(updated, typeInnerXml);
+function updateTypeInElement(elementXml: string, typeInnerXml: string, propertyName: 'Type' | 'Source' = 'Type'): string {
+  const typeBlock = `<${propertyName}>\n${typeInnerXml}\n</${propertyName}>`;
+  const propertyRe = new RegExp(`<${propertyName}>[\\s\\S]*?<\\/${propertyName}>`);
+  if (propertyRe.test(elementXml)) {
+    const updated = elementXml.replace(propertyRe, typeBlock);
+    return propertyName === 'Type' ? normalizeTypedFieldProperties(updated, typeInnerXml) : updated;
   }
   const propertiesMatch = /<Properties>([\s\S]*?)<\/Properties>/.exec(elementXml);
   if (!propertiesMatch) {
@@ -318,7 +321,8 @@ function updateTypeInElement(elementXml: string, typeInnerXml: string): string {
   } else {
     nextPropsInner = `${propsInner}\n${typeBlock}`;
   }
-  return normalizeTypedFieldProperties(elementXml.replace(propsInner, nextPropsInner), typeInnerXml);
+  const updated = elementXml.replace(propsInner, nextPropsInner);
+  return propertyName === 'Type' ? normalizeTypedFieldProperties(updated, typeInnerXml) : updated;
 }
 
 function normalizeTypedFieldProperties(elementXml: string, typeInnerXml: string): string {
@@ -343,7 +347,11 @@ function detectNormalizedTypeOwnerTag(elementXml: string): string | undefined {
 }
 
 function isRootTypeTargetKind(kind: string): boolean {
-  return kind === 'SessionParameter' || kind === 'CommonAttribute' || kind === 'Constant' || kind === 'DefinedType';
+  return kind === 'SessionParameter'
+    || kind === 'CommonAttribute'
+    || kind === 'Constant'
+    || kind === 'DefinedType'
+    || kind === 'EventSubscription';
 }
 
 function indentTypeInner(typeInnerXml: string): string {

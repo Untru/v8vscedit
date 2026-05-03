@@ -47,9 +47,11 @@ export class ConfigurationXmlEditor {
         | 'SessionParameter'
         | 'CommonAttribute'
         | 'Constant'
-        | 'DefinedType';
+        | 'DefinedType'
+        | 'EventSubscription';
       targetName: string;
       tabularSectionName?: string;
+      propertyName?: 'Type' | 'Source';
       typeInnerXml: string;
     }
   ): EditResult {

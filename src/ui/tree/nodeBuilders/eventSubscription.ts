@@ -1,10 +1,11 @@
+import * as fs from 'fs';
 import { MetadataNode } from '../TreeNode';
 import {
   buildTreeNodesForMetaKind,
   rootMetaObjectCanShowProperties,
-  rootMetaObjectGetProperties,
 } from './metaObjectTreeBuilder';
 import { HandlerContext, ObjectHandler, ObjectPropertiesCollection } from './_types';
+import { EventSubscriptionPropertyService } from '../../views/properties/EventSubscriptionPropertyService';
 
 // ---------------------------------------------------------------------------
 // Объект «Подписка на событие» (EventSubscription). Папка: EventSubscriptions.
@@ -12,6 +13,7 @@ import { HandlerContext, ObjectHandler, ObjectPropertiesCollection } from './_ty
 // ---------------------------------------------------------------------------
 
 const NODE_KIND = 'EventSubscription' as const;
+const propertyService = new EventSubscriptionPropertyService();
 
 export const eventSubscriptionHandler: ObjectHandler = {
   buildTreeNodes(ctx: HandlerContext) {
@@ -23,6 +25,14 @@ export const eventSubscriptionHandler: ObjectHandler = {
   },
 
   getProperties(node: MetadataNode): ObjectPropertiesCollection {
-    return rootMetaObjectGetProperties(node, NODE_KIND);
+    if (node.nodeKind !== NODE_KIND || !node.xmlPath || node.metaContext) {
+      return [];
+    }
+    try {
+      const xml = fs.readFileSync(node.xmlPath, 'utf-8');
+      return propertyService.buildProperties(xml, node.xmlPath);
+    } catch {
+      return [];
+    }
   },
 };

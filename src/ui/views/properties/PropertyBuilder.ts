@@ -393,6 +393,7 @@ const PROPERTY_TITLE_RU: Record<string, string> = {
   VendorInformationAddress: 'Адрес информации о поставщике',
   ConfigurationInformationAddress: 'Адрес информации о конфигурации',
   Type: 'Тип',
+  Source: 'Источник',
   PasswordMode: 'Режим пароля',
   Format: 'Формат',
   EditFormat: 'Формат редактирования',
