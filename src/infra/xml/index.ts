@@ -44,7 +44,16 @@ export function parseObjectXml(xmlPath: string): MetaObject | null {
 export function updateObjectTypeProperty(
   xmlPath: string,
   options: {
-    targetKind: 'Attribute' | 'AddressingAttribute' | 'Dimension' | 'Resource' | 'Column' | 'SessionParameter' | 'CommonAttribute';
+    targetKind:
+      | 'Attribute'
+      | 'AddressingAttribute'
+      | 'Dimension'
+      | 'Resource'
+      | 'Column'
+      | 'SessionParameter'
+      | 'CommonAttribute'
+      | 'Constant'
+      | 'DefinedType';
     targetName: string;
     tabularSectionName?: string;
     typeInnerXml: string;

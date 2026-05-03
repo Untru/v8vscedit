@@ -1,4 +1,11 @@
-type TypedFieldKind = 'Attribute' | 'AddressingAttribute' | 'Dimension' | 'Resource' | 'Column';
+export type TypeAwarePropertyOwnerKind =
+  | 'Attribute'
+  | 'AddressingAttribute'
+  | 'Dimension'
+  | 'Resource'
+  | 'Column'
+  | 'Constant'
+  | 'CommonAttribute';
 
 type FieldTypeCategory =
   | 'string'
@@ -106,12 +113,14 @@ const DEFAULT_VALUES: Readonly<Record<string, string>> = {
   AddressingDimension: '',
 };
 
+const CONTROLLED_PROPERTY_KEY_SET: ReadonlySet<string> = new Set(CONTROLLED_PROPERTY_KEYS);
+
 /**
  * Возвращает XML-блоки свойств, которые должны сопровождать typed field с заданным типом.
  * Используется при создании нового реквизита, чтобы не держать XML-правила в UI-командах.
  */
 export function buildTypedFieldPropertyBlocks(
-  kind: TypedFieldKind,
+  kind: TypeAwarePropertyOwnerKind,
   typeInnerXml: string,
   indent: string
 ): string[] {
@@ -120,8 +129,13 @@ export function buildTypedFieldPropertyBlocks(
 }
 
 /** Возвращает ключи свойств typed field для выбранного типа без базовых `Name/Synonym/Comment/Type`. */
-export function getTypedFieldPropertyKeys(kind: TypedFieldKind, typeInnerXml: string): string[] {
+export function getTypedFieldPropertyKeys(kind: TypeAwarePropertyOwnerKind, typeInnerXml: string): string[] {
   return getAllowedPropertyKeys(kind, detectFieldTypeCategories(typeInnerXml));
+}
+
+/** Проверяет, управляется ли свойство составом `<Type>` и должно ли скрываться для неподходящего типа. */
+export function isTypedFieldControlledPropertyKey(key: string): boolean {
+  return CONTROLLED_PROPERTY_KEY_SET.has(key);
 }
 
 /**
@@ -130,7 +144,7 @@ export function getTypedFieldPropertyKeys(kind: TypedFieldKind, typeInnerXml: st
  */
 export function normalizeTypedFieldPropertiesAfterTypeChange(
   elementXml: string,
-  kind: TypedFieldKind,
+  kind: TypeAwarePropertyOwnerKind,
   typeInnerXml: string
 ): string {
   const properties = findPropertiesInner(elementXml);
@@ -143,24 +157,52 @@ export function normalizeTypedFieldPropertiesAfterTypeChange(
   const nextTypeBlock = `<Type>\n${typeInnerXml}\n${indent}</Type>`;
   const allowed = getAllowedPropertyKeys(kind, detectFieldTypeCategories(typeInnerXml));
   const resultBlocks: string[] = [];
+  const emitted = new Set<string>();
 
   for (const key of ['Name', 'Synonym', 'Comment'] as const) {
-    const block = existing.get(key);
+    const block = existing.byKey.get(key);
     if (block) {
       resultBlocks.push(block);
+      emitted.add(key);
     }
   }
   resultBlocks.push(nextTypeBlock);
+  emitted.add('Type');
+
+  if (shouldPreserveUncontrolledProperties(kind)) {
+    for (const block of existing.ordered) {
+      if (emitted.has(block.key)) {
+        continue;
+      }
+      if (CONTROLLED_PROPERTY_KEY_SET.has(block.key) && !allowed.includes(block.key)) {
+        continue;
+      }
+      resultBlocks.push(block.xml);
+      emitted.add(block.key);
+    }
+  } else {
+    for (const key of allowed) {
+      resultBlocks.push(existing.byKey.get(key) ?? buildDefaultPropertyBlock(key, indent));
+      emitted.add(key);
+    }
+  }
 
   for (const key of allowed) {
-    resultBlocks.push(existing.get(key) ?? buildDefaultPropertyBlock(key, indent));
+    if (!emitted.has(key)) {
+      resultBlocks.push(buildDefaultPropertyBlock(key, indent));
+      emitted.add(key);
+    }
   }
 
   const nextInner = `\n${resultBlocks.join('\n')}\n${indent.slice(0, -1)}`;
   return `${elementXml.slice(0, properties.start)}${nextInner}${elementXml.slice(properties.end)}`;
 }
 
-function getAllowedPropertyKeys(kind: TypedFieldKind, categories: ReadonlySet<FieldTypeCategory>): string[] {
+function shouldPreserveUncontrolledProperties(kind: TypeAwarePropertyOwnerKind): boolean {
+  return kind === 'Constant' || kind === 'CommonAttribute';
+}
+
+function getAllowedPropertyKeys(kind: TypeAwarePropertyOwnerKind, categories: ReadonlySet<FieldTypeCategory>): string[] {
   const keys: string[] = [];
   appendUnique(keys, COMMON_ORDER);
 
@@ -274,8 +316,12 @@ function findPropertiesInner(xml: string): { inner: string; start: number; end: 
   return { inner: match[1], start, end: start + match[1].length };
 }
 
-function collectPropertyBlocks(propertiesInner: string): Map<string, string> {
-  const result = new Map<string, string>();
+function collectPropertyBlocks(propertiesInner: string): {
+  byKey: Map<string, string>;
+  ordered: Array<{ key: string; xml: string }>;
+} {
+  const byKey = new Map<string, string>();
+  const ordered: Array<{ key: string; xml: string }> = [];
   let index = 0;
   while (index < propertiesInner.length) {
     const open = /<([A-Za-z_][\w:.-]*)(?:\s[^>]*)?>/.exec(propertiesInner.slice(index));
@@ -286,7 +332,9 @@ function collectPropertyBlocks(propertiesInner: string): Map<string, string> {
     const start = index + open.index;
     const openEnd = start + open[0].length;
     if (open[0].endsWith('/>')) {
-      result.set(tag, propertiesInner.slice(start, openEnd));
+      const xml = propertiesInner.slice(start, openEnd);
+      byKey.set(tag, xml);
+      ordered.push({ key: tag, xml });
       index = openEnd;
       continue;
     }
@@ -298,10 +346,12 @@ function collectPropertyBlocks(propertiesInner: string): Map<string, string> {
       continue;
     }
     const end = closeStart + closeTag.length;
-    result.set(tag, propertiesInner.slice(start, end));
+    const xml = propertiesInner.slice(start, end);
+    byKey.set(tag, xml);
+    ordered.push({ key: tag, xml });
     index = end;
   }
-  return result;
+  return { byKey, ordered };
 }
 
 function detectPropertyIndent(propertiesInner: string): string {

@@ -4,7 +4,10 @@ import * as os from 'os';
 import * as path from 'path';
 import { ConfigurationChangeDetector } from '../../infra/fs/ConfigurationChangeDetector';
 import { MetadataXmlCreator, ObjectXmlReader } from '../../infra/xml';
-import { buildTypedFieldProperties } from '../../ui/views/properties/PropertyBuilder';
+import {
+  buildRootMetaObjectProperties,
+  buildTypedFieldProperties,
+} from '../../ui/views/properties/PropertyBuilder';
 
 suite('metadataXmlCreator', () => {
   test('создаёт корневой объект и сохраняет изменённость после пересборки meta-кэша', () => {
@@ -191,6 +194,92 @@ suite('metadataXmlCreator', () => {
     assert.ok(keys.includes('ChoiceParameters'));
     assert.ok(keys.includes('ChoiceForm'));
     assert.ok(keys.includes('LinkByType'));
+  });
+
+  test('панель свойств константы фильтрует типозависимые поля по составу типа', () => {
+    const props = buildRootMetaObjectProperties([
+      '<MetaDataObject>',
+      '\t<Constant uuid="00000000-0000-0000-0000-000000000000">',
+      '\t\t<Properties>',
+      '\t\t\t<Name>Аудитор</Name>',
+      '\t\t\t<Synonym/>',
+      '\t\t\t<Comment/>',
+      '\t\t\t<Type>',
+      '\t\t\t\t<v8:Type xmlns:d5p1="http://v8.1c.ru/8.1/data/enterprise/current-config">d5p1:CatalogRef.Пользователи</v8:Type>',
+      '\t\t\t</Type>',
+      '\t\t\t<UseStandardCommands>true</UseStandardCommands>',
+      '\t\t\t<PasswordMode>false</PasswordMode>',
+      '\t\t\t<MultiLine>false</MultiLine>',
+      '\t\t\t<FillChecking>ShowError</FillChecking>',
+      '\t\t\t<ChoiceFoldersAndItems>Items</ChoiceFoldersAndItems>',
+      '\t\t\t<ChoiceParameterLinks/>',
+      '\t\t\t<ChoiceParameters/>',
+      '\t\t\t<ChoiceForm/>',
+      '\t\t\t<LinkByType/>',
+      '\t\t</Properties>',
+      '\t</Constant>',
+      '</MetaDataObject>',
+    ].join('\n'), 'Constant');
+
+    const keys = props.map((item) => item.key);
+    assert.ok(keys.includes('UseStandardCommands'));
+    assert.ok(keys.includes('ChoiceForm'));
+    assert.ok(keys.includes('LinkByType'));
+    assert.ok(!keys.includes('PasswordMode'));
+    assert.ok(!keys.includes('MultiLine'));
+  });
+
+  test('при смене типа константы перестраивает типозависимые свойства и сохраняет поля константы', () => {
+    const configRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'v8vscedit-constant-type-'));
+    const xmlPath = path.join(configRoot, 'Аудитор.xml');
+    fs.writeFileSync(xmlPath, [
+      '<MetaDataObject>',
+      '\t<Constant uuid="00000000-0000-0000-0000-000000000000">',
+      '\t\t<Properties>',
+      '\t\t\t<Name>Аудитор</Name>',
+      '\t\t\t<Synonym/>',
+      '\t\t\t<Comment/>',
+      '\t\t\t<Type>',
+      '\t\t\t\t<v8:Type xmlns:d5p1="http://v8.1c.ru/8.1/data/enterprise/current-config">d5p1:CatalogRef.Пользователи</v8:Type>',
+      '\t\t\t</Type>',
+      '\t\t\t<UseStandardCommands>true</UseStandardCommands>',
+      '\t\t\t<DefaultForm/>',
+      '\t\t\t<ExtendedPresentation/>',
+      '\t\t\t<PasswordMode>false</PasswordMode>',
+      '\t\t\t<FillChecking>ShowError</FillChecking>',
+      '\t\t\t<ChoiceForm/>',
+      '\t\t\t<LinkByType/>',
+      '\t\t\t<DataHistory>DontUse</DataHistory>',
+      '\t\t</Properties>',
+      '\t</Constant>',
+      '</MetaDataObject>',
+    ].join('\n'), 'utf-8');
+
+    const changed = new ObjectXmlReader().updateTypeInObject(xmlPath, {
+      targetKind: 'Constant',
+      targetName: 'Аудитор',
+      typeInnerXml: [
+        '<v8:Type>xs:decimal</v8:Type>',
+        '<v8:NumberQualifiers>',
+        '\t<v8:Digits>15</v8:Digits>',
+        '\t<v8:FractionDigits>2</v8:FractionDigits>',
+        '\t<v8:AllowedSign>Any</v8:AllowedSign>',
+        '</v8:NumberQualifiers>',
+      ].join('\n'),
+    });
+
+    assert.strictEqual(changed, true);
+    const nextXml = fs.readFileSync(xmlPath, 'utf-8');
+    assert.ok(nextXml.includes('<UseStandardCommands>true</UseStandardCommands>'));
+    assert.ok(nextXml.includes('<DefaultForm/>'));
+    assert.ok(nextXml.includes('<ExtendedPresentation/>'));
+    assert.ok(nextXml.includes('<FillChecking>ShowError</FillChecking>'));
+    assert.ok(nextXml.includes('<DataHistory>DontUse</DataHistory>'));
+    assert.ok(nextXml.includes('<MarkNegatives>false</MarkNegatives>'));
+    assert.ok(nextXml.includes('<RoundingMode>Round15as20</RoundingMode>'));
+    assert.ok(!nextXml.includes('<ChoiceForm/>'));
+    assert.ok(!nextXml.includes('<LinkByType/>'));
+    assert.ok(!nextXml.includes('<PasswordMode>false</PasswordMode>'));
   });
 });
 

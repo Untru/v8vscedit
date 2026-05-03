@@ -9,7 +9,11 @@ import {
   ObjectPropertiesCollection,
 } from './_types';
 import { extractSimpleTag } from '../../../infra/xml';
-import { getTypedFieldPropertyKeys } from '../../../infra/xml/TypedFieldPropertyRules';
+import {
+  getTypedFieldPropertyKeys,
+  isTypedFieldControlledPropertyKey,
+  TypeAwarePropertyOwnerKind,
+} from '../../../infra/xml/TypedFieldPropertyRules';
 import { parseMetadataType } from './MetadataTypeService';
 import { extractFirstBalancedBlock, extractTopLevelPropertiesChildren } from './MetadataXmlPropertiesService';
 import {
@@ -404,6 +408,7 @@ const PROPERTY_TITLE_RU: Record<string, string> = {
   FillChecking: 'Проверка заполнения',
   ChoiceFoldersAndItems: 'Выбор групп и элементов',
   ChoiceParameterLinks: 'Связи параметров выбора',
+  ChoiceParameters: 'Параметры выбора',
   ChoiceForm: 'Форма выбора',
   QuickChoice: 'Быстрый выбор',
   CreateOnInput: 'Создание при вводе',
@@ -524,6 +529,8 @@ const PROPERTY_TITLE_RU: Record<string, string> = {
   IncludeHelpInContents: 'Включать справку в содержимое',
   FormType: 'Тип формы',
   UseStandardCommands: 'Использовать стандартные команды',
+  DefaultForm: 'Основная форма',
+  ExtendedPresentation: 'Расширенное представление',
   ChoiceMode: 'Режим выбора',
   Color: 'Цвет',
   Explanation: 'Пояснение',
@@ -558,6 +565,8 @@ const PROPERTY_TITLE_RU: Record<string, string> = {
   AccountingFlag: 'Признак учёта',
   AutoUse: 'Автоиспользование',
   DataSeparation: 'Разделение данных',
+  DataSeparationValue: 'Значение разделения данных',
+  DataSeparationUse: 'Использование разделения данных',
   UsersSeparation: 'Разделение пользователей',
   AuthenticationSeparation: 'Разделение аутентификации',
   ConfigurationExtensionsSeparation: 'Разделение расширений конфигурации',
@@ -567,6 +576,8 @@ const PROPERTY_TITLE_RU: Record<string, string> = {
   Predefined: 'Предопределённый',
   ModifiesData: 'Изменяет данные',
   Transactioned: 'Транзакционный',
+  UpdateDataHistoryImmediatelyAfterWrite: 'Обновлять историю данных сразу после записи',
+  ExecuteAfterWriteDataHistoryVersionProcessing: 'Выполнять обработку версии истории данных после записи',
   HTTPMethod: 'Метод HTTP',
   RootURL: 'Корневой URL',
   Template: 'Шаблон',
@@ -812,6 +823,9 @@ const CONFIGURATION_PROPERTY_KEYS: string[] = [
 
 /** Порядок ключей корня по типу объекта */
 export function getRootPropertyKeyOrder(rootMetaKind: NodeKind): string[] {
+  if (rootMetaKind === 'DefinedType' || rootMetaKind === 'SessionParameter') {
+    return ['Name', 'Synonym', 'Comment', 'Type'];
+  }
   if (rootMetaKind === 'ExchangePlan') {
     return [...COMMON_ROOT_META_PROPERTY_KEYS, ...EXCHANGE_PLAN_ROOT_EXTRA_KEYS];
   }
@@ -834,6 +848,16 @@ export function extractRootObjectPropertiesInnerXml(fullXml: string): string | n
   const re = new RegExp(`<${rootTag}\\b[^>]*>[\\s\\S]*?<Properties>([\\s\\S]*?)<\\/Properties>`);
   const m = re.exec(fullXml);
   return m?.[1] ?? null;
+}
+
+function extractRootObjectElementXml(fullXml: string): string | null {
+  const rootMatch = fullXml.match(/<MetaDataObject[^>]*>\s*<([A-Za-z][A-Za-z0-9]*)\b/);
+  const rootTag = rootMatch?.[1];
+  if (!rootTag) {
+    return null;
+  }
+  const re = new RegExp(`<${rootTag}\\b[^>]*>[\\s\\S]*?<\\/${rootTag}>`);
+  return re.exec(fullXml)?.[0] ?? null;
 }
 
 /** Внутренность блока Properties внутри XML-фрагмента элемента */
@@ -1023,10 +1047,11 @@ export function buildEffectivePropertyItemsForKeys(
     elementXmlForType?: string;
     inheritedElementXmlForType?: string;
     includeExtraKeys?: boolean;
+    excludeExtraKey?: (key: string) => boolean;
   }
 ): ObjectPropertiesCollection {
   const localEffectiveKeys = options?.includeExtraKeys
-    ? extendKeysWithTopLevelProperties(orderedKeys, [localXmlOrPropertiesInner])
+    ? extendKeysWithTopLevelProperties(orderedKeys, [localXmlOrPropertiesInner], options.excludeExtraKey)
     : orderedKeys;
 
   if (!inheritedXmlOrPropertiesInner) {
@@ -1036,7 +1061,11 @@ export function buildEffectivePropertyItemsForKeys(
   }
 
   const effectiveKeys = options?.includeExtraKeys
-    ? extendKeysWithTopLevelProperties(orderedKeys, [localXmlOrPropertiesInner, inheritedXmlOrPropertiesInner])
+    ? extendKeysWithTopLevelProperties(
+        orderedKeys,
+        [localXmlOrPropertiesInner, inheritedXmlOrPropertiesInner],
+        options.excludeExtraKey
+      )
     : orderedKeys;
 
   const localItems = buildPropertyItemsForKeys(localXmlOrPropertiesInner, effectiveKeys, {
@@ -1075,6 +1104,14 @@ export function buildRootMetaObjectProperties(
   rootMetaKind: NodeKind,
   inheritedFullObjectXml?: string | null
 ): ObjectPropertiesCollection {
+  if (isTypeAwareRootKind(rootMetaKind)) {
+    return buildTypeAwareRootProperties(
+      extractRootObjectElementXml(fullObjectXml) ?? fullObjectXml,
+      inheritedFullObjectXml ? extractRootObjectElementXml(inheritedFullObjectXml) ?? inheritedFullObjectXml : null,
+      rootMetaKind
+    );
+  }
+
   const inner = extractRootObjectPropertiesInnerXml(fullObjectXml);
   if (!inner) {
     return [];
@@ -1085,6 +1122,30 @@ export function buildRootMetaObjectProperties(
   return buildEffectivePropertyItemsForKeys(inner, inheritedInner, getRootPropertyKeyOrder(rootMetaKind), {
     includeExtraKeys: true,
   });
+}
+
+function isTypeAwareRootKind(rootMetaKind: NodeKind): rootMetaKind is 'Constant' | 'CommonAttribute' {
+  return rootMetaKind === 'Constant' || rootMetaKind === 'CommonAttribute';
+}
+
+/** Свойства корневого объекта, где состав полей зависит от блока `<Type>`. */
+export function buildTypeAwareRootProperties(
+  elementFullXml: string,
+  inheritedElementFullXml: string | null | undefined,
+  kind: 'Constant' | 'CommonAttribute'
+): ObjectPropertiesCollection {
+  const keySource = elementFullXml || inheritedElementFullXml || '';
+  return buildEffectivePropertyItemsForKeys(
+    elementFullXml,
+    inheritedElementFullXml,
+    getTypeAwarePropertyKeyOrder(keySource, kind),
+    {
+      elementXmlForType: elementFullXml,
+      inheritedElementXmlForType: inheritedElementFullXml ?? undefined,
+      includeExtraKeys: true,
+      excludeExtraKey: isTypedFieldControlledPropertyKey,
+    }
+  );
 }
 
 /** Свойства самой конфигурации или расширения из корневого Configuration.xml */
@@ -1189,6 +1250,7 @@ export function buildTypedFieldProperties(
     elementXmlForType: elementFullXml,
     inheritedElementXmlForType: inheritedElementFullXml ?? undefined,
     includeExtraKeys: true,
+    excludeExtraKey: isTypedFieldControlledPropertyKey,
   });
 }
 
@@ -1233,6 +1295,14 @@ function getTypedFieldPropertyKeyOrder(elementFullXml: string): string[] {
     return ['Name', 'Synonym', 'Comment', 'Type', ...getTypedFieldPropertyKeys(tag, typeInner)];
   }
   return TYPED_FIELD_PROPERTY_KEYS;
+}
+
+function getTypeAwarePropertyKeyOrder(elementFullXml: string, kind: TypeAwarePropertyOwnerKind): string[] {
+  const typeInner = summarizeTypeBlock(elementFullXml);
+  if (!typeInner) {
+    return ['Name', 'Synonym', 'Comment', 'Type'];
+  }
+  return ['Name', 'Synonym', 'Comment', 'Type', ...getTypedFieldPropertyKeys(kind, typeInner)];
 }
 
 export function buildTabularSectionProperties(
@@ -1297,14 +1367,18 @@ function markLocal(item: ObjectPropertyItem): ObjectPropertyItem {
   };
 }
 
-function extendKeysWithTopLevelProperties(orderedKeys: string[], sources: string[]): string[] {
+function extendKeysWithTopLevelProperties(
+  orderedKeys: string[],
+  sources: string[],
+  excludeKey?: (key: string) => boolean
+): string[] {
   const result = [...orderedKeys];
   const seen = new Set(result);
 
   for (const source of sources) {
     const propertiesXml = source.includes('<Properties') ? source : `<Properties>${source}</Properties>`;
     for (const child of extractTopLevelPropertiesChildren(propertiesXml)) {
-      if (seen.has(child.tag)) {
+      if (seen.has(child.tag) || excludeKey?.(child.tag)) {
         continue;
       }
       seen.add(child.tag);

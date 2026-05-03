@@ -169,7 +169,16 @@ export class ObjectXmlReader {
   updateTypeInObject(
     xmlPath: string,
     options: {
-      targetKind: 'Attribute' | 'AddressingAttribute' | 'Dimension' | 'Resource' | 'Column' | 'SessionParameter' | 'CommonAttribute';
+      targetKind:
+        | 'Attribute'
+        | 'AddressingAttribute'
+        | 'Dimension'
+        | 'Resource'
+        | 'Column'
+        | 'SessionParameter'
+        | 'CommonAttribute'
+        | 'Constant'
+        | 'DefinedType';
       targetName: string;
       tabularSectionName?: string;
       typeInnerXml: string;
@@ -189,7 +198,7 @@ export class ObjectXmlReader {
         return false;
       }
       targetXml = extractColumnXmlFromTabularSection(xml, options.tabularSectionName, options.targetName);
-    } else if (options.targetKind === 'SessionParameter' || options.targetKind === 'CommonAttribute') {
+    } else if (isRootTypeTargetKind(options.targetKind)) {
       targetXml = xml;
     } else {
       targetXml = extractChildMetaElementXml(xml, options.targetKind, options.targetName);
@@ -313,11 +322,28 @@ function updateTypeInElement(elementXml: string, typeInnerXml: string): string {
 }
 
 function normalizeTypedFieldProperties(elementXml: string, typeInnerXml: string): string {
-  const tag = /^<([A-Za-z][A-Za-z0-9]*)\b/.exec(elementXml.trimStart())?.[1];
-  if (tag === 'Attribute' || tag === 'AddressingAttribute' || tag === 'Dimension' || tag === 'Resource') {
+  const tag = detectNormalizedTypeOwnerTag(elementXml);
+  if (
+    tag === 'Attribute' ||
+    tag === 'AddressingAttribute' ||
+    tag === 'Dimension' ||
+    tag === 'Resource' ||
+    tag === 'Constant' ||
+    tag === 'CommonAttribute'
+  ) {
     return normalizeTypedFieldPropertiesAfterTypeChange(elementXml, tag, typeInnerXml);
   }
   return elementXml;
+}
+
+function detectNormalizedTypeOwnerTag(elementXml: string): string | undefined {
+  const text = elementXml.trimStart().replace(/^<\?xml\b[\s\S]*?\?>\s*/, '');
+  return /^<MetaDataObject\b[^>]*>\s*<([A-Za-z][A-Za-z0-9]*)\b/.exec(text)?.[1]
+    ?? /^<([A-Za-z][A-Za-z0-9]*)\b/.exec(text)?.[1];
+}
+
+function isRootTypeTargetKind(kind: string): boolean {
+  return kind === 'SessionParameter' || kind === 'CommonAttribute' || kind === 'Constant' || kind === 'DefinedType';
 }
 
 function indentTypeInner(typeInnerXml: string): string {

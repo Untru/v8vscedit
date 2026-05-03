@@ -1400,14 +1400,28 @@ function arePropertyEditValuesEqual(left: string | boolean | string[], right: st
 
 function resolveTypeTarget(node: MetadataNode): {
   xmlPath: string;
-  targetKind: 'Attribute' | 'AddressingAttribute' | 'Dimension' | 'Resource' | 'Column' | 'SessionParameter' | 'CommonAttribute';
+  targetKind:
+    | 'Attribute'
+    | 'AddressingAttribute'
+    | 'Dimension'
+    | 'Resource'
+    | 'Column'
+    | 'SessionParameter'
+    | 'CommonAttribute'
+    | 'Constant'
+    | 'DefinedType';
   targetName: string;
   tabularSectionName?: string;
 } | null {
   if (!node.xmlPath) {
     return null;
   }
-  if (node.nodeKind === 'SessionParameter' || node.nodeKind === 'CommonAttribute') {
+  if (
+    node.nodeKind === 'SessionParameter' ||
+    node.nodeKind === 'CommonAttribute' ||
+    node.nodeKind === 'Constant' ||
+    node.nodeKind === 'DefinedType'
+  ) {
     return {
       xmlPath: node.xmlPath,
       targetKind: node.nodeKind,
