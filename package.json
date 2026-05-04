@@ -2,7 +2,7 @@
   "name": "v8vscedit",
   "displayName": "Редактор конфигураций 1С",
   "description": "Редактор конфигураций и расширений 1С:Предприятие — навигация по метаданным, LSP для BSL, работа с XML-выгрузкой",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "repository": {
     "type": "git",
     "url": "https://github.com/Macegor/v8vscedit.git"
@@ -546,12 +546,10 @@
           "type": "string",
           "default": "bsl-analyzer",
           "enum": [
-            "built-in",
             "bsl-analyzer",
             "off"
           ],
           "enumDescriptions": [
-            "Встроенный LSP-сервер (tree-sitter, базовые возможности)",
             "BSL Analyzer — внешний Rust-сервер (180+ диагностик, быстрый)",
             "Языковой сервер отключён"
           ],
@@ -630,7 +628,6 @@
     "@types/node": "^20.0.0",
     "@types/vscode": "^1.85.0",
     "@vscode/test-electron": "^2.3.0",
-    "copy-webpack-plugin": "^12.0.2",
     "glob": "^13.0.6",
     "mocha": "^11.7.5",
     "ts-loader": "^9.5.0",
@@ -641,10 +638,6 @@
   "dependencies": {
     "fast-xml-parser": "^4.5.6",
     "iconv-lite": "^0.7.2",
-    "tree-sitter-bsl": "^0.1.6",
-    "vscode-languageclient": "^9.0.1",
-    "vscode-languageserver": "^9.0.1",
-    "vscode-languageserver-textdocument": "^1.0.12",
-    "web-tree-sitter": "^0.25.10"
+    "vscode-languageclient": "^9.0.1"
   }
 }

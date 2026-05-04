@@ -7,7 +7,7 @@
 VSCode / Cursor-расширение `v8vscedit` — редактор выгрузки конфигураций и расширений 1С:Предприятие. Две независимые подсистемы:
 
 1. **Навигатор метаданных** — дерево объектов из XML-выгрузки (CF и CFE), свойства, открытие BSL-модулей.
-2. **Языковая поддержка BSL** — LSP-клиент (bsl-analyzer внешний или встроенный tree-sitter).
+2. **Языковая поддержка BSL** — LSP-клиент для внешнего `bsl-analyzer`.
 
 Главное: расширение читает уже выгруженные XML-файлы 1С и обеспечивает удобную навигацию + редактирование BSL-модулей; запись XML сейчас не реализована.
 
@@ -25,9 +25,8 @@ VSCode / Cursor-расширение `v8vscedit` — редактор выгру
 ## Технологический стек
 
 - TypeScript ≥ 5.3, target ES2020, strict.
-- VS Code API ≥ 1.85, `vscode-languageclient`/`vscode-languageserver`.
+- VS Code API ≥ 1.85, `vscode-languageclient`.
 - Webpack 5 (сборка в `dist/`). Три entry: `extension`, `server`, `test/runTests`.
-- `web-tree-sitter` + `tree-sitter-bsl` — для встроенного LSP.
 - `iconv-lite` — декодирование OEM-866/Win1251 вывода vrunner.
 - Тесты — Mocha через `@vscode/test-electron`.
 
@@ -100,24 +99,14 @@ src/
 │   │       ├── UpdateExtensionCommand.ts
 │   │       ├── CompileAndUpdateExtensionCommand.ts
 │   │       └── ShowConfigActionsCommand.ts
-│   ├── vfs/
-│   │   ├── OnecFileSystemProvider.ts
-│   │   └── OnecUriBuilder.ts
 │   └── readonly/
 │       └── BslReadonlyGuard.ts           # ReadonlySession для BSL-файлов под замком поддержки
 │
-├── lsp/                                  # Подсистема языковой поддержки BSL (одна)
+├── lsp/                                  # Подсистема языковой поддержки BSL через bsl-analyzer
 │   ├── LspManager.ts
 │   ├── analyzer/
 │   │   ├── BslAnalyzerService.ts
 │   │   └── BslAnalyzerStatusBar.ts
-│   └── server/                           # Встроенный LSP-сервер (tree-sitter)
-│       ├── server.ts                     # entry для dist/server.js
-│       ├── BslContextService.ts
-│       ├── BslDocumentContext.ts
-│       ├── BslParserService.ts
-│       ├── lspUtils.ts
-│       └── providers/…                   # semanticTokens, diagnostics, hover, completion, …
 │
 └── test/
     ├── runTests.ts
@@ -179,7 +168,7 @@ container/ext   ←   всё
 - `domain/**` не импортирует `vscode`, `fs`, `path`.
 - `infra/**` не импортирует `vscode`.
 - `ui/**` не содержит regex-парсинга XML и вычислений путей — только вызовы `infra/*`.
-- LSP-сервер (`lsp/server/*`) не импортирует ничего из `ui/**` — он работает в отдельном процессе.
+- LSP-подсистема не содержит встроенного сервера; все языковые возможности идут через внешний `bsl-analyzer`.
 
 ### Composition root
 
@@ -196,7 +185,7 @@ export function deactivate(): Promise<void> | undefined {
 
 `Container` — единственное место создания всех сервисов. Он:
 1. Создаёт `OutputChannel` и все сервисы домена/инфры.
-2. Регистрирует `OnecFileSystemProvider`, `TreeView`, `SupportDecorationProvider`, `FileSystemWatcher`.
+2. Регистрирует `TreeView`, `SupportDecorationProvider`, `FileSystemWatcher`.
 3. Вызывает `CommandRegistry.registerAll(ctx, services)`.
 4. Стартует `LspManager`.
 
@@ -273,12 +262,11 @@ export function deactivate(): Promise<void> | undefined {
 2. Если сервис нужен UI — создать его в `Container.bootstrap` и прокинуть как зависимость в потребителей.
 3. Добавить тест в `src/test/suite/<имя>.test.ts` на пример из `example/`.
 
-### Новый LSP-провайдер (completion / hover / signature / …)
+### Новая возможность языковой поддержки BSL
 
-1. Файл в `src/lsp/server/providers/<имя>.ts` — чистая логика провайдера, без зависимостей от `vscode` (сервер работает через `vscode-languageserver`).
-2. Регистрация обработчика в `src/lsp/server/server.ts`.
-3. Если требуются дополнительные поля в парсере BSL — расширять `BslParserService` и `BslContextService`, не провайдер.
-4. Для режима `bsl-analyzer` дополнительно проверить, что `LspManager` не перехватывает эти возможности.
+Встроенных LSP-провайдеров в расширении нет. Новые completion / hover / diagnostics /
+signature и похожие возможности добавляются в `bsl-analyzer`, а в этом проекте
+проверяется только интеграция `LspManager` и настройки клиента.
 
 ### Новая настройка расширения
 
@@ -297,11 +285,11 @@ export function deactivate(): Promise<void> | undefined {
 2. Декодирование OEM/Win1251 вывода — через `iconv-lite`, централизованно.
 3. Прогресс/отмена — через `vscode.window.withProgress`. Длительные операции не блокируют extension host.
 
-### Новое виртуальное имя файла (`onec://`)
+### Открытие BSL-модулей
 
-1. Шаблон URI собирать только в `ui/vfs/OnecUriBuilder.ts`. Ни один другой слой не должен строить `onec://…` руками.
-2. Обработка чтения — в `OnecFileSystemProvider.readFile`; там же определяется, какой модуль возвращать по `uri.path`.
-3. Русские человекочитаемые части пути (`CommonModules → Общие модули`) — только в словарях `OnecUriBuilder`.
+BSL-модули открываются только как реальные `file://` документы. Виртуальная схема
+`onec://` удалена вместе со встроенным LSP. Readonly-режим обеспечивают команды
+открытия модулей и `ui/readonly/BslReadonlyGuard.ts`.
 
 ### Новый тест
 
@@ -363,7 +351,7 @@ npm test
 
 - Канал «BSL LSP Trace» (`traceOutputChannel`) показывает все JSON-RPC-сообщения.
 - Канал «1С Редактор» — лог самого расширения.
-- Канал «BSL Analyzer» (при `v8vscedit.lsp.mode=bsl-analyzer`) — stdout/stderr внешнего сервера.
+- Канал «BSL Analyzer» — stdout/stderr внешнего сервера.
 
 ---
 
@@ -379,11 +367,10 @@ npm test
 - `infra/support/` — `Logger.ts`, `SupportInfoService.ts`.
 - `ui/tree/` — `TreeNode.ts` (бывший `MetadataNode.ts`), `MetadataTreeProvider.ts`, `MetadataGroups.ts`, `nodes/` (декларативные дескрипторы из `META_TYPES`), `presentation/`, `nodeBuilders/` (все builder-ы типов), `decorations/SupportDecorationProvider.ts`.
 - `ui/views/` — `PropertiesViewProvider.ts`, `properties/` (`PropertyBuilder.ts`, `MetadataXmlPropertiesService.ts`, `PropertiesSelectionService.ts`, `_types.ts`).
-- `ui/vfs/` — `OnecFileSystemProvider.ts`, `OnecUriBuilder.ts`.
 - `ui/commands/` — `CommandRegistry.ts`.
 - `ui/readonly/` — `BslReadonlyGuard.ts`.
 - `ui/support/` — `SupportIndicatorCommands.ts`, `SupportWatcher.ts`.
-- `lsp/` — `LspManager.ts`, `analyzer/`, `server/` (перенос `src/language-server/*`, webpack entry обновлён).
+- `lsp/` — `LspManager.ts`, `analyzer/`; встроенный сервер удалён.
 - `Container.ts` — композиционный корень; `extension.ts` — тонкий активатор.
 - Legacy-папки `src/handlers/`, `src/nodes/`, `src/services/`, `src/views/`, `src/language-server/`, `src/language/` удалены.
 - Дубликаты карты `typeToFolder` устранены — единственный источник `META_TYPES`.
@@ -395,9 +382,8 @@ npm test
 3. **`MetadataGroups.ts`** — отдельный файл, хотя данные группировки должны полностью жить в `META_TYPES.group/groupOrder`.
 4. **Миграция XML-парсинга на `fast-xml-parser`.** Внутри `infra/xml/*` — регулярки. Замена должна пройти без изменения публичного API `ConfigXmlReader`/`ObjectXmlReader`.
 5. **Редактирование XML.** Пока реализовано только чтение. После миграции на настоящий XML-парсер — добавить `ObjectXmlWriter` для панели свойств.
-6. **Built-in LSP.** Сейчас в ограниченном состоянии; основной режим — `bsl-analyzer`.
-7. **Сильная типизация дерева.** `TreeNodeModel` → discriminated union по `kind` вместо общего интерфейса.
-8. **`ui/views/properties/_types.ts`** — пока re-export из `ui/tree/nodeBuilders/_types.ts`. Нужно окончательно отделить типы панели свойств от `ObjectHandler`.
+6. **Сильная типизация дерева.** `TreeNodeModel` → discriminated union по `kind` вместо общего интерфейса.
+7. **`ui/views/properties/_types.ts`** — пока re-export из `ui/tree/nodeBuilders/_types.ts`. Нужно окончательно отделить типы панели свойств от `ObjectHandler`.
 
 ---
 

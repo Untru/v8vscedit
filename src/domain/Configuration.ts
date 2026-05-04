@@ -20,7 +20,7 @@ export interface ConfigInfo {
  * Содержит только «ссылочные» поля (`rootPath`, `kind`). Полное описание
  * конфигурации (`ConfigInfo`) парсится лениво потребителем и в реестр не
  * складывается — это историческое поведение `ConfigFinder`, на которое
- * опирается `MetadataTreeProvider`, `BslContextService`, тесты.
+ * опираются `MetadataTreeProvider` и тесты.
  */
 export interface ConfigEntry {
   /** Абсолютный путь к каталогу, содержащему `Configuration.xml` */

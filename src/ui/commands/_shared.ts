@@ -14,7 +14,6 @@ import { RepositoryConnectionViewProvider } from '../views/RepositoryConnectionV
 import { ProjectEnvironmentViewProvider } from '../views/environment/ProjectEnvironmentViewProvider';
 import { StandaloneServerViewProvider } from '../views/standalone/StandaloneServerViewProvider';
 import { SubsystemEditorViewProvider } from '../views/subsystem/SubsystemEditorViewProvider';
-import { OnecFileSystemProvider } from '../vfs/OnecFileSystemProvider';
 
 export type NodeArg = MetadataNode | { xmlPath?: string; nodeKind?: string; label?: string };
 
@@ -26,7 +25,6 @@ export interface CommandServices {
   reloadEntries: () => void | Promise<void>;
   propertiesViewProvider: PropertiesViewProvider;
   subsystemEditorViewProvider: SubsystemEditorViewProvider;
-  vfs: OnecFileSystemProvider;
   outputChannel: vscode.OutputChannel;
   supportService?: SupportInfoService;
   repositoryService: RepositoryService;

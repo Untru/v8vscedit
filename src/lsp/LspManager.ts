@@ -1,17 +1,16 @@
-import * as path from 'path';
 import * as vscode from 'vscode';
 import {
   LanguageClient, LanguageClientOptions, ServerOptions,
-  TransportKind, ErrorAction, CloseAction, Trace,
+  ErrorAction, CloseAction, Trace,
 } from 'vscode-languageclient/node';
 import { BslAnalyzerService } from './analyzer/BslAnalyzerService';
 import { BslAnalyzerStatusBar } from './analyzer/BslAnalyzerStatusBar';
 
-export type LspMode = 'built-in' | 'bsl-analyzer' | 'off';
+export type LspMode = 'bsl-analyzer' | 'off';
 
 /**
  * Управляет жизненным циклом LSP-клиента.
- * Поддерживает два режима: встроенный (tree-sitter) и внешний (bsl-analyzer).
+ * Поддерживает внешний сервер bsl-analyzer и полное отключение LSP.
  */
 export class LspManager implements vscode.Disposable {
   private client: LanguageClient | undefined;
@@ -22,8 +21,6 @@ export class LspManager implements vscode.Disposable {
   constructor(
     private readonly context: vscode.ExtensionContext,
     private readonly outputChannel: vscode.OutputChannel,
-    /** URI-схема виртуальной ФС (для встроенного LSP) */
-    private readonly onecScheme: string,
   ) {
     this.analyzerService = new BslAnalyzerService(context, outputChannel);
     this.statusBar = new BslAnalyzerStatusBar();
@@ -52,11 +49,7 @@ export class LspManager implements vscode.Disposable {
       this.statusBar.setState('stopped', 'Отключен в настройках');
       return;
     }
-    if (m === 'bsl-analyzer') {
-      await this.startBslAnalyzer();
-    } else {
-      await this.startBuiltIn();
-    }
+    await this.startBslAnalyzer();
   }
 
   async stop(): Promise<void> {
@@ -72,7 +65,7 @@ export class LspManager implements vscode.Disposable {
     await this.start();
   }
 
-  /** Проверить обновления bsl-analyzer (если режим соответствует) */
+  /** Проверить обновления bsl-analyzer. */
   async checkForUpdate(): Promise<void> {
     const updated = await this.analyzerService.checkForUpdate();
     if (updated) await this.restart();
@@ -118,45 +111,6 @@ export class LspManager implements vscode.Disposable {
   }
 
   // ── Приватные методы ────────────────────────────────────────────────────
-
-  private async startBuiltIn(): Promise<void> {
-    this.statusBar.setState('starting');
-    const serverModule = this.context.asAbsolutePath(path.join('dist', 'server.js'));
-
-    const serverOptions: ServerOptions = {
-      run: { module: serverModule, transport: TransportKind.ipc },
-      debug: {
-        module: serverModule,
-        transport: TransportKind.ipc,
-        options: { execArgv: ['--nolazy', '--inspect=6009'] },
-      },
-    };
-
-    const clientOptions: LanguageClientOptions = {
-      documentSelector: [
-        { scheme: 'file', language: 'bsl' },
-        { scheme: this.onecScheme, language: 'bsl' },
-      ],
-      synchronize: {
-        fileEvents: vscode.workspace.createFileSystemWatcher('**/*.bsl'),
-      },
-      outputChannel: this.outputChannel,
-      traceOutputChannel: this.traceChannel,
-    };
-
-    this.client = new LanguageClient('bsl-language-server', 'BSL Built-in', serverOptions, clientOptions);
-
-    try {
-      await this.client.start();
-      this.statusBar.setState('running');
-      this.statusBar.setVersion('built-in');
-      this.outputChannel.appendLine('[lsp] Встроенный LSP запущен');
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      this.statusBar.setState('error', msg);
-      this.outputChannel.appendLine(`[lsp] Ошибка запуска встроенного LSP: ${msg}`);
-    }
-  }
 
   private async startBslAnalyzer(): Promise<void> {
     this.statusBar.setState('downloading');

@@ -10,7 +10,6 @@ import { registerCommands } from './ui/commands/CommandRegistry';
 import { PropertiesViewProvider } from './ui/views/PropertiesViewProvider';
 import { SubsystemEditorViewProvider } from './ui/views/subsystem/SubsystemEditorViewProvider';
 import { TreeSearchViewProvider } from './ui/views/search/TreeSearchViewProvider';
-import { OnecFileSystemProvider, ONEC_SCHEME } from './ui/vfs/OnecFileSystemProvider';
 import { SupportInfoService } from './infra/support/SupportInfoService';
 import { MetadataXmlCreator, MetadataXmlRemover } from './infra/xml';
 import { SubsystemXmlService } from './infra/xml/SubsystemXmlService';
@@ -45,7 +44,6 @@ export class Container {
   readonly outputChannel: vscode.OutputChannel;
   readonly supportService: SupportInfoService;
   readonly decorationProvider: SupportDecorationProvider;
-  readonly vfs: OnecFileSystemProvider;
   readonly treeProvider: MetadataTreeProvider;
   readonly propertiesProvider: PropertiesViewProvider;
   readonly subsystemEditorViewProvider: SubsystemEditorViewProvider;
@@ -97,20 +95,6 @@ export class Container {
       this.decorationProvider,
       vscode.window.registerFileDecorationProvider(this.gitMetadataDecorationProvider),
       this.gitMetadataDecorationProvider
-    );
-
-    this.vfs = new OnecFileSystemProvider();
-    this.vfs.setSupportService(this.supportService);
-    this.vfs.setRepositoryService(this.repositoryService);
-    this.vfs.setOutputChannel(this.outputChannel);
-    this.vfs.setOnDidWriteRealFile((filePath) => this.scheduleChangedConfigurationStateRefresh(
-      vscode.Uri.file(filePath)
-    ));
-    context.subscriptions.push(
-      vscode.workspace.registerFileSystemProvider(ONEC_SCHEME, this.vfs, {
-        isCaseSensitive: false,
-        isReadonly: false,
-      })
     );
 
     this.treeProvider = new MetadataTreeProvider(
@@ -173,7 +157,7 @@ export class Container {
     });
     this.changeDetector = new ConfigurationChangeDetector(workspaceFolder.uri.fsPath);
 
-    this.lspManager = new LspManager(context, this.outputChannel, ONEC_SCHEME);
+    this.lspManager = new LspManager(context, this.outputChannel);
   }
 
   /** Создаёт контейнер и выполняет регистрацию всех подсистем */
@@ -251,7 +235,6 @@ export class Container {
       reloadEntries: () => this.reloadEntries(),
       propertiesViewProvider: this.propertiesProvider,
       subsystemEditorViewProvider: this.subsystemEditorViewProvider,
-      vfs: this.vfs,
       outputChannel: this.outputChannel,
       supportService: this.supportService,
       repositoryService: this.repositoryService,

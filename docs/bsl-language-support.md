@@ -2,152 +2,86 @@
 
 ## Назначение
 
-Обеспечивает полноценную языковую поддержку для файлов `.bsl` и `.os` в VSCode: семантическую подсветку синтаксиса, навигацию, автодополнение и диагностику ошибок на основе парсера [tree-sitter-bsl](https://github.com/nicotine-plus/tree-sitter-bsl).
+Языковая поддержка BSL работает только через внешний LSP-сервер `bsl-analyzer`.
+Расширение отвечает за жизненный цикл клиента: находит или скачивает бинарник,
+запускает его в режиме `lsp`, подключает к `.bsl`-файлам и показывает состояние
+в статус-баре.
 
-Реализована как **LSP-сервер** (`src/language-server/`) — отдельный Node.js процесс, взаимодействующий с VS Code через [Language Server Protocol](https://microsoft.github.io/language-server-protocol/).
+Встроенного tree-sitter сервера в проекте нет. Ветка `built-in`, wasm-грамматики
+и локальные провайдеры completion/hover/diagnostics удалены, чтобы не было двух
+источников поведения.
 
-## Архитектура: клиент и сервер
+## Архитектура
 
 ```
 VS Code Extension Process (dist/extension.js)
+    ├── LspManager
+    │   ├── BslAnalyzerService      # установка, обновление, путь к бинарнику
+    │   └── BslAnalyzerStatusBar    # состояние сервера в статус-баре
     │
-    │  IPC (vscode-languageclient)
-    │
-LSP Server Process (dist/server.js)
-    ├── BslParserService  (web-tree-sitter WASM)
-    └── providers/
-        ├── semanticTokens  →  textDocument/semanticTokens
-        ├── diagnostics     →  textDocument/publishDiagnostics
-        ├── symbols         →  textDocument/documentSymbol
-        ├── folding         →  textDocument/foldingRange
-        ├── hover           →  textDocument/hover
-        ├── completion      →  textDocument/completion
-        └── definition      →  textDocument/definition
+    └── LanguageClient (stdio)
+        └── bsl-analyzer lsp
 ```
 
-**Клиент** (`extension.ts`) создаёт `LanguageClient`, который:
-- Порождает дочерний процесс `dist/server.js` через IPC
-- Автоматически маршрутизирует все LSP-запросы VS Code к серверу
-- Синхронизирует открытые документы и изменения файлов
+`LspManager` читает настройку `v8vscedit.lsp.mode`.
 
-## Парсер (BslParserService)
+Допустимые значения:
 
-Сервис на базе `web-tree-sitter`. Кэширует деревья по URI + номеру версии документа.
+| Значение | Поведение |
+|---|---|
+| `bsl-analyzer` | Запустить внешний `bsl-analyzer lsp` |
+| `off` | Не запускать языковой сервер |
 
-### Инициализация
+## Настройки
 
-`ensureInit()` — ленивая инициализация с кэшированным промисом. Вызывается в `onInitialized` сервера до открытия первого файла.
+| Настройка | Назначение |
+|---|---|
+| `v8vscedit.lsp.mode` | Включает `bsl-analyzer` или отключает LSP |
+| `v8vscedit.bslAnalyzer.autoUpdate` | Проверять обновления при запуске |
+| `v8vscedit.bslAnalyzer.path` | Использовать пользовательский путь к бинарнику |
 
-WASM-файлы расположены рядом с `server.js` в `dist/`:
-```typescript
-const tsWasm = path.join(__dirname, 'tree-sitter.wasm');
-await Parser.init({ locateFile: () => tsWasm });
-const lang = await Language.load(path.join(__dirname, 'tree-sitter-bsl.wasm'));
-```
+Если `v8vscedit.bslAnalyzer.path` пустой, расширение хранит скачанный бинарник
+в `globalStorageUri/bsl-analyzer`.
 
-### Кэш и инвалидация
+## Запуск
 
-```typescript
-parse(text: string, uri: string, version: number): Tree
-```
+`LspManager.startWithAutoUpdate()`:
 
-- **Кэш** `Map<uri, { version, tree }>` — несколько провайдеров за одну сессию запроса делят одно дерево
-- **Инвалидация** при закрытии документа и при изменении BSL-файлов (`onDidChangeWatchedFiles`)
-- **version = -1** — разовый парсинг без кэширования (используется при кросс-файловом поиске)
+1. Запускает LSP по текущей настройке.
+2. При режиме `bsl-analyzer` вызывает `BslAnalyzerService.ensureBinary()`.
+3. Создаёт `LanguageClient` с командой `bsl-analyzer lsp`.
+4. Подписывает клиент на `file://` документы языка `bsl`.
+5. При включённом `autoUpdate` планирует проверку обновления через 30 секунд.
 
-## Регистрация capabilities
+Для диагностики доступны команды:
 
-В `onInitialize` сервер объявляет поддерживаемые возможности:
+| Команда | Назначение |
+|---|---|
+| `v8vscedit.bslAnalyzer.showMenu` | Открыть меню управления |
+| `v8vscedit.bslAnalyzer.restart` | Перезапустить LSP |
+| `v8vscedit.bslAnalyzer.update` | Проверить обновления |
+| `v8vscedit.bslAnalyzer.showOutput` | Показать лог |
 
-```typescript
-{
-  textDocumentSync: TextDocumentSyncKind.Incremental,
-  completionProvider: { triggerCharacters: ['&', '#'] },
-  hoverProvider: true,
-  definitionProvider: true,
-  documentSymbolProvider: true,
-  foldingRangeProvider: true,
-  semanticTokensProvider: { legend: { ... }, full: true },
-}
-```
+## Открытие BSL-модулей
 
-## Диагностика
+Модули открываются напрямую как `file://` документы. Виртуальная схема `onec://`
+не используется.
 
-Вычисляется в `computeDiagnostics()` через ERROR-узлы tree-sitter.
+Readonly для модулей под замком поддержки или хранилища обеспечивают:
 
-Дебаунс 500 мс реализован в `server.ts` (не в провайдере) — таймеры хранятся в `diagTimers: Map<uri, NodeJS.Timeout>`.
-
-Алгоритм:
-1. ERROR-узел найден → проверяем что не тривиальный (≤1 символ)
-2. **Не рекурсируем внутрь** ERROR-узла — предотвращает каскад ложных ошибок
-3. При закрытии документа → `sendDiagnostics({ diagnostics: [] })`
-
-## Семантические токены
-
-`provideSemanticTokens()` обходит AST и возвращает LSP-кодированный массив.
-
-### LspSemanticTokensBuilder
-
-Собственный построитель дельта-кодирования (LSP требует flat uint32 array):
-
-```
-[deltaLine, deltaChar, length, tokenTypeIndex, tokenModifiersEncoded]  ×N
-```
-
-Токены накапливаются в произвольном порядке, **сортируются** по (line, char) в `build()` — это корректно обрабатывает любой порядок обхода дерева.
-
-13 типов токенов: `comment`, `string`, `keyword`, `number`, `operator`, `function`, `method`, `variable`, `parameter`, `property`, `class`, `annotation`, `preprocessor`.
-
-## Автодополнение
-
-`provideCompletionItems()` использует `workspaceRoots` (из `InitializeParams.workspaceFolders`) для поиска `Configuration.xml` и извлечения имён объектов метаданных.
-
-Чтение XML через `fs.promises.readFile` — нет зависимости от VS Code API.
-
-Кэш метаданных (`metaCache: Map<rootPath, CompletionItem[]>`) инвалидируется через `invalidateMetaCache()` при `onDidChangeWatchedFiles` для `Configuration.xml`.
-
-## Переход к определению
-
-`provideDefinition()` ищет определение в три этапа:
-
-1. **Текущий документ** — поиск в AST без обращения к ФС
-2. **Кэш** `definitionCache: Map<name, Location>` — быстрый ответ для известных символов
-3. **Открытые документы** (`documents.all()`) — без чтения файлов
-4. **Файловая система** — рекурсивный обход `workspaceRoots`, `findBslFiles()` (глубина 10, без `node_modules`)
-
-Кэш сбрасывается при любом изменении BSL-файла (`invalidateDefinitionCache()`).
+1. `OpenModuleCommand` — сразу помечает редактор readonly при открытии из дерева.
+2. `BslReadonlyGuard` — перехватывает открытие `.bsl` файлов с диска.
 
 ## Сборка
 
-`webpack.config.js` объявляет два `entry`:
+Webpack собирает только клиент расширения, тестовый entry и CLI:
 
 ```javascript
 entry: {
-  extension: './src/extension.ts',   // → dist/extension.js
-  server:    './src/language-server/server.ts',  // → dist/server.js
+  extension: './src/extension.ts',
+  'test/runTests': './src/test/runTests.ts',
+  'cli/onec-tools': './src/cli/onec-tools.ts',
 }
 ```
 
-WASM-файлы копируются в `dist/` один раз через `CopyWebpackPlugin` и доступны обоим бандлам.
-
-## Язык BSL (language-configuration.json)
-
-- Расширения файлов: `.bsl`, `.os`
-- Строчный комментарий: `//`
-- Автозакрытие: `()`, `[]`, `""`
-- Паттерн слова: `[\wа-яА-Я_][\wа-яА-Я_0-9]*` (поддержка кириллицы)
-- Увеличение отступа: `Тогда`, `Then`, `Цикл`, `Do`, `Попытка`, `Процедура`, `Функция`
-- Уменьшение отступа: `КонецЕсли`, `КонецЦикла`, `Иначе`, `ИначеЕсли` и EN-аналоги
-
-## Семантические токены — цвета по умолчанию
-
-| Тип токена | Цвет | Применение |
-|---|---|---|
-| `annotation:bsl` | `#C678DD` (фиолетовый) | `&НаКлиенте`, `&Перед`, ... |
-| `preprocessor:bsl` | `#A07850` (коричневый) | `#Область`, `#Если`, ... |
-| `function:bsl` | `#DCDCAA` (жёлтый) | Имена процедур и функций |
-| `parameter:bsl` | `#9CDCFE` (голубой) | Параметры процедур и функций |
-
-## Подробная документация провайдеров
-
-Детали реализации каждого провайдера — в [bsl-providers.md](./bsl-providers.md).
+Отдельного `dist/server.js` и копирования wasm-файлов нет.

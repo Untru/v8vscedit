@@ -1,14 +1,12 @@
 'use strict';
 
 const path = require('path');
-const CopyWebpackPlugin = require('copy-webpack-plugin');
 
 /** @type {import('webpack').Configuration} */
 module.exports = {
   target: 'node',
   entry: {
     extension: './src/extension.ts',
-    server: './src/lsp/server/server.ts',
     'test/runTests': './src/test/runTests.ts',
     'cli/onec-tools': './src/cli/onec-tools.ts',
   },
@@ -33,14 +31,6 @@ module.exports = {
       },
     ],
   },
-  plugins: [
-    new CopyWebpackPlugin({
-      patterns: [
-        { from: 'node_modules/web-tree-sitter/tree-sitter.wasm', to: '.' },
-        { from: 'grammars/bsl/tree-sitter-bsl.wasm', to: '.' },
-      ],
-    }),
-  ],
   devtool: 'nosources-source-map',
   infrastructureLogging: {
     level: 'log',

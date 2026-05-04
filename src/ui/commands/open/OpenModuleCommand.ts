@@ -11,7 +11,6 @@ import {
   getObjectModulePath,
   getServiceModulePath,
 } from '../../../infra/fs/MetaPathResolver';
-import { buildFormModuleVirtualUri, buildVirtualUri } from '../../vfs/OnecUriBuilder';
 import { MetadataNode } from '../../tree/TreeNode';
 import { CommandServices, NodeArg } from '../_shared';
 import { setEditorReadonly } from './OpenXmlCommand';
@@ -29,8 +28,7 @@ export function registerOpenModuleCommands(
       }
 
       const xmlPath = node.xmlPath;
-      const virtualUri = xmlPath ? buildVirtualUri(xmlPath, 'module') : null;
-      await openModule(services, modulePath, virtualUri, xmlPath);
+      await openModule(services, modulePath, xmlPath);
     }),
 
     vscode.commands.registerCommand('v8vscedit.openObjectModule', async (node: NodeArg) => {
@@ -40,8 +38,7 @@ export function registerOpenModuleCommands(
       }
 
       const xmlPath = node.xmlPath;
-      const virtualUri = xmlPath ? buildVirtualUri(xmlPath, 'objectModule') : null;
-      await openModule(services, modulePath, virtualUri, xmlPath);
+      await openModule(services, modulePath, xmlPath);
     }),
 
     vscode.commands.registerCommand('v8vscedit.openManagerModule', async (node: NodeArg) => {
@@ -51,8 +48,7 @@ export function registerOpenModuleCommands(
       }
 
       const xmlPath = node.xmlPath;
-      const virtualUri = xmlPath ? buildVirtualUri(xmlPath, 'managerModule') : null;
-      await openModule(services, modulePath, virtualUri, xmlPath);
+      await openModule(services, modulePath, xmlPath);
     }),
 
     vscode.commands.registerCommand('v8vscedit.openConstantModule', async (node: NodeArg) => {
@@ -62,8 +58,7 @@ export function registerOpenModuleCommands(
       }
 
       const xmlPath = node.xmlPath;
-      const virtualUri = xmlPath ? buildVirtualUri(xmlPath, 'valueManagerModule') : null;
-      await openModule(services, modulePath, virtualUri, xmlPath);
+      await openModule(services, modulePath, xmlPath);
     }),
 
     vscode.commands.registerCommand('v8vscedit.openServiceModule', async (node: NodeArg) => {
@@ -73,8 +68,7 @@ export function registerOpenModuleCommands(
       }
 
       const xmlPath = node.xmlPath;
-      const virtualUri = xmlPath ? buildVirtualUri(xmlPath, 'module') : null;
-      await openModule(services, modulePath, virtualUri, xmlPath);
+      await openModule(services, modulePath, xmlPath);
     }),
 
     vscode.commands.registerCommand('v8vscedit.openFormModule', async (node: NodeArg) => {
@@ -87,12 +81,7 @@ export function registerOpenModuleCommands(
       }
 
       const xmlPath = node.xmlPath;
-      const virtualUri = xmlPath
-        ? isCommonForm
-          ? buildVirtualUri(xmlPath, 'module')
-          : buildFormModuleVirtualUri(xmlPath, String(node.label ?? ''))
-        : null;
-      await openModule(services, modulePath, virtualUri, xmlPath);
+      await openModule(services, modulePath, xmlPath);
     }),
 
     vscode.commands.registerCommand('v8vscedit.openCommandModule', async (node: NodeArg) => {
@@ -105,8 +94,7 @@ export function registerOpenModuleCommands(
       }
 
       const xmlPath = node.xmlPath;
-      const virtualUri = xmlPath ? buildVirtualUri(xmlPath, 'commandModule') : null;
-      await openModule(services, modulePath, virtualUri, xmlPath);
+      await openModule(services, modulePath, xmlPath);
     })
   );
 }
@@ -114,29 +102,13 @@ export function registerOpenModuleCommands(
 async function openModule(
   services: CommandServices,
   modulePath: string,
-  virtualUri: vscode.Uri | null,
   ownerXmlPath: string | undefined,
   preview = true
 ): Promise<void> {
   const supportLocked = ownerXmlPath ? services.supportService?.isLocked(ownerXmlPath) ?? false : false;
   const repositoryLocked = services.repositoryService.isEditRestricted(ownerXmlPath ?? modulePath);
   const locked = supportLocked || repositoryLocked;
-  let editor: vscode.TextEditor;
-
-  const lspMode = vscode.workspace.getConfiguration('v8vscedit.lsp').get<string>('mode', 'bsl-analyzer');
-  const useVfs = lspMode === 'built-in';
-
-  if (useVfs && virtualUri) {
-    services.vfs.register(virtualUri, modulePath);
-    if (ownerXmlPath) {
-      services.vfs.registerOwnerXml(virtualUri, ownerXmlPath);
-    }
-    const document = await vscode.workspace.openTextDocument(virtualUri);
-    await vscode.languages.setTextDocumentLanguage(document, 'bsl');
-    editor = await vscode.window.showTextDocument(document, { preview });
-  } else {
-    editor = await vscode.window.showTextDocument(vscode.Uri.file(modulePath), { preview });
-  }
+  const editor = await vscode.window.showTextDocument(vscode.Uri.file(modulePath), { preview });
 
   if (locked) {
     await setEditorReadonly(editor);
