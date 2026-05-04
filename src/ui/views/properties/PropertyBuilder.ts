@@ -49,21 +49,14 @@ const BOOLEAN_PROPERTY_TAGS = new Set([
   'MultiLine',
   'ExtendedEdit',
   'FillFromFillingValue',
-  'CreateOnInput',
-  'QuickChoice',
-  'FullTextSearch',
   'DenyIncompleteValues',
   'ShowInTotal',
   'UseStandardCommands',
   'IncludeHelpInContents',
   'Modality',
-  'Representation',
   'ModifiesData',
   'CheckUnique',
   'Autonumbering',
-  'DefaultPresentation',
-  'DataLockControlMode',
-  'FullTextSearchOnInputByString',
   'DistributedInfoBase',
   'ThisNodeBelongsToExchangePlan',
   'SendData',
@@ -72,7 +65,6 @@ const BOOLEAN_PROPERTY_TAGS = new Set([
   'PostInPrivilegedMode',
   'UnpostInPrivilegedMode',
   'KeepMappingToExtendedConfigurationObjectsByIDs',
-  'IncludeHelpInContents',
   'UseManagedFormInOrdinaryApplication',
   'UseOrdinaryFormInManagedApplication',
 ]);
@@ -514,7 +506,7 @@ const PROPERTY_TITLE_RU: Record<string, string> = {
   CheckUnique: 'Контроль уникальности',
   Autonumbering: 'Автонумерация',
   DefaultPresentation: 'Основное представление',
-  EditType: 'Тип кода',
+  EditType: 'Способ редактирования',
   CodeType: 'Тип кода',
   DefaultObjectForm: 'Основная форма объекта',
   DefaultRecordForm: 'Основная форма записи',
@@ -1043,15 +1035,16 @@ export function buildPropertyItemsForKeys(
 
     const rawSimpleValue = extractSimpleTag(propsInner, key);
 
-    if ((BOOLEAN_PROPERTY_TAGS.has(key) || isBooleanScalar(rawSimpleValue)) && isBooleanScalar(rawSimpleValue)) {
-      if (!propsInner.includes(`<${key}>`)) {
+    const isKnownBoolean = BOOLEAN_PROPERTY_TAGS.has(key);
+    if (isKnownBoolean || isBooleanScalar(rawSimpleValue)) {
+      if (!isKnownBoolean && !propsInner.includes(`<${key}>`)) {
         continue;
       }
       items.push({
         key,
         title: propertyTitle(key),
         kind: 'boolean',
-        value: rawSimpleValue.trim().toLowerCase() === 'true',
+        value: (rawSimpleValue ?? 'false').trim().toLowerCase() === 'true',
       });
       continue;
     }

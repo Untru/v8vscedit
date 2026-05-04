@@ -1,5 +1,6 @@
 import { NodeKind } from '../TreeNode';
-import { NodeDescriptor, ChildTag } from './_types';
+import { NodeDescriptor } from './_types';
+import { ChildTag } from '../../../domain/ChildTag';
 import { META_TYPES, MetaKind } from '../../../domain/MetaTypes';
 import { OpenModuleCommandId } from '../../../domain/ModuleSlot';
 

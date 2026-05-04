@@ -69,29 +69,6 @@ export class MetaPathResolver {
   }
 
   /**
-   * Путь к модулю общего модуля; при отсутствии создаёт пустой файл.
-   * Нужен для сценария «объект уже создан в XML, но пустой модуль ещё не существует».
-   */
-  ensureCommonModuleFile(node: NodePathInfo): string | null {
-    const existing = this.resolveModule(node, 'CommonModule');
-    if (existing) {
-      return existing;
-    }
-
-    if (!node.xmlPath) {
-      return null;
-    }
-    const loc = getObjectLocationFromXml(node.xmlPath);
-    const modulePath = path.join(loc.objectDir, 'Ext', 'Module.bsl');
-
-    fs.mkdirSync(path.dirname(modulePath), { recursive: true });
-    if (!fs.existsSync(modulePath)) {
-      fs.writeFileSync(modulePath, '', { encoding: 'utf-8' });
-    }
-    return modulePath;
-  }
-
-  /**
    * Строит список путей-кандидатов для слота относительно каталога объекта.
    * Для дочерних форм/команд имя берётся из {@link label} — это имя узла дерева.
    */
@@ -216,11 +193,4 @@ export function getCommandModulePathForChild(node: NodeLike): string | null {
 
 export function getCommonModuleCodePath(node: NodeLike): string | null {
   return resolve('CommonModule', node);
-}
-
-/** Возвращает путь к модулю общего модуля; создаёт пустой файл при отсутствии */
-export function ensureCommonModuleCodePath(node: NodeLike): string | null {
-  const info = toInfo(node);
-  if (!info) return null;
-  return singleton.ensureCommonModuleFile(info);
 }

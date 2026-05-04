@@ -108,10 +108,19 @@ src/
 │   │   ├── BslAnalyzerService.ts
 │   │   └── BslAnalyzerStatusBar.ts
 │
+├── cli/                                  # Node CLI entry для операций 1С без vscode API
+│   ├── onec-tools.ts
+│   ├── commands/
+│   └── core/                             # только CLI-адаптеры; общая логика живёт в infra
+│
 └── test/
     ├── runTests.ts
     └── suite/…
 ```
+
+`cli/` — отдельный потребитель `domain/` и `infra/`. Нижние слои не импортируют
+`cli/**`; если код нужен и расширению, и CLI, он переносится в `infra/<подпапка>/`,
+а `cli/core/*` может оставить только тонкий совместимый re-export.
 
 ### Центральный контракт — `META_TYPES`
 
@@ -167,6 +176,7 @@ container/ext   ←   всё
 Запреты:
 - `domain/**` не импортирует `vscode`, `fs`, `path`.
 - `infra/**` не импортирует `vscode`.
+- `domain/**` и `infra/**` не импортируют `cli/**`; CLI всегда потребитель, а не зависимость.
 - `ui/**` не содержит regex-парсинга XML и вычислений путей — только вызовы `infra/*`.
 - LSP-подсистема не содержит встроенного сервера; все языковые возможности идут через внешний `bsl-analyzer`.
 
@@ -309,6 +319,11 @@ BSL-модули открываются только как реальные `fi
 6. **Не импортировать `vscode` в `domain/` и `infra/`.** Проверка: `import.*vscode` в этих папках запрещён.
 7. **Сервисы не создаются через `new` в командах/builder'ах.** Только через `Container`.
 8. **Не использовать `any`.** Если неизбежно — комментарий `// any: <причина>`.
+9. **Не сохранять пароли и токены в файлы проекта.** `env.json`, `.v8vscedit/**` и похожие служебные файлы не должны получать secret-значения. Для секретов использовать VS Code SecretStorage или одноразовый ввод.
+10. **Не создавать файлы при команде «Открыть».** Команды открытия XML/BSL открывают только существующие файлы; создание файлов разрешено только явным командам добавления/генерации.
+11. **Не вешать синхронный I/O на getters, tooltip, decoration и hot path дерева.** Данные для подсказок и декораций читаются заранее, кэшируются сервисом или пропускаются.
+12. **Не терять формат XML.** Любой редактор существующего XML сохраняет BOM и стиль переводов строк исходного файла.
+13. **Справочники свойств не живут в UI.** Подписи, boolean/enum/localized-классификация и значения enum должны жить в `infra/xml/PropertySchema.ts` или специализированном infra-реестре; UI только рендерит готовые данные.
 
 ---
 
@@ -338,6 +353,10 @@ npm run build        # webpack production
 npm test
 ```
 
+`npm test` сначала выполняет `npm run compile` и dev-сборку webpack, затем запускает
+`node ./out/test/runTests.js`. Тестовый runner берётся из `out/`, потому что Mocha
+загружает `out/test/suite/*.js`; webpack собирает только extension/CLI entry.
+
 Тесты лежат в `src/test/suite/`. Покрываются минимум:
 - `ConfigLocator` — поиск конфигураций в `example/`.
 - `ConfigXmlReader` — парсинг `Configuration.xml`.
@@ -364,6 +383,7 @@ npm test
 - `domain/` — `MetaTypes.ts` (единый реестр), `ChildTag.ts`, `ModuleSlot.ts`, `MetaObject.ts`, `Configuration.ts`, `Ownership.ts`, `index.ts`.
 - `infra/xml/` — `XmlUtils.ts`, `ConfigXmlReader.ts`, `ObjectXmlReader.ts`, `PropertySchema.ts`, `index.ts` (публичный API c функциями `parseConfigXml`, `parseObjectXml`, `resolveObjectXmlPath`).
 - `infra/fs/` — `ConfigLocator.ts` (+ `findConfigurations`), `MetaPathResolver.ts` (+ 9 функций-обёрток для path), `ObjectLocation.ts`.
+- `infra/cache/` — кэши метаданных и хешей; запрещено импортировать кэш из `cli/core`.
 - `infra/support/` — `Logger.ts`, `SupportInfoService.ts`.
 - `ui/tree/` — `TreeNode.ts` (бывший `MetadataNode.ts`), `MetadataTreeProvider.ts`, `MetadataGroups.ts`, `nodes/` (декларативные дескрипторы из `META_TYPES`), `presentation/`, `nodeBuilders/` (все builder-ы типов), `decorations/SupportDecorationProvider.ts`.
 - `ui/views/` — `PropertiesViewProvider.ts`, `properties/` (`PropertyBuilder.ts`, `MetadataXmlPropertiesService.ts`, `PropertiesSelectionService.ts`, `_types.ts`).
@@ -371,6 +391,7 @@ npm test
 - `ui/readonly/` — `BslReadonlyGuard.ts`.
 - `ui/support/` — `SupportIndicatorCommands.ts`, `SupportWatcher.ts`.
 - `lsp/` — `LspManager.ts`, `analyzer/`; встроенный сервер удалён.
+- `cli/` — отдельный Node entry `dist/cli/onec-tools.js`; команды используют `domain/` и `infra/`, но нижние слои не зависят от CLI.
 - `Container.ts` — композиционный корень; `extension.ts` — тонкий активатор.
 - Legacy-папки `src/handlers/`, `src/nodes/`, `src/services/`, `src/views/`, `src/language-server/`, `src/language/` удалены.
 - Дубликаты карты `typeToFolder` устранены — единственный источник `META_TYPES`.
@@ -390,6 +411,7 @@ npm test
 ## Инструкции агентам
 
 - **Перед любым изменением читать `AGENTS.md` целиком.** Архитектурные правила выше — не рекомендации, а контракт.
+- **Перед исправлением замечания аудита подтверждать его в коде.** Если файл/класс из аудита уже удалён или переименован, не создавать фантомную правку; зафиксировать фактический аналог или отметить пункт как неактуальный.
 - **Инкрементальность.** Менять не более одного слоя за коммит. Сломанный промежуточный коммит недопустим — `npm run compile` должен проходить после каждого коммита.
 - **Документация.** Публичные типы и функции — JSDoc на русском, объясняющий *зачем*. Мёртвые классы удалять, не помечать «deprecated».
 - **При затруднении** — проверить, не решается ли задача изменением таблицы `META_TYPES` или `PROPERTY_SCHEMAS`. В 90% случаев — да.
@@ -408,5 +430,7 @@ npm test
 2. `npm run build` — webpack собирается без ошибок.
 3. `rg "typeToFolder\s*:" src` — 0 результатов (карта папок только в `META_TYPES`).
 4. `rg "import .* from 'vscode'" src/domain src/infra` — 0 результатов.
-5. `rg "require\(|readFileSync" src/domain` — 0 результатов (`domain/` — чистый).
-6. `Get-ChildItem src -Directory` — в списке не должно быть ни одной из папок: `handlers`, `services`, `views`, `language`, `language-server`, `nodes`. Корректные подкаталоги первого уровня: `domain`, `infra`, `lsp`, `ui`, `test` и файлы `Container.ts`, `extension.ts`.
+5. `rg "from ['\"].*cli|from ['\"].*/cli" src/domain src/infra` — 0 результатов.
+6. `rg "require\(|readFileSync" src/domain` — 0 результатов (`domain/` — чистый).
+7. `rg "FOLDER_MAP|ROOT_KIND_NAMES|CHILD_KIND_NAMES|FOLDER_RU" src` — 0 результатов, кроме явно утверждённого адаптера к внешнему API.
+8. `Get-ChildItem src -Directory` — в списке не должно быть ни одной из папок: `handlers`, `services`, `views`, `language`, `language-server`, `nodes`. Корректные подкаталоги первого уровня: `domain`, `infra`, `lsp`, `ui`, `cli`, `test` и файлы `Container.ts`, `extension.ts`.

@@ -6,6 +6,7 @@ import {
   extractColumnXmlFromTabularSection,
   extractSimpleTag,
   extractSynonym,
+  writeTextFilePreservingBomAndEol,
 } from './XmlUtils';
 import { normalizeTypedFieldPropertiesAfterTypeChange } from './TypedFieldPropertyRules';
 
@@ -222,7 +223,7 @@ export class ObjectXmlReader {
       return false;
     }
 
-    fs.writeFileSync(xmlPath, updatedXml, 'utf-8');
+    writeTextFilePreservingBomAndEol(xmlPath, xml, updatedXml);
     return true;
   }
 
@@ -271,7 +272,7 @@ export class ObjectXmlReader {
     if (updatedXml === xml) {
       return false;
     }
-    fs.writeFileSync(xmlPath, updatedXml, 'utf-8');
+    writeTextFilePreservingBomAndEol(xmlPath, xml, updatedXml);
     return true;
   }
 }

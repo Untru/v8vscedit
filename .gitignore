@@ -3,6 +3,7 @@
 .vscode/
 .codex
 .v8vscedit/
+env.json
 
 # Зависимости и артефакты сборки
 node_modules/

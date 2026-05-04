@@ -1,63 +1,13 @@
 import * as crypto from 'crypto';
 import * as fs from 'fs';
 import * as path from 'path';
+import { META_TYPES, MetaKind, getMetaFolder } from '../../domain/MetaTypes';
 import { ConfigurationXmlEditor } from '../xml/ConfigurationXmlEditor';
 import {
   extractChildMetaElementXml,
   extractNestingAwareBlock,
   findChildElementsFullXmlInBlock,
 } from '../xml/XmlUtils';
-
-/**
- * Карта типов метаданных → папка в структуре выгрузки 1С.
- * Дублирует subset из META_TYPES.folder, но этот модуль не зависит от vscode,
- * поэтому не импортирует доменный реестр напрямую.
- */
-const FOLDER_MAP: Record<string, string> = {
-  Catalog: 'Catalogs',
-  Document: 'Documents',
-  Enum: 'Enums',
-  CommonModule: 'CommonModules',
-  CommonPicture: 'CommonPictures',
-  CommonCommand: 'CommonCommands',
-  CommonTemplate: 'CommonTemplates',
-  ExchangePlan: 'ExchangePlans',
-  Report: 'Reports',
-  DataProcessor: 'DataProcessors',
-  InformationRegister: 'InformationRegisters',
-  AccumulationRegister: 'AccumulationRegisters',
-  ChartOfCharacteristicTypes: 'ChartsOfCharacteristicTypes',
-  ChartOfAccounts: 'ChartsOfAccounts',
-  AccountingRegister: 'AccountingRegisters',
-  ChartOfCalculationTypes: 'ChartsOfCalculationTypes',
-  CalculationRegister: 'CalculationRegisters',
-  BusinessProcess: 'BusinessProcesses',
-  Task: 'Tasks',
-  Subsystem: 'Subsystems',
-  Role: 'Roles',
-  Constant: 'Constants',
-  FunctionalOption: 'FunctionalOptions',
-  DefinedType: 'DefinedTypes',
-  FunctionalOptionsParameter: 'FunctionalOptionsParameters',
-  CommonForm: 'CommonForms',
-  DocumentJournal: 'DocumentJournals',
-  SessionParameter: 'SessionParameters',
-  StyleItem: 'StyleItems',
-  EventSubscription: 'EventSubscriptions',
-  ScheduledJob: 'ScheduledJobs',
-  SettingsStorage: 'SettingsStorages',
-  FilterCriterion: 'FilterCriteria',
-  CommandGroup: 'CommandGroups',
-  DocumentNumerator: 'DocumentNumerators',
-  Sequence: 'Sequences',
-  IntegrationService: 'IntegrationServices',
-  XDTOPackage: 'XDTOPackages',
-  WebService: 'WebServices',
-  HTTPService: 'HTTPServices',
-  WSReference: 'WSReferences',
-  CommonAttribute: 'CommonAttributes',
-  Style: 'Styles',
-};
 
 /** Типы, для которых XML-оболочка заимствованного объекта содержит пустой `<ChildObjects/>` */
 const TYPES_WITH_CHILD_OBJECTS = new Set<string>([
@@ -243,7 +193,7 @@ export class CfeBorrowService {
    * Критерий — наличие XML-файла объекта в каталоге расширения.
    */
   isObjectBorrowed(extDir: string, typeName: string, objectName: string): boolean {
-    const folder = FOLDER_MAP[typeName];
+    const folder = this.getFolderName(typeName);
     if (!folder) {
       return false;
     }
@@ -260,7 +210,7 @@ export class CfeBorrowService {
       return { alreadyBorrowed: true, files: [] };
     }
 
-    const folder = FOLDER_MAP[typeName];
+    const folder = this.getFolderName(typeName);
     if (!folder) {
       throw new Error(`Неизвестный тип метаданных для заимствования: "${typeName}"`);
     }
@@ -314,7 +264,7 @@ export class CfeBorrowService {
       files.push(...parentResult.files);
     }
 
-    const folder = FOLDER_MAP[typeName];
+    const folder = this.getFolderName(typeName);
     if (!folder) {
       throw new Error(`Неизвестный тип метаданных: "${typeName}"`);
     }
@@ -392,7 +342,7 @@ export class CfeBorrowService {
       files.push(...parentResult.files);
     }
 
-    const folder = FOLDER_MAP[typeName];
+    const folder = this.getFolderName(typeName);
     if (!folder) {
       throw new Error(`Неизвестный тип метаданных: "${typeName}"`);
     }
@@ -416,7 +366,10 @@ export class CfeBorrowService {
 
   /** Папка типа метаданных в структуре выгрузки или undefined если тип неизвестен */
   getFolderName(typeName: string): string | undefined {
-    return FOLDER_MAP[typeName];
+    if (!(typeName in META_TYPES)) {
+      return undefined;
+    }
+    return getMetaFolder(typeName as MetaKind) ?? undefined;
   }
 
   /**

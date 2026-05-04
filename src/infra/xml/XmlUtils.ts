@@ -1,4 +1,5 @@
 import { XMLParser } from 'fast-xml-parser';
+import * as fs from 'fs';
 
 type XmlTextNode = { '#text': string };
 type XmlElementNode = { [tagName: string]: XmlNodeList };
@@ -319,4 +320,16 @@ export function extractColumnsXmlFromTabularSection(
   }
 
   return findChildElementsFullXmlInBlock(childObjectsInner, 'Attribute');
+}
+
+/** Записывает XML, сохраняя BOM и преобладающий стиль переводов строк исходного файла. */
+export function writeTextFilePreservingBomAndEol(
+  filePath: string,
+  originalContent: string,
+  nextContent: string
+): void {
+  const hasBom = originalContent.charCodeAt(0) === 0xfeff;
+  const eol = originalContent.includes('\r\n') ? '\r\n' : '\n';
+  const normalized = nextContent.replace(/\r\n|\n/g, eol);
+  fs.writeFileSync(filePath, `${hasBom && normalized.charCodeAt(0) !== 0xfeff ? '\ufeff' : ''}${normalized}`, 'utf-8');
 }

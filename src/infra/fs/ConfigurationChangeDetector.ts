@@ -6,7 +6,7 @@ import {
   diffHashSnapshots,
   loadHashCache,
   saveHashCache,
-} from '../../cli/core/hashCache';
+} from '../cache/HashCache';
 import { buildMetadataCacheScopeKey, loadMetadataCache, saveMetadataCacheForEntry } from '../cache/MetadataCache';
 
 export interface ChangedConfiguration {

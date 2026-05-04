@@ -17,6 +17,7 @@ export class LspManager implements vscode.Disposable {
   private readonly analyzerService: BslAnalyzerService;
   private readonly statusBar: BslAnalyzerStatusBar;
   private readonly traceChannel: vscode.OutputChannel;
+  private lifecycleQueue: Promise<void> = Promise.resolve();
 
   constructor(
     private readonly context: vscode.ExtensionContext,
@@ -42,8 +43,27 @@ export class LspManager implements vscode.Disposable {
 
   /** Запустить LSP по текущей настройке */
   async start(): Promise<void> {
+    return this.enqueueLifecycle(() => this.startCurrentMode());
+  }
+
+  async stop(): Promise<void> {
+    return this.enqueueLifecycle(() => this.stopClient());
+  }
+
+  async restart(): Promise<void> {
+    return this.enqueueLifecycle(async () => {
+      await this.stopClient();
+      await this.startCurrentMode();
+    });
+  }
+
+  private async startCurrentMode(): Promise<void> {
     const m = this.mode;
     this.outputChannel.appendLine(`[lsp] Режим: ${m}`);
+
+    if (this.client) {
+      await this.stopClient();
+    }
 
     if (m === 'off') {
       this.statusBar.setState('stopped', 'Отключен в настройках');
@@ -52,17 +72,12 @@ export class LspManager implements vscode.Disposable {
     await this.startBslAnalyzer();
   }
 
-  async stop(): Promise<void> {
+  private async stopClient(): Promise<void> {
     if (this.client) {
       await this.client.stop();
       this.client = undefined;
     }
     this.statusBar.setState('stopped');
-  }
-
-  async restart(): Promise<void> {
-    await this.stop();
-    await this.start();
   }
 
   /** Проверить обновления bsl-analyzer. */
@@ -111,6 +126,12 @@ export class LspManager implements vscode.Disposable {
   }
 
   // ── Приватные методы ────────────────────────────────────────────────────
+
+  private enqueueLifecycle(action: () => Promise<void>): Promise<void> {
+    const next = this.lifecycleQueue.then(action, action);
+    this.lifecycleQueue = next.catch(() => undefined);
+    return next;
+  }
 
   private async startBslAnalyzer(): Promise<void> {
     this.statusBar.setState('downloading');

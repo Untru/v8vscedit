@@ -3,7 +3,7 @@ import * as fs from 'fs';
 import * as vscode from 'vscode';
 import { buildNode } from '../nodes/_base';
 import { getNodeDescriptor } from '../nodes/index';
-import { extractSimpleTag, extractSynonym } from '../../../infra/xml';
+import { extractSimpleTag } from '../../../infra/xml';
 import {
   HandlerContext,
   LocalizedStringValue,
@@ -65,28 +65,6 @@ export const roleHandler: ObjectHandler = {
         xmlPath,
         childrenLoader: undefined,
         ownershipTag,
-      });
-
-      let cachedSynonym: string | undefined;
-      Object.defineProperty(node, 'tooltip', {
-        get: () => {
-          if (cachedSynonym !== undefined) {
-            return cachedSynonym;
-          }
-          if (xmlPath) {
-            try {
-              const xml = fs.readFileSync(xmlPath, 'utf-8');
-              cachedSynonym = extractSynonym(xml) || '';
-            } catch {
-              cachedSynonym = '';
-            }
-          } else {
-            cachedSynonym = '';
-          }
-          return cachedSynonym;
-        },
-        enumerable: true,
-        configurable: true,
       });
 
       return node;

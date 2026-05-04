@@ -1,3 +1,5 @@
+import { ChildTag, CHILD_TAG_CONFIG as DOMAIN_CHILD_TAG_CONFIG } from '../../../domain/ChildTag';
+import { OpenModuleCommandId } from '../../../domain/ModuleSlot';
 import { NodeKind } from '../TreeNode';
 
 /**
@@ -16,31 +18,11 @@ export interface NodeDescriptor {
   /** Поддерживаемые дочерние теги XML */
   children?: ReadonlyArray<ChildTag>;
   /** Команда по одиночному клику по узлу, если задана */
-  singleClickCommand?: CommandId;
+  singleClickCommand?: OpenModuleCommandId;
 }
 
-/** Теги дочерних элементов объектов метаданных */
-export type ChildTag =
-  | 'Attribute'
-  | 'AddressingAttribute'
-  | 'TabularSection'
-  | 'Form'
-  | 'Command'
-  | 'Template'
-  | 'Dimension'
-  | 'Resource'
-  | 'EnumValue';
-
-/** Идентификаторы поддерживаемых команд навигатора */
-export type CommandId =
-  | 'openXmlFile'
-  | 'openObjectModule'
-  | 'openManagerModule'
-  | 'openConstantModule'
-  | 'openFormModule'
-  | 'openCommandModule'
-  | 'openServiceModule'
-  | 'openCommonModuleCode';
+/** Идентификаторы поддерживаемых команд навигатора берутся из доменного реестра слотов модулей. */
+export type CommandId = OpenModuleCommandId;
 
 /** Конфигурация отображения дочернего тега */
 export interface ChildTagConfig {
@@ -56,51 +38,4 @@ export interface ChildTagConfig {
  * Справочник по дочерним тегам: заголовок группы и тип узла.
  * Используется при построении дочерних узлов объектов.
  */
-export const CHILD_TAG_CONFIG: Readonly<Record<ChildTag, ChildTagConfig>> = {
-  Attribute: {
-    tag: 'Attribute',
-    label: 'Реквизиты',
-    kind: 'Attribute',
-  },
-  AddressingAttribute: {
-    tag: 'AddressingAttribute',
-    label: 'Реквизиты адресации',
-    kind: 'AddressingAttribute',
-  },
-  TabularSection: {
-    tag: 'TabularSection',
-    label: 'Табличные части',
-    kind: 'TabularSection',
-  },
-  Form: {
-    tag: 'Form',
-    label: 'Формы',
-    kind: 'Form',
-  },
-  Command: {
-    tag: 'Command',
-    label: 'Команды',
-    kind: 'Command',
-  },
-  Template: {
-    tag: 'Template',
-    label: 'Макеты',
-    kind: 'Template',
-  },
-  Dimension: {
-    tag: 'Dimension',
-    label: 'Измерения',
-    kind: 'Dimension',
-  },
-  Resource: {
-    tag: 'Resource',
-    label: 'Ресурсы',
-    kind: 'Resource',
-  },
-  EnumValue: {
-    tag: 'EnumValue',
-    label: 'Значения',
-    kind: 'EnumValue',
-  },
-} as const;
-
+export const CHILD_TAG_CONFIG: Readonly<Record<ChildTag, ChildTagConfig>> = DOMAIN_CHILD_TAG_CONFIG;

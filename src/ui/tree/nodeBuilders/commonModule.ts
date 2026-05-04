@@ -3,7 +3,8 @@ import * as fs from 'fs';
 import * as vscode from 'vscode';
 import { buildNode } from '../nodes/_base';
 import { getNodeDescriptor } from '../nodes/index';
-import { extractSimpleTag, extractSynonym } from '../../../infra/xml';
+import { getMetaFolder } from '../../../domain/MetaTypes';
+import { extractSimpleTag } from '../../../infra/xml';
 import {
   EnumPropertyOption,
   HandlerContext,
@@ -29,7 +30,6 @@ import {
 //                                      — повторное использование возвращаемых значений
 // ---------------------------------------------------------------------------
 
-const FOLDER_NAME = 'CommonModules';
 const RETURN_VALUES_REUSE_OPTIONS: EnumPropertyOption[] = [
   { value: 'DontUse', label: 'Не использовать' },
   { value: 'DuringRequest', label: 'На время вызова' },
@@ -39,7 +39,7 @@ const RETURN_VALUES_REUSE_OPTIONS: EnumPropertyOption[] = [
 export const commonModuleHandler: ObjectHandler = {
   buildTreeNodes(ctx: HandlerContext) {
     const descriptor = getNodeDescriptor('CommonModule');
-    const folderPath = path.join(ctx.configRoot, FOLDER_NAME);
+    const folderPath = path.join(ctx.configRoot, getMetaFolder('CommonModule') ?? 'CommonModules');
 
     return ctx.names.map((name) => {
       const xmlPath = resolveModuleXml(folderPath, name);
@@ -56,26 +56,6 @@ export const commonModuleHandler: ObjectHandler = {
         xmlPath,
         childrenLoader: undefined,
         ownershipTag,
-      });
-
-      let cachedSynonym: string | undefined;
-      Object.defineProperty(node, 'tooltip', {
-        get: () => {
-          if (cachedSynonym !== undefined) { return cachedSynonym; }
-          if (xmlPath) {
-            try {
-              const xml = fs.readFileSync(xmlPath, 'utf-8');
-              cachedSynonym = extractSynonym(xml) || '';
-            } catch {
-              cachedSynonym = '';
-            }
-          } else {
-            cachedSynonym = '';
-          }
-          return cachedSynonym;
-        },
-        enumerable: true,
-        configurable: true,
       });
 
       return node;

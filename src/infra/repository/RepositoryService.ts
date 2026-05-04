@@ -7,6 +7,7 @@ import { parseConfigXml, parseObjectXml } from '../xml';
 export interface RepositoryBinding {
   repoPath: string;
   repoUser: string;
+  /** Пароль используется только в памяти для текущего запуска команды; в `env.json` не сохраняется. */
   repoPassword: string;
 }
 
@@ -211,13 +212,12 @@ export class RepositoryService {
       extensionSection[extensionName] = {
         'repo-path': binding.repoPath,
         'repo-user': binding.repoUser,
-        'repo-pwd': binding.repoPassword,
       };
       defaults.extension = extensionSection;
     } else {
-      defaults['--repo-path'] = binding.repoPath;
-      defaults['--repo-user'] = binding.repoUser;
-      defaults['--repo-pwd'] = binding.repoPassword;
+    defaults['--repo-path'] = binding.repoPath;
+    defaults['--repo-user'] = binding.repoUser;
+    delete defaults['--repo-pwd'];
     }
 
     env.default = defaults;
@@ -545,7 +545,6 @@ export class RepositoryService {
       result[key] = {
         'repo-path': this.readString(item['repo-path']) ?? '',
         'repo-user': this.readString(item['repo-user']) ?? '',
-        'repo-pwd': this.readString(item['repo-pwd']) ?? '',
       };
     }
     return result;

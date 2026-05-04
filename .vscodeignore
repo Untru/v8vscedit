@@ -16,4 +16,3 @@ tsconfig.json
 **/*.map
 **/*.ts
 src/test/**
-src/language-server/**

@@ -9,8 +9,8 @@ import * as vscode from 'vscode';
 import { MetaTreeNodeContext, MetadataNode, NodeKind } from '../TreeNode';
 import { buildNode } from '../nodes/_base';
 import { getNodeDescriptor } from '../nodes/index';
-import { ChildTag, CHILD_TAG_CONFIG } from '../nodes/_types';
-import { MetaChild, parseObjectXml, resolveObjectXmlPath, extractSynonym } from '../../../infra/xml';
+import { ChildTag, CHILD_TAG_CONFIG } from '../../../domain/ChildTag';
+import { MetaChild, parseObjectXml, resolveObjectXmlPath } from '../../../infra/xml';
 import { getObjectLocationFromXml } from '../../../infra/fs/MetaPathResolver';
 import { buildRootMetaObjectProperties } from '../../views/properties/PropertyBuilder';
 import { readInheritedObjectXmlForBorrowed } from '../../views/properties/BorrowedPropertiesResolver';
@@ -42,7 +42,6 @@ export function buildLeafObjectTreeNodes(ctx: HandlerContext, nodeKind: NodeKind
         ownershipTag,
       });
 
-      attachLazySynonymTooltip(node, xmlPath);
       return node;
     })
     .filter((n): n is MetadataNode => Boolean(n));
@@ -86,7 +85,9 @@ export function buildStructuredObjectTreeNodes(ctx: HandlerContext, nodeKind: No
         ownershipTag,
       });
 
-      attachLazySynonymTooltip(node, xmlPath);
+      if (objectInfo?.synonym) {
+        node.tooltip = objectInfo.synonym;
+      }
       return node;
     })
     .filter((n): n is MetadataNode => Boolean(n));
@@ -296,25 +297,4 @@ export function resolveLeafXmlPath(objectXmlPath: string, tag: ChildTag, itemNam
   }
 
   return objectXmlPath;
-}
-
-/** Синоним объекта подгружается при первом показе подсказки */
-export function attachLazySynonymTooltip(node: MetadataNode, xmlPath: string): void {
-  let cached: string | undefined;
-  Object.defineProperty(node, 'tooltip', {
-    get: () => {
-      if (cached !== undefined) {
-        return cached;
-      }
-      try {
-        const xml = fs.readFileSync(xmlPath, 'utf-8');
-        cached = extractSynonym(xml) || '';
-      } catch {
-        cached = '';
-      }
-      return cached;
-    },
-    enumerable: true,
-    configurable: true,
-  });
 }

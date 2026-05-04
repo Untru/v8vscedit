@@ -25,7 +25,6 @@ export {
   getFormModulePathForChild,
   getCommandModulePathForChild,
   getCommonModuleCodePath,
-  ensureCommonModuleCodePath,
 } from './fs/MetaPathResolver';
 export * from './fs/ObjectLocation';
 export * from './support';

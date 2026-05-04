@@ -21,13 +21,13 @@ export class ConfigLocator {
   private static readonly MAX_DEPTH = 10;
   private static readonly SKIP_DIRS = new Set(['node_modules', '.git', '.cursor', 'dist', 'out']);
 
-  async find(rootDir: string): Promise<FoundConfig[]> {
+  find(rootDir: string): FoundConfig[] {
     const results: FoundConfig[] = [];
-    await this.scanDir(rootDir, 0, results);
+    this.scanDir(rootDir, 0, results);
     return results;
   }
 
-  private async scanDir(dir: string, depth: number, results: FoundConfig[]): Promise<void> {
+  private scanDir(dir: string, depth: number, results: FoundConfig[]): void {
     if (depth > ConfigLocator.MAX_DEPTH) {
       return;
     }
@@ -39,11 +39,11 @@ export class ConfigLocator {
       return;
     }
 
-    const hasConfig = entries.some((e) => e.isFile() && e.name === 'Configuration.xml');
-    if (hasConfig) {
+    const configFile = entries.find((e) => e.isFile() && e.name.toLowerCase() === 'configuration.xml');
+    if (configFile) {
       results.push({
         rootPath: dir,
-        kind: this.detectKind(path.join(dir, 'Configuration.xml')),
+        kind: this.detectKind(path.join(dir, configFile.name)),
       });
       return;
     }
@@ -52,7 +52,7 @@ export class ConfigLocator {
       if (!entry.isDirectory() || ConfigLocator.SKIP_DIRS.has(entry.name)) {
         continue;
       }
-      await this.scanDir(path.join(dir, entry.name), depth + 1, results);
+      this.scanDir(path.join(dir, entry.name), depth + 1, results);
     }
   }
 

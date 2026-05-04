@@ -3,7 +3,6 @@ import {
   getCommonCommandModulePath,
   getCommonFormModulePath,
   getCommandModulePathForChild,
-  ensureCommonModuleCodePath,
   getCommonModuleCodePath,
   getConstantModulePath,
   getFormModulePathForChild,
@@ -22,8 +21,9 @@ export function registerOpenModuleCommands(
 ): void {
   context.subscriptions.push(
     vscode.commands.registerCommand('v8vscedit.openCommonModuleCode', async (node: NodeArg) => {
-      const modulePath = getCommonModuleCodePath(toNodePathInfo(node)) ?? ensureCommonModuleCodePath(toNodePathInfo(node));
+      const modulePath = getCommonModuleCodePath(toNodePathInfo(node));
       if (!modulePath) {
+        void vscode.window.showWarningMessage('Файл модуля общего модуля не найден в выгрузке.');
         return;
       }
 

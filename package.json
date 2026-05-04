@@ -10,8 +10,14 @@
   "engines": {
     "vscode": "^1.85.0"
   },
+  "activationEvents": [
+    "onView:v8vsceditTree",
+    "onLanguage:bsl",
+    "onCommand:v8vscedit.refresh"
+  ],
   "categories": [
-    "Other"
+    "Other",
+    "Programming Languages"
   ],
   "main": "./dist/extension.js",
   "contributes": {
@@ -359,12 +365,12 @@
         },
         {
           "command": "v8vscedit.openObjectModule",
-          "when": "view == v8vsceditTree && viewItem =~ /(Catalog|Document|Report|DataProcessor|InformationRegister|AccumulationRegister|AccountingRegister|CalculationRegister|BusinessProcess|Task|ExchangePlan|ChartOfCharacteristicTypes|ChartOfAccounts|ChartOfCalculationTypes)-hasXml/ && !(viewItem =~ /-repoEditRestricted/)",
+          "when": "view == v8vsceditTree && viewItem =~ /^(Catalog|Document|Report|DataProcessor|InformationRegister|AccumulationRegister|AccountingRegister|CalculationRegister|BusinessProcess|Task|ExchangePlan|ChartOfCharacteristicTypes|ChartOfAccounts|ChartOfCalculationTypes)-hasXml/ && !(viewItem =~ /-repoEditRestricted/)",
           "group": "navigation@2"
         },
         {
           "command": "v8vscedit.openManagerModule",
-          "when": "view == v8vsceditTree && viewItem =~ /(Catalog|Document|Report|DataProcessor|InformationRegister|AccumulationRegister|AccountingRegister|CalculationRegister|BusinessProcess|Task|ExchangePlan|ChartOfCharacteristicTypes|ChartOfAccounts|ChartOfCalculationTypes|Enum|DocumentJournal)-hasXml/ && !(viewItem =~ /-repoEditRestricted/)",
+          "when": "view == v8vsceditTree && viewItem =~ /^(Catalog|Document|Report|DataProcessor|InformationRegister|AccumulationRegister|AccountingRegister|CalculationRegister|BusinessProcess|Task|ExchangePlan|ChartOfCharacteristicTypes|ChartOfAccounts|ChartOfCalculationTypes|Enum|DocumentJournal)-hasXml/ && !(viewItem =~ /-repoEditRestricted/)",
           "group": "navigation@2"
         },
         {
@@ -619,8 +625,8 @@
     "build": "webpack --mode production",
     "watch": "webpack --mode development --watch",
     "compile": "tsc -p ./",
-    "test": "node ./dist/test/runTests.js",
-    "pretest": "webpack --mode development"
+    "test": "node ./out/test/runTests.js",
+    "pretest": "npm run compile && webpack --mode development"
   },
   "devDependencies": {
     "@types/glob": "^8.1.0",

@@ -5,7 +5,7 @@ import { CHILD_TAG_CONFIG, ChildTag } from '../../domain/ChildTag';
 import { ConfigEntry, ConfigInfo } from '../../domain/Configuration';
 import { MetaChild } from '../../domain/MetaObject';
 import { MetaKind, getMetaFolder, getMetaType, getMetaTypesByGroup } from '../../domain/MetaTypes';
-import { buildScopeKey } from '../../cli/core/hashCache';
+import { buildScopeKey } from './HashCache';
 import type { MetadataGitDecorationTarget } from '../git/GitMetadataStatusService';
 import { getObjectLocationFromXml, resolveObjectXmlPath } from '../fs/MetaPathResolver';
 import { parseConfigXml, parseObjectXml } from '../xml';

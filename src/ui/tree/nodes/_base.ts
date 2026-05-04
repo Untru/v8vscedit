@@ -49,12 +49,6 @@ export function buildNode(descriptor: NodeDescriptor | undefined, params: BuildN
 /** Преобразует логический идентификатор команды в `vscode.Command` */
 function mapCommand(commandId: CommandId, node: MetadataNode): vscode.Command {
   switch (commandId) {
-    case 'openXmlFile':
-      return {
-        command: 'v8vscedit.openXmlFile',
-        title: 'Открыть XML',
-        arguments: [node],
-      };
     case 'openObjectModule':
       return {
         command: 'v8vscedit.openObjectModule',

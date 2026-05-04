@@ -6,7 +6,11 @@ async function main(): Promise<void> {
     const extensionDevelopmentPath = path.resolve(__dirname, '../../');
     const extensionTestsPath = path.resolve(__dirname, './suite/index');
 
-    await runTests({ extensionDevelopmentPath, extensionTestsPath });
+    await runTests({
+      extensionDevelopmentPath,
+      extensionTestsPath,
+      version: '1.85.2',
+    });
   } catch (err) {
     console.error('Тесты завершились с ошибкой:', err);
     process.exit(1);

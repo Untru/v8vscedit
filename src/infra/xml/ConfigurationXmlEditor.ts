@@ -3,6 +3,7 @@ import * as path from 'path';
 import { getMetaFolder, MetaKind } from '../../domain/MetaTypes';
 import { getObjectLocationFromXml } from '../fs/ObjectLocation';
 import { ObjectXmlReader } from './ObjectXmlReader';
+import { writeTextFilePreservingBomAndEol } from './XmlUtils';
 
 type PropertyValueKind = 'string' | 'boolean' | 'localizedString';
 type RootPropertyKind = 'scalar' | 'localized' | 'reference' | 'boolean' | 'multiEnum';
@@ -86,7 +87,7 @@ export class ConfigurationXmlEditor {
       return this.warn('Значение свойства не изменилось.');
     }
     const updatedXml = xml.replace(properties, updatedProps);
-    fs.writeFileSync(configXmlPath, updatedXml, 'utf-8');
+    writeTextFilePreservingBomAndEol(configXmlPath, xml, updatedXml);
     return this.ok([configXmlPath]);
   }
 
@@ -124,7 +125,7 @@ export class ConfigurationXmlEditor {
     const updatedXml = childObjectsMatch
       ? xml.replace(childObjects, nextInner)
       : xml.replace(selfClosingChildObjectsMatch![0], `<ChildObjects>${nextInner}</ChildObjects>`);
-    fs.writeFileSync(configXmlPath, updatedXml, 'utf-8');
+    writeTextFilePreservingBomAndEol(configXmlPath, xml, updatedXml);
     return this.ok([configXmlPath]);
   }
 
@@ -146,7 +147,7 @@ export class ConfigurationXmlEditor {
     }
     const nextInner = this.buildChildObjectsBlock(next, this.detectIndent(childObjects, '\t\t\t'));
     const updatedXml = xml.replace(childObjects, nextInner);
-    fs.writeFileSync(configXmlPath, updatedXml, 'utf-8');
+    writeTextFilePreservingBomAndEol(configXmlPath, xml, updatedXml);
     return this.ok([configXmlPath]);
   }
 
@@ -260,11 +261,11 @@ export class ConfigurationXmlEditor {
       fs.renameSync(oldFilePath, newFilePath);
     }
     if (!isDeep || !fs.existsSync(newDeepXmlPath)) {
-      fs.writeFileSync(newFilePath, objectXmlUpdated, 'utf-8');
+      writeTextFilePreservingBomAndEol(newFilePath, objectXml, objectXmlUpdated);
       resultXmlPath = newFilePath;
       changedFiles.push(newFilePath);
     } else {
-      fs.writeFileSync(newDeepXmlPath, objectXmlUpdated, 'utf-8');
+      writeTextFilePreservingBomAndEol(newDeepXmlPath, objectXml, objectXmlUpdated);
       if (this.isSamePath(currentXmlPath, oldDeepXmlPath)) {
         resultXmlPath = newDeepXmlPath;
       }
@@ -272,7 +273,7 @@ export class ConfigurationXmlEditor {
     }
 
     this.rewriteMetadataReferences(location.configRoot, childObjectTag, oldObjectName, newObjectName);
-    fs.writeFileSync(configXmlPath, configUpdated, 'utf-8');
+    writeTextFilePreservingBomAndEol(configXmlPath, configXml, configUpdated);
     return {
       success: true,
       changed: true,
@@ -308,7 +309,7 @@ export class ConfigurationXmlEditor {
       : `\n${items.map((item) => `${indent}<xr:Item xsi:type="xr:MDObjectRef">${escapeXmlText(item)}</xr:Item>`).join('\n')}\n${indent.slice(0, -1)}`;
     const nextProps = props.replace(rolesBlockRe, `<DefaultRoles>${nextInner}</DefaultRoles>`);
     const updatedXml = xml.replace(props, nextProps);
-    fs.writeFileSync(configXmlPath, updatedXml, 'utf-8');
+    writeTextFilePreservingBomAndEol(configXmlPath, xml, updatedXml);
     return this.ok([configXmlPath]);
   }
 
@@ -447,7 +448,7 @@ export class ConfigurationXmlEditor {
       const content = fs.readFileSync(filePath, 'utf-8');
       const next = content.replace(referenceRe, `${objectType}.${newName}`);
       if (next !== content) {
-        fs.writeFileSync(filePath, next, 'utf-8');
+        writeTextFilePreservingBomAndEol(filePath, content, next);
       }
     }
   }

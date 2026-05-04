@@ -70,7 +70,8 @@ function findFirstElement(nodes: XmlNodeList, tagName: string): XmlElementNode |
 export class ConfigXmlReader {
   read(configXmlPath: string): ConfigInfo {
     const xml = fs.readFileSync(configXmlPath, 'utf-8');
-    const kind: 'cf' | 'cfe' = xml.includes('<ConfigurationExtensionPurpose>') ? 'cfe' : 'cf';
+    const nodes = parser.parse(xml) as XmlNodeList;
+    const kind: 'cf' | 'cfe' = findFirstElement(nodes, 'ConfigurationExtensionPurpose') ? 'cfe' : 'cf';
 
     return {
       kind,
@@ -78,13 +79,12 @@ export class ConfigXmlReader {
       synonym: extractSynonym(xml),
       version: extractSimpleTag(xml, 'Version') ?? '',
       namePrefix: extractSimpleTag(xml, 'NamePrefix') ?? '',
-      childObjects: this.parseChildObjects(xml),
+      childObjects: this.parseChildObjects(nodes),
     };
   }
 
-  private parseChildObjects(xml: string): Map<string, string[]> {
+  private parseChildObjects(nodes: XmlNodeList): Map<string, string[]> {
     const result = new Map<string, string[]>();
-    const nodes = parser.parse(xml) as XmlNodeList;
     const childObjects = findFirstElement(nodes, 'ChildObjects');
     if (!childObjects) {
       return result;

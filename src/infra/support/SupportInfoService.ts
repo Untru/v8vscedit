@@ -190,7 +190,11 @@ export class SupportInfoService {
     const objectName = bslParts[rootDepth + 1];
     if (!typeFolder || !objectName) { return undefined; }
 
-    const xmlPath = path.join(originalRoot, typeFolder, objectName, objectName + '.xml');
+    const childFolder = bslParts[rootDepth + 2];
+    const childName = bslParts[rootDepth + 3];
+    const xmlPath = childFolder && childName && ['Forms', 'Commands', 'Templates'].includes(childFolder)
+      ? path.join(originalRoot, typeFolder, objectName, childFolder, childName + '.xml')
+      : path.join(originalRoot, typeFolder, objectName, objectName + '.xml');
     if (!fs.existsSync(xmlPath)) {
       this.log.appendLine(`[support] XML-файл не существует: ${xmlPath}`);
       return undefined;
@@ -228,7 +232,7 @@ export class SupportInfoService {
   private parseBinFile(binPath: string): Map<string, SupportMode> {
     const uuidToMode = new Map<string, SupportMode>();
 
-    let content = fs.readFileSync(binPath, 'utf-8');
+    let content = fs.readFileSync(binPath).toString('latin1');
     if (content.charCodeAt(0) === 0xfeff) { content = content.slice(1); }
 
     const UUID_PAT = '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}';
