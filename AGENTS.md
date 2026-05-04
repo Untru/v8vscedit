@@ -342,10 +342,11 @@ npm run watch        # webpack --mode development --watch
 
 ```bash
 npm run compile      # tsc -p ./  (быстрая проверка типов)
+npm run lint         # eslint . --max-warnings=0  (конфиг eslint.config.mjs)
 npm run build        # webpack production
 ```
 
-Перед любым коммитом: `npm run compile` должен проходить без ошибок.
+Перед любым коммитом: `npm run compile` и **`npm run lint`** должны проходить без ошибок (у линтера — также без предупреждений).
 
 ### Тесты
 
@@ -412,7 +413,8 @@ npm test
 
 - **Перед любым изменением читать `AGENTS.md` целиком.** Архитектурные правила выше — не рекомендации, а контракт.
 - **Перед исправлением замечания аудита подтверждать его в коде.** Если файл/класс из аудита уже удалён или переименован, не создавать фантомную правку; зафиксировать фактический аналог или отметить пункт как неактуальный.
-- **Инкрементальность.** Менять не более одного слоя за коммит. Сломанный промежуточный коммит недопустим — `npm run compile` должен проходить после каждого коммита.
+- **Инкрементальность.** Менять не более одного слоя за коммит. Сломанный промежуточный коммит недопустим — после каждого коммита должны проходить `npm run compile` и **`npm run lint`**.
+- **ESLint.** После **каждого** изменения кода обязательно запускать **`npm run lint`** (из корня репозитория). Ослаблять правила или добавлять отключения в `eslint.config.mjs` ради «зелёной» проверки запрещено — устранять замечания в коде.
 - **Документация.** Публичные типы и функции — JSDoc на русском, объясняющий *зачем*. Мёртвые классы удалять, не помечать «deprecated».
 - **При затруднении** — проверить, не решается ли задача изменением таблицы `META_TYPES` или `PROPERTY_SCHEMAS`. В 90% случаев — да.
 - **Никакой автоинициативы** при встрече с legacy-кодом, не связанным с текущей задачей. Но если правишь функцию, которая лежит не по архитектуре — перенести её в правильный слой.
@@ -421,16 +423,17 @@ npm test
 
 - **Новый код — только в целевых папках.** Создание новых файлов в `src/` на верхнем уровне запрещено (кроме `Container.ts` и `extension.ts`).
 - Каталоги `src/handlers/`, `src/nodes/`, `src/services/`, `src/views/`, `src/language-server/` больше не существуют — не создавать их снова.
-- При переименовании/переносе файла: перенести `git mv`, обновить импорты во всех потребителях, проверить `npm run compile`.
+- При переименовании/переносе файла: перенести `git mv`, обновить импорты во всех потребителях, проверить `npm run compile` и `npm run lint`.
 - Запрещено создавать параллельные версии сервисов («v2»). Либо миграция завершена, либо файл не трогается.
 
 ### Sanity-чек после изменений
 
 1. `npm run compile` — 0 ошибок.
-2. `npm run build` — webpack собирается без ошибок.
-3. `rg "typeToFolder\s*:" src` — 0 результатов (карта папок только в `META_TYPES`).
-4. `rg "import .* from 'vscode'" src/domain src/infra` — 0 результатов.
-5. `rg "from ['\"].*cli|from ['\"].*/cli" src/domain src/infra` — 0 результатов.
-6. `rg "require\(|readFileSync" src/domain` — 0 результатов (`domain/` — чистый).
-7. `rg "FOLDER_MAP|ROOT_KIND_NAMES|CHILD_KIND_NAMES|FOLDER_RU" src` — 0 результатов, кроме явно утверждённого адаптера к внешнему API.
-8. `Get-ChildItem src -Directory` — в списке не должно быть ни одной из папок: `handlers`, `services`, `views`, `language`, `language-server`, `nodes`. Корректные подкаталоги первого уровня: `domain`, `infra`, `lsp`, `ui`, `cli`, `test` и файлы `Container.ts`, `extension.ts`.
+2. **`npm run lint`** — 0 ошибок и 0 предупреждений (`eslint.config.mjs`, `--max-warnings=0`).
+3. `npm run build` — webpack собирается без ошибок.
+4. `rg "typeToFolder\s*:" src` — 0 результатов (карта папок только в `META_TYPES`).
+5. `rg "import .* from 'vscode'" src/domain src/infra` — 0 результатов.
+6. `rg "from ['\"].*cli|from ['\"].*/cli" src/domain src/infra` — 0 результатов.
+7. `rg "require\(|readFileSync" src/domain` — 0 результатов (`domain/` — чистый).
+8. `rg "FOLDER_MAP|ROOT_KIND_NAMES|CHILD_KIND_NAMES|FOLDER_RU" src` — 0 результатов, кроме явно утверждённого адаптера к внешнему API.
+9. `Get-ChildItem src -Directory` — в списке не должно быть ни одной из папок: `handlers`, `services`, `views`, `language`, `language-server`, `nodes`. Корректные подкаталоги первого уровня: `domain`, `infra`, `lsp`, `ui`, `cli`, `test` и файлы `Container.ts`, `extension.ts`.
