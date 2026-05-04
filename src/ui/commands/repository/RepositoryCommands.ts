@@ -1,7 +1,7 @@
 ﻿import * as path from 'path';
 import * as vscode from 'vscode';
-import { RepositoryBinding, RepositoryNodeRef, RepositoryService, RepositoryTarget } from '../../../infra/repository/RepositoryService';
-import { CommandServices, NodeArg } from '../_shared';
+import type { RepositoryBinding, RepositoryNodeRef, RepositoryService, RepositoryTarget } from '../../../infra/repository/RepositoryService';
+import type { CommandServices, NodeArg } from '../_shared';
 import {
   runApplyDatabaseConfiguration,
   runDecompileExtension,
@@ -10,7 +10,7 @@ import {
   runUpdateMainConfiguration,
 } from '../ext/ExtensionCommandRunner';
 import {
-  RepositoryCliServices,
+  type RepositoryCliServices,
   runRepositoryCliCommand,
   runRepositoryCommitAction,
   runRepositoryLockAction,
@@ -74,7 +74,7 @@ export function registerRepositoryCommands(
         successMessage: `Конфигурация "${target.displayName}" подключена к хранилищу.`,
         errorTitle: `Ошибка подключения "${target.displayName}" к хранилищу.`,
         failureOperation: 'подключении к хранилищу',
-        afterSuccess: async () => {
+        afterSuccess: () => {
           services.repositoryService.saveBinding(target, validation.binding);
           services.repositoryService.setConnected(target, true);
           refreshRepositoryUi(services);
@@ -123,7 +123,7 @@ export function registerRepositoryCommands(
         successMessage: `Хранилище для "${target.displayName}" создано.`,
         errorTitle: `Ошибка создания хранилища для "${target.displayName}".`,
         failureOperation: 'создании хранилища',
-        afterSuccess: async () => {
+        afterSuccess: () => {
           services.repositoryService.saveBinding(target, validation.binding);
           services.repositoryService.setConnected(target, !formData.noBind);
           refreshRepositoryUi(services);
@@ -166,7 +166,7 @@ export function registerRepositoryCommands(
         successMessage: `Конфигурация "${target.displayName}" отключена от хранилища.`,
         errorTitle: `Ошибка отключения "${target.displayName}" от хранилища.`,
         failureOperation: 'отключении от хранилища',
-        afterSuccess: async () => {
+        afterSuccess: () => {
           services.repositoryService.clearBinding(target);
           refreshRepositoryUi(services);
         },
@@ -571,7 +571,7 @@ async function ensureTargetUpdatedBeforeCommit(
       id: 'update',
       label: '$(sync) Обновить и продолжить',
       description: 'Сначала загрузить локальные изменения в базу, затем выполнить помещение',
-      detail: `${changed.name}: изменённых файлов ${changed.changedFilesCount}`,
+      detail: `${changed.name}: изменённых файлов ${String(changed.changedFilesCount)}`,
     },
     {
       id: 'cancel',

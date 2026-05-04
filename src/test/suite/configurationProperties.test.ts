@@ -2,7 +2,7 @@ import * as assert from 'assert';
 import * as fs from 'fs';
 import * as path from 'path';
 import { buildConfigurationProperties } from '../../ui/views/properties/PropertyBuilder';
-import { EnumPropertyValue, MultiEnumPropertyValue } from '../../ui/views/properties/_types';
+import type { EnumPropertyValue, MultiEnumPropertyValue } from '../../ui/views/properties/_types';
 
 const EXAMPLE_CFE = path.resolve(__dirname, '../../../../example/cfe/EVOLC');
 const EXAMPLE_CF = path.resolve(__dirname, '../../../../example/cf');
@@ -36,8 +36,9 @@ suite('Properties — Configuration.xml', () => {
 
     const mobile = props.find((item) => item.key === 'UsedMobileApplicationFunctionalities');
     assert.ok(mobile, 'UsedMobileApplicationFunctionalities не найден');
-    assert.ok(String(mobile.value).includes('Биометрия: Да'));
-    assert.ok(String(mobile.value).includes('Местоположение: Нет'));
+    assert.strictEqual(mobile.kind, 'string');
+    assert.ok(typeof mobile.value === 'string' && mobile.value.includes('Биометрия: Да'));
+    assert.ok(typeof mobile.value === 'string' && mobile.value.includes('Местоположение: Нет'));
   });
 
   test('Показывает свойства расширения и список ролей по умолчанию', () => {

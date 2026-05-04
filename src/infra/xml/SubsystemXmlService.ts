@@ -2,7 +2,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { ConfigXmlReader } from './ConfigXmlReader';
 import { extractSimpleTag } from './XmlUtils';
-import { getMetaFolder, getMetaLabel, META_TYPES, MetaKind } from '../../domain/MetaTypes';
+import { getMetaFolder, getMetaLabel, META_TYPES, type MetaKind } from '../../domain/MetaTypes';
 
 export type SubsystemPropertyKey =
   | 'Name'
@@ -135,25 +135,26 @@ export class SubsystemXmlService {
 
   updateProperty(xmlPath: string, key: SubsystemPropertyKey, value: string | boolean): boolean {
     const xml = fs.readFileSync(xmlPath, 'utf-8');
-    let updated = xml;
-
-    if (key === 'PictureRef' || key === 'PictureLoadTransparent') {
-      const currentRef = key === 'PictureRef' ? String(value ?? '') : extractPictureRef(xml);
-      const currentTransparent = key === 'PictureLoadTransparent'
-        ? value === true
-        : extractPictureLoadTransparent(xml);
-      updated = replacePictureBlock(xml, currentRef, currentTransparent);
-    } else if (key === 'Synonym' || key === 'Explanation') {
-      updated = replacePropertyBlock(xml, key, buildLocalizedBlock(key, String(value ?? '')));
-    } else if (
-      key === 'IncludeHelpInContents' ||
-      key === 'IncludeInCommandInterface' ||
-      key === 'UseOneCommand'
-    ) {
-      updated = replacePropertyBlock(xml, key, `<${key}>${value === true ? 'true' : 'false'}</${key}>`);
-    } else {
-      updated = replacePropertyBlock(xml, key, `<${key}>${escapeXmlText(String(value ?? ''))}</${key}>`);
-    }
+    const updated = (() => {
+      if (key === 'PictureRef' || key === 'PictureLoadTransparent') {
+        const currentRef = key === 'PictureRef' ? String(value) : extractPictureRef(xml);
+        const currentTransparent = key === 'PictureLoadTransparent'
+          ? value === true
+          : extractPictureLoadTransparent(xml);
+        return replacePictureBlock(xml, currentRef, currentTransparent);
+      }
+      if (key === 'Synonym' || key === 'Explanation') {
+        return replacePropertyBlock(xml, key, buildLocalizedBlock(key, String(value)));
+      }
+      if (
+        key === 'IncludeHelpInContents' ||
+        key === 'IncludeInCommandInterface' ||
+        key === 'UseOneCommand'
+      ) {
+        return replacePropertyBlock(xml, key, `<${key}>${value === true ? 'true' : 'false'}</${key}>`);
+      }
+      return replacePropertyBlock(xml, key, `<${key}>${escapeXmlText(String(value))}</${key}>`);
+    })();
 
     if (updated === xml) {
       return false;
@@ -419,7 +420,7 @@ export class SubsystemXmlService {
 
 function buildObjectRefNodes(kind: MetaKind, names: string[]): MetadataRefTreeNode[] {
   return names.map((name, index) => ({
-    id: `${kind}.${name}.${index}`,
+    id: `${kind}.${name}.${String(index)}`,
     ref: `${kind}.${name}`,
     kind,
     label: name,

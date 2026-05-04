@@ -1,15 +1,14 @@
 import * as path from 'path';
 import * as fs from 'fs';
 import * as vscode from 'vscode';
-import { MetadataNode } from '../TreeNode';
+import type { MetadataNode } from '../TreeNode';
 import { buildNode } from '../nodes/_base';
 import { getNodeDescriptor } from '../nodes/index';
 import { extractSimpleTag, extractSynonym } from '../../../infra/xml';
-import {
+import type {
   HandlerContext,
   LocalizedStringValue,
   ObjectHandler,
-  ObjectPropertiesCollection,
 } from './_types';
 
 const FOLDER_NAME = 'Subsystems';
@@ -236,7 +235,7 @@ function safeReadFile(filePath: string): string {
 
 /** Извлекает имена дочерних подсистем из первой секции ChildObjects файла подсистемы */
 function extractChildSubsystems(xml: string): string[] {
-  const childBlockMatch = xml.match(/<ChildObjects>([\s\S]*?)<\/ChildObjects>/);
+  const childBlockMatch = /<ChildObjects>([\s\S]*?)<\/ChildObjects>/.exec(xml);
   if (!childBlockMatch) {
     return [];
   }
@@ -278,21 +277,21 @@ function extractLocalizedString(xml: string, tagName: string): LocalizedStringVa
 
 /** Возвращает ссылку на картинку подсистемы из Picture/xr:Ref */
 function extractPictureRef(xml: string): string {
-  const pictureSection = xml.match(/<Picture>([\s\S]*?)<\/Picture>/);
+  const pictureSection = /<Picture>([\s\S]*?)<\/Picture>/.exec(xml);
   if (!pictureSection) {
     return '';
   }
-  const refMatch = pictureSection[1].match(/<xr:Ref>([^<]*)<\/xr:Ref>/);
+  const refMatch = /<xr:Ref>([^<]*)<\/xr:Ref>/.exec(pictureSection[1]);
   return refMatch ? refMatch[1].trim() : '';
 }
 
 /** Возвращает признак загрузки прозрачного фона из Picture/xr:LoadTransparent */
 function extractPictureLoadTransparent(xml: string): boolean {
-  const pictureSection = xml.match(/<Picture>([\s\S]*?)<\/Picture>/);
+  const pictureSection = /<Picture>([\s\S]*?)<\/Picture>/.exec(xml);
   if (!pictureSection) {
     return false;
   }
-  const loadTransparentMatch = pictureSection[1].match(/<xr:LoadTransparent>([^<]*)<\/xr:LoadTransparent>/);
+  const loadTransparentMatch = /<xr:LoadTransparent>([^<]*)<\/xr:LoadTransparent>/.exec(pictureSection[1]);
   return (loadTransparentMatch?.[1] ?? '').trim().toLowerCase() === 'true';
 }
 

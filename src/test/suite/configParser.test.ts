@@ -49,7 +49,7 @@ suite('ConfigParser — объекты метаданных', () => {
     const info = parseObjectXml(xmlPath);
     assert.ok(info);
     const forms = info.children.filter((c) => c.tag === 'Form');
-    assert.ok(forms.length >= 2, `Ожидалось минимум 2 формы, найдено ${forms.length}`);
+    assert.ok(forms.length >= 2, `Ожидалось минимум 2 формы, найдено ${String(forms.length)}`);
     assert.ok(forms.some((f) => f.name === 'ФормаЗаказа'), 'Форма ФормаЗаказа не найдена');
   });
 

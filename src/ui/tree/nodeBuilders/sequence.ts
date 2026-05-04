@@ -1,10 +1,10 @@
-import { MetadataNode } from '../TreeNode';
+import type { MetadataNode } from '../TreeNode';
 import {
   buildTreeNodesForMetaKind,
   rootMetaObjectCanShowProperties,
   rootMetaObjectGetProperties,
 } from './metaObjectTreeBuilder';
-import { HandlerContext, ObjectHandler, ObjectPropertiesCollection } from './_types';
+import type { HandlerContext, ObjectHandler, ObjectPropertiesCollection } from './_types';
 
 // ---------------------------------------------------------------------------
 // Объект «Последовательность» (Sequence). Папка: Sequences.

@@ -202,7 +202,7 @@ export class RepositoryCommitViewProvider {
         <span>Выполнить помещение рекурсивно для подчинённых объектов.</span>
       </label>
       <label class="check">
-        <input id="keepLocked" type="checkbox">
+        <input id="keepLocked" type="checkbox"${initiallyLocked ? ' checked' : ''}>
         <span>Оставить объект захваченным после помещения.</span>
       </label>
       <label class="check">

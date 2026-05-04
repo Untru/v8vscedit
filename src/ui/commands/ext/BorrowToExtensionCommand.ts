@@ -1,13 +1,13 @@
 import * as path from 'path';
 import * as vscode from 'vscode';
-import { MetaKind } from '../../../domain/MetaTypes';
-import { ConfigEntry } from '../../../domain/Configuration';
+import type { MetaKind } from '../../../domain/MetaTypes';
+import type { ConfigEntry } from '../../../domain/Configuration';
 import { CfeBorrowService } from '../../../infra/cfe/CfeBorrowService';
-import { updateMetadataCacheAfterAdd, MetadataCacheAddTarget } from '../../../infra/cache/MetadataCache';
+import { updateMetadataCacheAfterAdd, type MetadataCacheAddTarget } from '../../../infra/cache/MetadataCache';
 import { getObjectLocationFromXml, resolveObjectXmlPath } from '../../../infra/fs/MetaPathResolver';
 import { parseConfigXml } from '../../../infra/xml';
 import { MetadataNode } from '../../tree/TreeNode';
-import { CommandServices, NodeArg } from '../_shared';
+import type { CommandServices, NodeArg } from '../_shared';
 
 /** Дочерние типы узлов дерева, для которых нужно заимствовать родительский объект */
 const CHILD_KINDS = new Set<string>([
@@ -176,9 +176,9 @@ async function runBorrow(
 ): Promise<void> {
   const extDir = extEntry.rootPath;
   const objectLabel = target.formName
-    ? `${target.typeName}.${target.objectName}.Form.${target.formName}`
+      ? `${target.typeName}.${target.objectName}.Form.${target.formName}`
     : target.childTag
-      ? `${target.typeName}.${target.objectName}.${target.childTag}.${target.childName}`
+      ? `${target.typeName}.${target.objectName}.${target.childTag}.${target.childName ?? ''}`
       : `${target.typeName}.${target.objectName}`;
 
   await vscode.window.withProgress(
@@ -279,7 +279,7 @@ function refreshBorrowedObjectCache(
     return true;
   } catch (cacheErr) {
     services.outputChannel.appendLine(
-      `[borrow][warn] Точечное обновление кэша не удалось, полная перезагрузка: ${cacheErr}`
+      `[borrow][warn] Точечное обновление кэша не удалось, полная перезагрузка: ${String(cacheErr)}`
     );
     return false;
   }
@@ -365,7 +365,7 @@ async function pickExtensionEntry(
  * Для большинства типов они совпадают, но MetaKind используется
  * в нижнем регистре для служебных узлов.
  */
-function metaKindToTypeName(kind: MetaKind | string): string | null {
+function metaKindToTypeName(kind: string): string | null {
   // Служебные и недоменные узлы не заимствуются
   const serviceKinds = new Set([
     'configuration', 'extension', 'extensions-root',

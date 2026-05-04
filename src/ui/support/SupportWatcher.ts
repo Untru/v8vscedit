@@ -1,7 +1,7 @@
 import * as path from 'path';
 import * as vscode from 'vscode';
-import { SupportInfoService } from '../../infra/support/SupportInfoService';
-import { SupportDecorationProvider } from '../tree/decorations/SupportDecorationProvider';
+import type { SupportInfoService } from '../../infra/support/SupportInfoService';
+import type { SupportDecorationProvider } from '../tree/decorations/SupportDecorationProvider';
 
 /**
  * Настраивает watcher за файлом `Ext/ParentConfigurations.bin`: при его

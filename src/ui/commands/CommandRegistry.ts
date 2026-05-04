@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { CommandServices } from './_shared';
+import type { CommandServices } from './_shared';
 import { registerDbCommands } from './db/DbCommands';
 import { registerBorrowToExtensionCommand } from './ext/BorrowToExtensionCommand';
 import { registerExtensionCommands } from './ext/ExtensionCommands';
@@ -23,7 +23,7 @@ export function registerCommands(
 ): void {
   context.subscriptions.push(
     vscode.commands.registerCommand('v8vscedit.refresh', () => {
-      services.reloadEntries();
+      void services.reloadEntries();
     })
   );
 

@@ -8,7 +8,7 @@ import {
   parseLocalizedStringSection,
 } from './MetadataXmlPropertiesService';
 import { buildMetadataTypeItem, parseMetadataType } from './MetadataTypeService';
-import {
+import type {
   EnumPropertyOption,
   EnumPropertyValue,
   MetadataTypeItem,
@@ -207,9 +207,6 @@ export class EventSubscriptionPropertyService {
     let intersection: Set<string> | null = null;
     for (const kind of expandedKinds) {
       const events = SOURCE_EVENTS[kind];
-      if (!events) {
-        continue;
-      }
       const current = new Set<string>(events);
       if (intersection === null) {
         intersection = current;
@@ -311,7 +308,7 @@ function resolveConfigurationXml(sourceXmlPath: string | undefined): string | nu
     return null;
   }
   let current = path.dirname(sourceXmlPath);
-  while (true) {
+  for (;;) {
     const cfg = path.join(current, 'Configuration.xml');
     if (fs.existsSync(cfg)) {
       return cfg;
@@ -345,22 +342,22 @@ function isEventSourceKind(kind: string): kind is EventSourceKind {
  * Функция живет рядом с правилами подписок, потому что набор Object/Manager/RecordSet
  * специфичен именно для свойства Source.
  */
-export function buildEventSourceItemsFromConfiguration(sourceXmlPath: string | undefined): Array<{
+export function buildEventSourceItemsFromConfiguration(sourceXmlPath: string | undefined): {
   id: string;
   title: string;
   items: MetadataTypeItem[];
-}> {
+}[] {
   const configXml = resolveConfigurationXml(sourceXmlPath);
   if (!configXml || !fs.existsSync(configXml)) {
     return [];
   }
   try {
     const cfg = parseConfigXml(configXml);
-    const groups: Array<{
+    const groups: {
       id: string;
       title: string;
-      sourceKinds: Array<{ childObjectKey: string; sourcePrefix: EventSourceKind }>;
-    }> = [
+      sourceKinds: { childObjectKey: string; sourcePrefix: EventSourceKind }[];
+    }[] = [
       { id: 'Catalog', title: 'Справочники', sourceKinds: [{ childObjectKey: 'Catalog', sourcePrefix: 'CatalogObject' }, { childObjectKey: 'Catalog', sourcePrefix: 'CatalogManager' }] },
       { id: 'Document', title: 'Документы', sourceKinds: [{ childObjectKey: 'Document', sourcePrefix: 'DocumentObject' }, { childObjectKey: 'Document', sourcePrefix: 'DocumentManager' }] },
       { id: 'Constant', title: 'Константы', sourceKinds: [{ childObjectKey: 'Constant', sourcePrefix: 'ConstantValueManager' }] },

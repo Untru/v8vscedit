@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
-import { MetadataNode } from '../../tree/TreeNode';
-import { CommandServices } from '../_shared';
+import type { MetadataNode } from '../../tree/TreeNode';
+import type { CommandServices } from '../_shared';
 
 /** Регистрирует команду показа панели свойств. */
 export function registerShowPropertiesCommand(

@@ -1,7 +1,7 @@
-import * as vscode from 'vscode';
+import type * as vscode from 'vscode';
 import type { MetadataGitDecorationTarget } from '../../../infra/git/GitMetadataStatusService';
-import { AddMetadataTarget, MetaTreeNodeContext, MetadataNode, NodeKind } from '../TreeNode';
-import { CommandId, NodeDescriptor } from './_types';
+import { type AddMetadataTarget, type MetaTreeNodeContext, MetadataNode, type NodeKind } from '../TreeNode';
+import type { CommandId, NodeDescriptor } from './_types';
 
 /** Параметры создания узла с применением дескриптора */
 export interface BuildNodeParams {

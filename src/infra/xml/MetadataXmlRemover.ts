@@ -1,9 +1,9 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import { ChildTag } from '../../domain/ChildTag';
-import { getMetaFolder, MetaKind } from '../../domain/MetaTypes';
+import type { ChildTag } from '../../domain/ChildTag';
+import { getMetaFolder, type MetaKind } from '../../domain/MetaTypes';
 import { getObjectLocationFromXml } from '../fs/ObjectLocation';
-import { ConfigurationXmlEditor, EditResult } from './ConfigurationXmlEditor';
+import { ConfigurationXmlEditor, type EditResult } from './ConfigurationXmlEditor';
 
 export interface MetadataReference {
   filePath: string;
@@ -83,7 +83,6 @@ export class MetadataXmlRemover {
     const flatXmlPath = path.join(typeDir, `${options.name}.xml`);
     const objectDir = path.join(typeDir, options.name);
     const deepXmlPath = path.join(objectDir, `${options.name}.xml`);
-    const xmlPath = fs.existsSync(deepXmlPath) ? deepXmlPath : flatXmlPath;
     const hasXml = fs.existsSync(flatXmlPath) || fs.existsSync(deepXmlPath);
     const hasDir = fs.existsSync(objectDir) && fs.statSync(objectDir).isDirectory();
 
@@ -106,7 +105,7 @@ export class MetadataXmlRemover {
         changed: false,
         changedFiles: [],
         warnings: [],
-        errors: [`Найдены ссылки на "${options.kind}.${options.name}": ${references.length}.`],
+        errors: [`Найдены ссылки на "${options.kind}.${options.name}": ${String(references.length)}.`],
         references,
       };
     }

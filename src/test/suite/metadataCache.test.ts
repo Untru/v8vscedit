@@ -1,8 +1,8 @@
 import * as assert from 'assert';
 import * as fs from 'fs';
 import * as path from 'path';
-import { ConfigEntry } from '../../domain/Configuration';
-import { buildMetadataCacheSnapshot, MetadataCacheNode } from '../../infra/cache/MetadataCache';
+import type { ConfigEntry } from '../../domain/Configuration';
+import { buildMetadataCacheSnapshot, type MetadataCacheNode } from '../../infra/cache/MetadataCache';
 import { getObjectLocationFromXml } from '../../infra/fs/MetaPathResolver';
 
 const EXAMPLE_CFE = path.resolve(process.cwd(), 'example/src/cfe/EVOLC');

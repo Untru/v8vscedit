@@ -6,24 +6,29 @@
 import * as path from 'path';
 import * as fs from 'fs';
 import * as vscode from 'vscode';
-import { MetaTreeNodeContext, MetadataNode, NodeKind } from '../TreeNode';
+import type { MetaTreeNodeContext, MetadataNode, NodeKind } from '../TreeNode';
 import { buildNode } from '../nodes/_base';
 import { getNodeDescriptor } from '../nodes/index';
-import { ChildTag, CHILD_TAG_CONFIG } from '../../../domain/ChildTag';
-import { MetaChild, parseObjectXml, resolveObjectXmlPath } from '../../../infra/xml';
+import type { NodeDescriptor } from '../nodes/_types';
+import { type ChildTag, CHILD_TAG_CONFIG } from '../../../domain/ChildTag';
+import { type MetaChild, parseObjectXml, resolveObjectXmlPath } from '../../../infra/xml';
 import { getObjectLocationFromXml } from '../../../infra/fs/MetaPathResolver';
 import { buildRootMetaObjectProperties } from '../../views/properties/PropertyBuilder';
 import { readInheritedObjectXmlForBorrowed } from '../../views/properties/BorrowedPropertiesResolver';
 import { enrichCommandInterfaceGroupOptions } from '../../views/properties/CommandInterfaceGroupOptions';
-import { HandlerContext, ObjectPropertiesCollection } from './_types';
+import type { HandlerContext, ObjectPropertiesCollection } from './_types';
+
+function requireNodeDescriptor(kind: NodeKind): NodeDescriptor {
+  return getNodeDescriptor(kind);
+}
 
 /** Строит плоский список узлов объекта без дочерней структуры ChildObjects */
 export function buildLeafObjectTreeNodes(ctx: HandlerContext, nodeKind: NodeKind): MetadataNode[] {
-  const descriptor = getNodeDescriptor(nodeKind)!;
+  const descriptor = requireNodeDescriptor(nodeKind);
 
   return ctx.names
     .map((name) => {
-      const xmlPath = resolveObjectXmlPath(ctx.configRoot, nodeKind as string, name) ?? undefined;
+      const xmlPath = resolveObjectXmlPath(ctx.configRoot, nodeKind, name) ?? undefined;
       if (!xmlPath) {
         return undefined;
       }
@@ -49,15 +54,15 @@ export function buildLeafObjectTreeNodes(ctx: HandlerContext, nodeKind: NodeKind
 
 /** Строит узлы объектов с иерархией по дескриптору (группы реквизитов, ТЧ, форм, …) */
 export function buildStructuredObjectTreeNodes(ctx: HandlerContext, nodeKind: NodeKind): MetadataNode[] {
-  const descriptor = getNodeDescriptor(nodeKind)!;
-  const plannedChildTags = descriptor.children!;
+  const descriptor = requireNodeDescriptor(nodeKind);
+  const plannedChildTags = descriptor.children ?? [];
   if (!plannedChildTags.length) {
     return [];
   }
 
   return ctx.names
     .map((name) => {
-      const xmlPath = resolveObjectXmlPath(ctx.configRoot, nodeKind as string, name) ?? undefined;
+      const xmlPath = resolveObjectXmlPath(ctx.configRoot, nodeKind, name) ?? undefined;
       if (!xmlPath) {
         return undefined;
       }
@@ -98,7 +103,7 @@ export function buildStructuredObjectTreeNodes(ctx: HandlerContext, nodeKind: No
  * без `children` — плоский список файлов объектов, иначе — группы по ChildObjects.
  */
 export function buildTreeNodesForMetaKind(ctx: HandlerContext, nodeKind: NodeKind): MetadataNode[] {
-  const descriptor = getNodeDescriptor(nodeKind)!;
+  const descriptor = requireNodeDescriptor(nodeKind);
   if (!descriptor.folderName) {
     return [];
   }
@@ -138,10 +143,12 @@ export function groupMetaChildren(children: MetaChild[], allowed: Set<string>): 
     if (!allowed.has(ch.tag)) {
       continue;
     }
-    if (!map.has(ch.tag)) {
-      map.set(ch.tag, []);
+    const group = map.get(ch.tag);
+    if (group) {
+      group.push(ch);
+    } else {
+      map.set(ch.tag, [ch]);
     }
-    map.get(ch.tag)!.push(ch);
   }
   return map;
 }
@@ -157,7 +164,7 @@ export function buildGroupNodes(
   rootMetaKind: NodeKind
 ): MetadataNode[] {
   const groups: MetadataNode[] = [];
-  const groupDesc = getNodeDescriptor('group-type')!;
+  const groupDesc = requireNodeDescriptor('group-type');
 
   for (const tag of plannedChildTags) {
     const items = byTag.get(tag) ?? [];
@@ -196,7 +203,7 @@ export function buildLeavesForTag(
     return items.map((ts) => buildTabularSectionNode(objectXmlPath, ts, rootMetaKind));
   }
 
-  const leafDesc = getNodeDescriptor(CHILD_TAG_CONFIG[tag].kind)!;
+  const leafDesc = requireNodeDescriptor(CHILD_TAG_CONFIG[tag].kind);
 
   return items.map((item) => {
     const xmlPath = resolveLeafXmlPath(objectXmlPath, tag, item.name);
@@ -223,7 +230,7 @@ export function buildLeavesForTag(
 
 /** Табличная часть: при наличии колонок — раскрывается до узлов Column */
 export function buildTabularSectionNode(objectXmlPath: string, ts: MetaChild, rootMetaKind: NodeKind): MetadataNode {
-  const tsDesc = getNodeDescriptor('TabularSection')!;
+  const tsDesc = requireNodeDescriptor('TabularSection');
   const columns = ts.columns ?? [];
   const hasColumns = columns.length > 0;
   const metaContext: MetaTreeNodeContext = { rootMetaKind, ownerObjectXmlPath: objectXmlPath };
@@ -251,7 +258,7 @@ export function buildColumnNodes(
   tabularSectionName: string,
   rootMetaKind: NodeKind
 ): MetadataNode[] {
-  const colDesc = getNodeDescriptor('Column')!;
+  const colDesc = requireNodeDescriptor('Column');
   const metaContext: MetaTreeNodeContext = {
     rootMetaKind,
     tabularSectionName,

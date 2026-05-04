@@ -1,5 +1,5 @@
 import * as path from 'path';
-import { ConfigEntry } from '../../domain/Configuration';
+import type { ConfigEntry } from '../../domain/Configuration';
 import { parseConfigXml } from '../xml';
 import {
   buildHashSnapshot,

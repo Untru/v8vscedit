@@ -1,7 +1,7 @@
 import * as fs from 'fs';
 import { buildConfigurationProperties } from '../../views/properties/PropertyBuilder';
-import { MetadataNode } from '../TreeNode';
-import { ObjectHandler, ObjectPropertiesCollection } from './_types';
+import type { MetadataNode } from '../TreeNode';
+import type { ObjectHandler, ObjectPropertiesCollection } from './_types';
 
 /** Свойства корня выгрузки: основной конфигурации или расширения. */
 export const configurationHandler: ObjectHandler = {

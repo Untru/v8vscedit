@@ -1,6 +1,6 @@
-import { MetadataNode, NodeKind } from '../TreeNode';
+import type { MetadataNode, NodeKind } from '../TreeNode';
 import { createLeafMetaObjectHandler } from './createLeafMetaObjectHandler';
-import { ObjectHandler } from './_types';
+import type { ObjectHandler } from './_types';
 import { accountingRegisterHandler } from './accountingRegister';
 import { accumulationRegisterHandler } from './accumulationRegister';
 import { botHandler } from './bot';

@@ -2,7 +2,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { runProcess } from '../process';
-import { Logger } from '../support/Logger';
+import type { Logger } from '../support/Logger';
 
 export const AI_SKILLS_REPOSITORY_URL = 'https://github.com/Nikolay-Shirokov/cc-1c-skills.git';
 
@@ -84,7 +84,7 @@ export class AiSkillsInstaller {
     if (fs.existsSync(targetDir)) {
       const existing = scanSkills(targetDir);
       if (existing.length > 0) {
-        this.logger.appendLine(`[ai-skills] В ${options.platform.targetPrefix}/ уже есть ${existing.length} скилов. Обновляю.`);
+        this.logger.appendLine(`[ai-skills] В ${options.platform.targetPrefix}/ уже есть ${String(existing.length)} скилов. Обновляю.`);
       }
       fs.rmSync(targetDir, { recursive: true, force: true });
     }
@@ -96,7 +96,7 @@ export class AiSkillsInstaller {
     const warnings: string[] = [];
     let installedCount = 0;
 
-    this.logger.appendLine(`[ai-skills] Копирование ${skills.length} скилов в ${options.platform.targetPrefix}/`);
+    this.logger.appendLine(`[ai-skills] Копирование ${String(skills.length)} скилов в ${options.platform.targetPrefix}/`);
     for (const skillName of skills) {
       const srcSkill = path.join(srcDir, skillName);
       const dstSkill = path.join(targetDir, skillName);
@@ -143,7 +143,7 @@ export class AiSkillsInstaller {
     });
 
     if (result.exitCode !== 0) {
-      const details = result.lastStderr || result.lastStdout || `код завершения ${result.exitCode}`;
+      const details = result.lastStderr || result.lastStdout || `код завершения ${String(result.exitCode)}`;
       throw new Error(`Не удалось клонировать репозиторий скилов: ${details}`);
     }
   }

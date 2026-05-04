@@ -1,6 +1,6 @@
-import { ChildTag, CHILD_TAG_CONFIG as DOMAIN_CHILD_TAG_CONFIG } from '../../../domain/ChildTag';
-import { OpenModuleCommandId } from '../../../domain/ModuleSlot';
-import { NodeKind } from '../TreeNode';
+import { type ChildTag, CHILD_TAG_CONFIG as DOMAIN_CHILD_TAG_CONFIG } from '../../../domain/ChildTag';
+import type { OpenModuleCommandId } from '../../../domain/ModuleSlot';
+import type { NodeKind } from '../TreeNode';
 
 /**
  * Описание статических свойств типа узла дерева.
@@ -16,7 +16,7 @@ export interface NodeDescriptor {
   /** Имя папки в выгрузке конфигурации (Catalogs, Documents, ...), если применимо */
   folderName?: string;
   /** Поддерживаемые дочерние теги XML */
-  children?: ReadonlyArray<ChildTag>;
+  children?: readonly ChildTag[];
   /** Команда по одиночному клику по узлу, если задана */
   singleClickCommand?: OpenModuleCommandId;
 }

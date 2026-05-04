@@ -79,7 +79,7 @@ export function parseV8iContent(content: string, sourcePath: string): Registered
     const parsedConnection = parseConnectionString(connection);
     const order = Number.parseInt(section.values.get('orderinlist') ?? '', 10);
     return {
-      id: `${sourcePath}#${index}`,
+      id: `${sourcePath}#${String(index)}`,
       name: section.name,
       kind: parsedConnection.kind,
       connection: buildEnvConnection(parsedConnection),
@@ -230,8 +230,7 @@ function parseSemicolonProperties(value: string): Map<string, string> {
     readingKey = true;
   };
 
-  for (let i = 0; i < value.length; i += 1) {
-    const char = value[i];
+  for (const char of value) {
     if (char === '"') {
       quoted = !quoted;
       current += char;
@@ -273,8 +272,7 @@ function splitConfigList(value: string): string[] {
   let current = '';
   let quoted = false;
 
-  for (let i = 0; i < value.length; i += 1) {
-    const char = value[i];
+  for (const char of value) {
     if (char === '"') {
       quoted = !quoted;
       continue;

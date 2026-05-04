@@ -1,15 +1,15 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs';
 import { getMetaIcon } from '../../../domain/MetaTypes';
-import {
+import type {
   MetadataRefTreeNode,
   SubsystemEditorSnapshot,
   SubsystemPropertyKey,
   SubsystemXmlService,
 } from '../../../infra/xml/SubsystemXmlService';
-import { RepositoryService } from '../../../infra/repository/RepositoryService';
-import { SupportInfoService, SupportMode } from '../../../infra/support/SupportInfoService';
-import { MetadataNode } from '../../tree/TreeNode';
+import type { RepositoryService } from '../../../infra/repository/RepositoryService';
+import { type SupportInfoService, SupportMode } from '../../../infra/support/SupportInfoService';
+import type { MetadataNode } from '../../tree/TreeNode';
 
 type SubsystemEditorMessage =
   | { type: 'propertyChanged'; key: SubsystemPropertyKey; value: string | boolean }
@@ -416,7 +416,7 @@ export class SubsystemEditorViewProvider implements vscode.Disposable {
       <section class="panel" data-panel="content">
         <section class="card header">
           <h1>Состав</h1>
-          <p class="subtitle" id="contentSummary">${snapshot.subsystem.contentRefs.length} из ${availableCount}</p>
+          <p class="subtitle" id="contentSummary">${String(snapshot.subsystem.contentRefs.length)} из ${String(availableCount)}</p>
         </section>
         <section class="card grid">
           <input id="contentFilter" type="search" placeholder="Фильтр" autocomplete="off">
@@ -515,7 +515,7 @@ export class SubsystemEditorViewProvider implements vscode.Disposable {
         <div>
           <div class="tree-title">
             <span>Все объекты</span>
-            <span class="counter" id="availableCounter">${availableCount}</span>
+            <span class="counter" id="availableCounter">${String(availableCount)}</span>
           </div>
           <div class="tree-box" id="availableContent" data-drop-tree="available">
             ${this.renderContentTree(snapshot.contentTree, contentRefs, 'available', webview, isLocked)}
@@ -528,7 +528,7 @@ export class SubsystemEditorViewProvider implements vscode.Disposable {
         <div>
           <div class="tree-title">
             <span>Входящие в подсистему объекты</span>
-            <span class="counter" id="selectedCounter">${snapshot.subsystem.contentRefs.length}</span>
+            <span class="counter" id="selectedCounter">${String(snapshot.subsystem.contentRefs.length)}</span>
           </div>
           <div class="tree-box" id="selectedContent" data-drop-tree="selected">
             ${selectedTree.length > 0
@@ -576,7 +576,7 @@ export class SubsystemEditorViewProvider implements vscode.Disposable {
     const icon = node.kind ? getMetaIcon(node.kind) : 'folder';
     const lightUri = webview.asWebviewUri(vscode.Uri.joinPath(this.extensionUri, 'src', 'icons', 'light', `${icon}.svg`));
     const darkUri = webview.asWebviewUri(vscode.Uri.joinPath(this.extensionUri, 'src', 'icons', 'dark', `${icon}.svg`));
-    return `<picture><source srcset="${lightUri}" media="(prefers-color-scheme: light)"><img class="tree-icon" src="${darkUri}" alt=""></picture>`;
+    return `<picture><source srcset="${String(lightUri)}" media="(prefers-color-scheme: light)"><img class="tree-icon" src="${String(darkUri)}" alt=""></picture>`;
   }
 
   private renderScript(snapshot: SubsystemEditorSnapshot, isLocked: boolean): string {
@@ -833,26 +833,28 @@ export class SubsystemEditorViewProvider implements vscode.Disposable {
       if (!xmlPath) {
         return;
       }
-      let changed = false;
-      let contentChanged = false;
-      if (msg.type === 'propertyChanged') {
-        changed = this.xmlService.updateProperty(xmlPath, msg.key, msg.value);
-      } else if (msg.type === 'addContent') {
-        changed = this.xmlService.addContentRefs(xmlPath, msg.refs);
-        contentChanged = changed;
-      } else if (msg.type === 'removeContent') {
-        changed = this.xmlService.removeContentRefs(xmlPath, msg.refs);
-        contentChanged = changed;
-      } else if (msg.type === 'addChild') {
-        changed = this.xmlService.addChildSubsystem(xmlPath, msg.name);
-      } else if (msg.type === 'removeChild') {
-        changed = this.xmlService.removeChildSubsystem(xmlPath, msg.name);
-      }
+      const result = (() => {
+        if (msg.type === 'propertyChanged') {
+          return { changed: this.xmlService.updateProperty(xmlPath, msg.key, msg.value), contentChanged: false };
+        }
+        if (msg.type === 'addContent') {
+          const changed = this.xmlService.addContentRefs(xmlPath, msg.refs);
+          return { changed, contentChanged: changed };
+        }
+        if (msg.type === 'removeContent') {
+          const changed = this.xmlService.removeContentRefs(xmlPath, msg.refs);
+          return { changed, contentChanged: changed };
+        }
+        if (msg.type === 'addChild') {
+          return { changed: this.xmlService.addChildSubsystem(xmlPath, msg.name), contentChanged: false };
+        }
+        return { changed: this.xmlService.removeChildSubsystem(xmlPath, msg.name), contentChanged: false };
+      })();
 
-      if (changed) {
+      if (result.changed) {
         this.onAfterChange?.(xmlPath);
         if (this.panel && this.activeNode) {
-          if (contentChanged) {
+          if (result.contentChanged) {
             await this.panel.webview.postMessage(this.buildContentChangedMessage(xmlPath, this.panel.webview));
           } else {
             this.panel.webview.html = this.renderHtml(this.activeNode, this.panel.webview);
@@ -885,7 +887,7 @@ export class SubsystemEditorViewProvider implements vscode.Disposable {
       selectedHtml,
       availableCount,
       selectedCount: snapshot.subsystem.contentRefs.length,
-      summary: `${snapshot.subsystem.contentRefs.length} из ${availableCount}`,
+      summary: `${String(snapshot.subsystem.contentRefs.length)} из ${String(availableCount)}`,
     };
   }
 

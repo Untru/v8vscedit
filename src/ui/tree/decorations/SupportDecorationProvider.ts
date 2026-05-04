@@ -3,6 +3,17 @@ import { SupportMode } from '../../../infra/support/SupportInfoService';
 
 export const SUPPORT_SCHEME = 'onec-support';
 
+/** Преобразует числовой суффикс URI `onec-support:///<n>` в {@link SupportMode} без небезопасного сравнения enum с number. */
+function supportModeFromPathSegment(segment: string): SupportMode {
+  const n = Number.parseInt(segment.replace(/^\//, ''), 10);
+  const table: Record<number, SupportMode> = {
+    [SupportMode.None]: SupportMode.None,
+    [SupportMode.Editable]: SupportMode.Editable,
+    [SupportMode.Locked]: SupportMode.Locked,
+  };
+  return table[n] ?? SupportMode.None;
+}
+
 /**
  * Поставщик файловых украшений для дерева метаданных.
  * Управляет отображением состояния поддержки объектов:
@@ -26,7 +37,7 @@ export class SupportDecorationProvider implements vscode.FileDecorationProvider 
   provideFileDecoration(uri: vscode.Uri): vscode.FileDecoration | undefined {
     if (uri.scheme !== SUPPORT_SCHEME) { return undefined; }
 
-    const mode = parseInt(uri.path.replace(/^\//, ''), 10) as SupportMode;
+    const mode = supportModeFromPathSegment(uri.path);
 
     switch (mode) {
       case SupportMode.None:
@@ -56,7 +67,7 @@ export class SupportDecorationProvider implements vscode.FileDecorationProvider 
 
   /** Создаёт URI, кодирующий режим поддержки для использования в resourceUri узла дерева */
   static makeUri(mode: SupportMode): vscode.Uri {
-    return vscode.Uri.parse(`${SUPPORT_SCHEME}:///${mode}`);
+    return vscode.Uri.parse(`${SUPPORT_SCHEME}:///${String(mode)}`);
   }
 
   dispose(): void {

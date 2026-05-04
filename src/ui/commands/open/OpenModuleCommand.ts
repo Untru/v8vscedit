@@ -11,7 +11,7 @@ import {
   getServiceModulePath,
 } from '../../../infra/fs/MetaPathResolver';
 import { MetadataNode } from '../../tree/TreeNode';
-import { CommandServices, NodeArg } from '../_shared';
+import type { CommandServices, NodeArg } from '../_shared';
 import { setEditorReadonly } from './OpenXmlCommand';
 
 /** Регистрирует команды открытия BSL-модулей для всех слотов. */

@@ -1,7 +1,7 @@
 import * as crypto from 'crypto';
 import * as fs from 'fs';
 import * as path from 'path';
-import { META_TYPES, MetaKind, getMetaFolder } from '../../domain/MetaTypes';
+import { META_TYPES, type MetaKind, getMetaFolder } from '../../domain/MetaTypes';
 import { ConfigurationXmlEditor } from '../xml/ConfigurationXmlEditor';
 import {
   extractChildMetaElementXml,
@@ -614,7 +614,7 @@ export class CfeBorrowService {
 
   private buildInternalInfo(typeName: string, objectName: string): string {
     const types = GENERATED_TYPES[typeName];
-    if (!types?.length) {
+    if (types.length === 0) {
       return '\t\t<InternalInfo/>';
     }
 

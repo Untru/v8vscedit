@@ -1,9 +1,9 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
-import { AI_SKILLS_PLATFORMS, AiSkillsPlatform, AiSkillsRuntime } from '../../../infra/skills/AiSkillsInstaller';
+import { AI_SKILLS_PLATFORMS, type AiSkillsPlatform, type AiSkillsRuntime } from '../../../infra/skills/AiSkillsInstaller';
 import { runProcess } from '../../../infra/process';
-import { CommandServices } from '../_shared';
+import type { CommandServices } from '../_shared';
 
 interface PlatformPickItem extends vscode.QuickPickItem {
   readonly platform: AiSkillsPlatform;
@@ -92,7 +92,7 @@ export function registerInstallAiSkillsCommand(
           ? ' Есть замечания в журнале.'
           : '';
         await vscode.window.showInformationMessage(
-          `Установлено скилов: ${result.installedCount}. Каталог: ${result.targetPrefix}/.${warningSuffix}`
+          `Установлено скилов: ${String(result.installedCount)}. Каталог: ${result.targetPrefix}/.${warningSuffix}`
         );
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);

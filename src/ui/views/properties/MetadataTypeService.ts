@@ -1,4 +1,4 @@
-import {
+import type {
   MetadataDateQualifiers,
   MetadataNumberQualifiers,
   MetadataStringQualifiers,
@@ -45,7 +45,7 @@ const DISPLAY_BY_CANONICAL: Record<string, string> = {
   DataProcessorManager: 'ОбработкаМенеджер',
 };
 
-const REF_PREFIXES: Array<{ canonical: string; display: string }> = [
+const REF_PREFIXES: { canonical: string; display: string }[] = [
   { canonical: 'CatalogRef.', display: 'СправочникСсылка.' },
   { canonical: 'DocumentRef.', display: 'ДокументСсылка.' },
   { canonical: 'EnumRef.', display: 'ПеречислениеСсылка.' },
@@ -170,14 +170,14 @@ export function buildMetadataTypeInnerXml(typeValue: MetadataTypeValue): string 
 
   if (effective.numberQualifiers) {
     lines.push('<v8:NumberQualifiers>');
-    lines.push(`<v8:Digits>${effective.numberQualifiers.digits ?? 10}</v8:Digits>`);
-    lines.push(`<v8:FractionDigits>${effective.numberQualifiers.fractionDigits ?? 0}</v8:FractionDigits>`);
+    lines.push(`<v8:Digits>${String(effective.numberQualifiers.digits ?? 10)}</v8:Digits>`);
+    lines.push(`<v8:FractionDigits>${String(effective.numberQualifiers.fractionDigits ?? 0)}</v8:FractionDigits>`);
     lines.push(`<v8:AllowedSign>${effective.numberQualifiers.allowedSign ?? 'Any'}</v8:AllowedSign>`);
     lines.push('</v8:NumberQualifiers>');
   }
   if (effective.stringQualifiers) {
     lines.push('<v8:StringQualifiers>');
-    lines.push(`<v8:Length>${effective.stringQualifiers.length ?? 10}</v8:Length>`);
+    lines.push(`<v8:Length>${String(effective.stringQualifiers.length ?? 10)}</v8:Length>`);
     lines.push(`<v8:AllowedLength>${effective.stringQualifiers.allowedLength ?? 'Variable'}</v8:AllowedLength>`);
     lines.push('</v8:StringQualifiers>');
   }

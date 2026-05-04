@@ -1,8 +1,6 @@
-import { NodeKind } from '../TreeNode';
-import { NodeDescriptor } from './_types';
-import { ChildTag } from '../../../domain/ChildTag';
-import { META_TYPES, MetaKind } from '../../../domain/MetaTypes';
-import { OpenModuleCommandId } from '../../../domain/ModuleSlot';
+import type { NodeKind } from '../TreeNode';
+import type { NodeDescriptor } from './_types';
+import { META_TYPES } from '../../../domain/MetaTypes';
 
 /**
  * Описание типа узла дерева вычисляется из единого реестра `META_TYPES`
@@ -13,15 +11,12 @@ import { OpenModuleCommandId } from '../../../domain/ModuleSlot';
  *
  * Добавление нового типа метаданных теперь сводится к одной записи в `META_TYPES`.
  */
-export function getNodeDescriptor(kind: NodeKind): NodeDescriptor | undefined {
-  const def = META_TYPES[kind as MetaKind];
-  if (!def) {
-    return undefined;
-  }
+export function getNodeDescriptor(kind: NodeKind): NodeDescriptor {
+  const def = META_TYPES[kind];
   return {
     icon: def.icon,
     folderName: def.folder,
-    children: def.childTags as ReadonlyArray<ChildTag> | undefined,
-    singleClickCommand: def.singleClickCommand as OpenModuleCommandId | undefined,
+    children: def.childTags,
+    singleClickCommand: def.singleClickCommand,
   };
 }

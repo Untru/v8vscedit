@@ -5,12 +5,11 @@ import { buildNode } from '../nodes/_base';
 import { getNodeDescriptor } from '../nodes/index';
 import { getMetaFolder } from '../../../domain/MetaTypes';
 import { extractSimpleTag } from '../../../infra/xml';
-import {
+import type {
   EnumPropertyOption,
   HandlerContext,
   LocalizedStringValue,
   ObjectHandler,
-  ObjectPropertiesCollection,
 } from './_types';
 
 // ---------------------------------------------------------------------------

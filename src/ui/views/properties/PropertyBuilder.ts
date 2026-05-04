@@ -1,5 +1,5 @@
-import { NodeKind } from '../../tree/TreeNode';
-import {
+import type { NodeKind } from '../../tree/TreeNode';
+import type {
   EnumPropertyOption,
   EnumPropertyValue,
   LocalizedStringValue,
@@ -12,7 +12,7 @@ import { extractSimpleTag } from '../../../infra/xml';
 import {
   getTypedFieldPropertyKeys,
   isTypedFieldControlledPropertyKey,
-  TypeAwarePropertyOwnerKind,
+  type TypeAwarePropertyOwnerKind,
 } from '../../../infra/xml/TypedFieldPropertyRules';
 import { parseMetadataType } from './MetadataTypeService';
 import { extractFirstBalancedBlock, extractTopLevelPropertiesChildren } from './MetadataXmlPropertiesService';
@@ -869,7 +869,7 @@ export function getRootPropertyKeyOrder(rootMetaKind: NodeKind): string[] {
 
 /** Извлекает внутренность первого блока Properties корневого тега объекта (Catalog, ExchangePlan, …) */
 export function extractRootObjectPropertiesInnerXml(fullXml: string): string | null {
-  const rootMatch = fullXml.match(/<MetaDataObject[^>]*>\s*<([A-Za-z][A-Za-z0-9]*)\b/);
+  const rootMatch = /<MetaDataObject[^>]*>\s*<([A-Za-z][A-Za-z0-9]*)\b/.exec(fullXml);
   const rootTag = rootMatch?.[1];
   if (!rootTag) {
     return null;
@@ -880,7 +880,7 @@ export function extractRootObjectPropertiesInnerXml(fullXml: string): string | n
 }
 
 function extractRootObjectElementXml(fullXml: string): string | null {
-  const rootMatch = fullXml.match(/<MetaDataObject[^>]*>\s*<([A-Za-z][A-Za-z0-9]*)\b/);
+  const rootMatch = /<MetaDataObject[^>]*>\s*<([A-Za-z][A-Za-z0-9]*)\b/.exec(fullXml);
   const rootTag = rootMatch?.[1];
   if (!rootTag) {
     return null;
@@ -977,6 +977,41 @@ function ensureSelectedOptions(options: readonly EnumPropertyOption[], selected:
 }
 
 /**
+ * Нормализует значение простого тега; вынесено из цикла, чтобы параметр не сужался CFA до только `undefined`.
+ */
+function coalesceSimpleTagText(simple: string | undefined): string {
+  return simple ?? '';
+}
+
+/**
+ * Собирает строковое свойство из простого тега и/или вложенного XML.
+ * Параметр {@code simple} передаётся явно как {@code string | undefined}, без ложного сужения из цикла.
+ */
+function tryBuildScalarStringPropertyItem(params: {
+  key: string;
+  propsInner: string;
+  simple: string | undefined;
+  complexInner: string | undefined;
+}): ObjectPropertyItem | null {
+  const { key, propsInner, simple, complexInner } = params;
+  if (simple === undefined && complexInner === undefined && !hasSelfClosingProperty(propsInner, key)) {
+    return null;
+  }
+  return {
+    key,
+    title: propertyTitle(key),
+    kind: 'string',
+    value:
+      simple === undefined
+        ? complexInner === undefined
+          ? ''
+          : formatReadonlyXmlProperty(key, complexInner)
+        : formatPropertyDisplayValue(simple),
+    readonly: simple === undefined && Boolean(complexInner?.trim().includes('<')),
+  };
+}
+
+/**
  * Строит список свойств из XML-текста блока {@code Properties} (или целого фрагмента элемента).
  */
 export function buildPropertyItemsForKeys(
@@ -1049,12 +1084,12 @@ export function buildPropertyItemsForKeys(
       continue;
     }
 
-    const enumOptions = ENUM_PROPERTY_OPTIONS[key];
+    const enumOptions = ENUM_PROPERTY_OPTIONS[key] as readonly EnumPropertyOption[] | undefined;
     if (enumOptions) {
-      const current = rawSimpleValue ?? '';
       if (!propsInner.includes(`<${key}>`)) {
         continue;
       }
+      const current = coalesceSimpleTagText(rawSimpleValue);
       items.push({
         key,
         title: propertyTitle(key),
@@ -1064,20 +1099,16 @@ export function buildPropertyItemsForKeys(
       continue;
     }
 
-    const raw = rawSimpleValue;
-    const complexInner = childrenByTag.get(key);
-    if (raw === undefined && complexInner === undefined && !hasSelfClosingProperty(propsInner, key)) {
+    const scalarString = tryBuildScalarStringPropertyItem({
+      key,
+      propsInner,
+      simple: rawSimpleValue,
+      complexInner: childrenByTag.get(key),
+    });
+    if (!scalarString) {
       continue;
     }
-    items.push({
-      key,
-      title: propertyTitle(key),
-      kind: 'string',
-      value: raw === undefined
-        ? complexInner === undefined ? '' : formatReadonlyXmlProperty(key, complexInner)
-        : formatPropertyDisplayValue(raw),
-      readonly: raw === undefined && complexInner !== undefined && complexInner.trim().includes('<'),
-    });
+    items.push(scalarString);
   }
 
   return items;
@@ -1182,7 +1213,7 @@ export function buildTypeAwareRootProperties(
   inheritedElementFullXml: string | null | undefined,
   kind: 'Constant' | 'CommonAttribute'
 ): ObjectPropertiesCollection {
-  const keySource = elementFullXml || inheritedElementFullXml || '';
+  const keySource = elementFullXml || (inheritedElementFullXml ?? '');
   return buildEffectivePropertyItemsForKeys(
     elementFullXml,
     inheritedElementFullXml,
@@ -1263,26 +1294,28 @@ export function buildConfigurationProperties(fullConfigXml: string): ObjectPrope
       continue;
     }
 
-    const enumOptions = ENUM_PROPERTY_OPTIONS[key];
+    const enumOptions = ENUM_PROPERTY_OPTIONS[key] as readonly EnumPropertyOption[] | undefined;
     if (enumOptions) {
       result.push({
         key,
         title: propertyTitle(key),
         kind: 'enum',
-        value: buildEnumValueForKey(key, (rawSimpleValue ?? '').trim(), [...enumOptions]),
+        value: buildEnumValueForKey(key, coalesceSimpleTagText(rawSimpleValue).trim(), [...enumOptions]),
       });
       continue;
     }
 
     const inner = byTag.get(key) ?? '';
-    const raw = rawSimpleValue;
-    result.push({
+    const configString = tryBuildScalarStringPropertyItem({
       key,
-      title: propertyTitle(key),
-      kind: 'string',
-      value: raw === undefined ? formatReadonlyXmlProperty(key, inner) : formatPropertyDisplayValue(raw),
-      readonly: raw === undefined && inner.trim().includes('<'),
+      propsInner: propertiesInner,
+      simple: rawSimpleValue,
+      complexInner: inner,
     });
+    if (!configString) {
+      continue;
+    }
+    result.push(configString);
   }
 
   return result;
@@ -1293,7 +1326,7 @@ export function buildTypedFieldProperties(
   elementFullXml: string,
   inheritedElementFullXml?: string | null
 ): ObjectPropertiesCollection {
-  const keySource = elementFullXml || inheritedElementFullXml || '';
+  const keySource = elementFullXml || (inheritedElementFullXml ?? '');
   return buildEffectivePropertyItemsForKeys(elementFullXml, inheritedElementFullXml, getTypedFieldPropertyKeyOrder(keySource), {
     elementXmlForType: elementFullXml,
     inheritedElementXmlForType: inheritedElementFullXml ?? undefined,
@@ -1473,7 +1506,7 @@ function arePropertyItemsEquivalent(left: ObjectPropertyItem, right: ObjectPrope
       return areMetadataTypesEquivalent(left.value as MetadataTypeValue, right.value as MetadataTypeValue);
     case 'string':
     default:
-      return normalizeScalarValue(String(left.value ?? '')) === normalizeScalarValue(String(right.value ?? ''));
+      return normalizeScalarValue(left.value as string) === normalizeScalarValue(right.value as string);
   }
 }
 
@@ -1494,7 +1527,7 @@ function areLocalizedValuesEquivalent(left: LocalizedStringValue, right: Localiz
     return false;
   }
   return left.values.every((item, index) => {
-    const other = right.values[index];
+    const other = right.values.at(index);
     return item.lang === other?.lang && normalizeScalarValue(item.content) === normalizeScalarValue(other.content);
   });
 }

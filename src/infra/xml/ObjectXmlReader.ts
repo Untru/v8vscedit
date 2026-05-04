@@ -1,6 +1,6 @@
 import * as fs from 'fs';
 import { XMLParser } from 'fast-xml-parser';
-import { MetaChild, MetaObject } from '../../domain/MetaObject';
+import type { MetaChild, MetaObject } from '../../domain/MetaObject';
 import {
   extractChildMetaElementXml,
   extractColumnXmlFromTabularSection,
@@ -10,8 +10,8 @@ import {
 } from './XmlUtils';
 import { normalizeTypedFieldPropertiesAfterTypeChange } from './TypedFieldPropertyRules';
 
-type XmlTextNode = { '#text': string };
-type XmlElementNode = { [tagName: string]: XmlNodeList };
+interface XmlTextNode { '#text': string }
+type XmlElementNode = Record<string, XmlNodeList>;
 type XmlNode = XmlTextNode | XmlElementNode;
 type XmlNodeList = XmlNode[];
 
@@ -32,7 +32,7 @@ function getElementName(node: XmlNode): string | null {
     return null;
   }
   const [name] = Object.keys(node);
-  return name ?? null;
+  return name;
 }
 
 function getElementChildren(node: XmlNode): XmlNodeList {
@@ -197,17 +197,17 @@ export class ObjectXmlReader {
     }
 
     const normalizedType = indentTypeInner(options.typeInnerXml);
-    let targetXml: string | null = null;
-    if (options.targetKind === 'Column') {
-      if (!options.tabularSectionName) {
-        return false;
+    const targetXml = (() => {
+      if (options.targetKind !== 'Column') {
+        return isRootTypeTargetKind(options.targetKind)
+          ? xml
+          : extractChildMetaElementXml(xml, options.targetKind, options.targetName);
       }
-      targetXml = extractColumnXmlFromTabularSection(xml, options.tabularSectionName, options.targetName);
-    } else if (isRootTypeTargetKind(options.targetKind)) {
-      targetXml = xml;
-    } else {
-      targetXml = extractChildMetaElementXml(xml, options.targetKind, options.targetName);
-    }
+      if (!options.tabularSectionName) {
+        return null;
+      }
+      return extractColumnXmlFromTabularSection(xml, options.tabularSectionName, options.targetName);
+    })();
 
     if (!targetXml) {
       return false;
@@ -325,14 +325,11 @@ function updateTypeInElement(
     return elementXml;
   }
   const propsInner = propertiesMatch[1];
-  let nextPropsInner = propsInner;
-  if (/<Comment[\s\S]*?<\/Comment>/.test(propsInner)) {
-    nextPropsInner = propsInner.replace(/(<Comment[\s\S]*?<\/Comment>)/, `$1\n${typeBlock}`);
-  } else if (/<Name[\s\S]*?<\/Name>/.test(propsInner)) {
-    nextPropsInner = propsInner.replace(/(<Name[\s\S]*?<\/Name>)/, `$1\n${typeBlock}`);
-  } else {
-    nextPropsInner = `${propsInner}\n${typeBlock}`;
-  }
+  const nextPropsInner = /<Comment[\s\S]*?<\/Comment>/.test(propsInner)
+    ? propsInner.replace(/(<Comment[\s\S]*?<\/Comment>)/, `$1\n${typeBlock}`)
+    : /<Name[\s\S]*?<\/Name>/.test(propsInner)
+    ? propsInner.replace(/(<Name[\s\S]*?<\/Name>)/, `$1\n${typeBlock}`)
+    : `${propsInner}\n${typeBlock}`;
   const updated = elementXml.replace(propsInner, nextPropsInner);
   return propertyName === 'Type' ? normalizeTypedFieldProperties(updated, typeInnerXml) : updated;
 }
@@ -391,18 +388,15 @@ function updatePropertyInElement(
   const propertyRe = new RegExp(`<${propertyKey}>[\\s\\S]*?<\\/${propertyKey}>`);
   const selfClosingRe = new RegExp(`<${propertyKey}(?:\\s[^>]*)?\\/>`);
 
-  let nextPropsInner = propsInner;
-  if (propertyRe.test(propsInner)) {
-    nextPropsInner = propsInner.replace(propertyRe, nextValueBlock);
-  } else if (selfClosingRe.test(propsInner)) {
-    nextPropsInner = propsInner.replace(selfClosingRe, nextValueBlock);
-  } else if (/<Comment[\s\S]*?<\/Comment>/.test(propsInner)) {
-    nextPropsInner = propsInner.replace(/(<Comment[\s\S]*?<\/Comment>)/, `$1\n${nextValueBlock}`);
-  } else if (/<Name[\s\S]*?<\/Name>/.test(propsInner)) {
-    nextPropsInner = propsInner.replace(/(<Name[\s\S]*?<\/Name>)/, `$1\n${nextValueBlock}`);
-  } else {
-    nextPropsInner = `${propsInner}\n${nextValueBlock}`;
-  }
+  const nextPropsInner = propertyRe.test(propsInner)
+    ? propsInner.replace(propertyRe, nextValueBlock)
+    : selfClosingRe.test(propsInner)
+    ? propsInner.replace(selfClosingRe, nextValueBlock)
+    : /<Comment[\s\S]*?<\/Comment>/.test(propsInner)
+    ? propsInner.replace(/(<Comment[\s\S]*?<\/Comment>)/, `$1\n${nextValueBlock}`)
+    : /<Name[\s\S]*?<\/Name>/.test(propsInner)
+    ? propsInner.replace(/(<Name[\s\S]*?<\/Name>)/, `$1\n${nextValueBlock}`)
+    : `${propsInner}\n${nextValueBlock}`;
 
   if (nextPropsInner === propsInner) {
     return elementXml;
@@ -419,7 +413,7 @@ function buildPropertyValueBlock(
     return `<${propertyKey}>${value === true ? 'true' : 'false'}</${propertyKey}>`;
   }
   if (valueKind === 'localizedString') {
-    const content = escapeXmlText(String(value ?? ''));
+    const content = escapeXmlText(typeof value === 'string' ? value : String(value));
     return [
       `<${propertyKey}>`,
       '\t\t\t\t\t<v8:item>',
@@ -429,7 +423,7 @@ function buildPropertyValueBlock(
       `</${propertyKey}>`,
     ].join('\n');
   }
-  return `<${propertyKey}>${escapeXmlText(String(value ?? ''))}</${propertyKey}>`;
+  return `<${propertyKey}>${escapeXmlText(String(value))}</${propertyKey}>`;
 }
 
 function escapeXmlText(value: string): string {

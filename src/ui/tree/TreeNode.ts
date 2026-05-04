@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { AddMetadataTarget, MetaTreeNodeContext, NodeKind, TreeNodeModel, getNodeKindLabel } from './TreeNodeModel';
+import type { MetaTreeNodeContext, NodeKind, TreeNodeModel } from './TreeNodeModel';
 
 export { AddMetadataTarget, MetaTreeNodeContext, NodeKind, TreeNodeModel, getNodeKindLabel } from './TreeNodeModel';
 

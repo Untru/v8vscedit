@@ -45,7 +45,7 @@ export class BslAnalyzerService implements vscode.Disposable {
 
   /** Текущая закэшированная версия (из файла version.txt) */
   get installedVersion(): string | undefined {
-    if (this.currentVersion) return this.currentVersion;
+    if (this.currentVersion) {return this.currentVersion;}
     const vFile = path.join(this.storageDir, 'version.txt');
     if (fs.existsSync(vFile)) {
       this.currentVersion = fs.readFileSync(vFile, 'utf-8').trim();
@@ -64,7 +64,7 @@ export class BslAnalyzerService implements vscode.Disposable {
    */
   async ensureBinary(token?: vscode.CancellationToken): Promise<boolean> {
     try { fs.unlinkSync(this.binaryPath + '.old'); } catch { /* noop */ }
-    const customPath = vscode.workspace.getConfiguration('v8vscedit.bslAnalyzer').get<string>('path');
+    const customPath = this.getConfiguredExecutablePath();
     if (customPath) {
       if (!fs.existsSync(customPath)) {
         vscode.window.showErrorMessage(`bsl-analyzer: указанный путь не найден: ${customPath}`);
@@ -73,21 +73,33 @@ export class BslAnalyzerService implements vscode.Disposable {
       return true;
     }
 
-    if (this.isInstalled) return true;
+    if (this.isInstalled) {return true;}
 
     return this.downloadLatest(token);
   }
 
   /** Получить путь к исполняемому файлу с учётом пользовательского пути */
   getExecutablePath(): string {
-    const customPath = vscode.workspace.getConfiguration('v8vscedit.bslAnalyzer').get<string>('path');
-    return customPath || this.binaryPath;
+    return this.getConfiguredExecutablePath() ?? this.binaryPath;
+  }
+
+  /**
+   * Путь из настроек, если он задан непустой строкой.
+   * В `package.json` default для `path` — `""`; пустое значение означает встроенный кэш, не «запуск без команды».
+   */
+  private getConfiguredExecutablePath(): string | undefined {
+    const raw = vscode.workspace.getConfiguration('v8vscedit.bslAnalyzer').get<string | undefined>('path');
+    if (typeof raw !== 'string') {
+      return undefined;
+    }
+    const trimmed = raw.trim();
+    return trimmed.length > 0 ? trimmed : undefined;
   }
 
   /** Проверить наличие обновлений и скачать если есть */
   async checkForUpdate(): Promise<boolean> {
     const latest = await this.fetchLatestRelease();
-    if (!latest) return false;
+    if (!latest) {return false;}
 
     const installed = this.installedVersion;
     if (installed === latest.tag) {
@@ -96,11 +108,11 @@ export class BslAnalyzerService implements vscode.Disposable {
     }
 
     const action = await vscode.window.showInformationMessage(
-      `Доступна новая версия bsl-analyzer: ${latest.tag} (текущая: ${installed || 'не установлена'})`,
+      `Доступна новая версия bsl-analyzer: ${latest.tag} (текущая: ${installed ?? 'не установлена'})`,
       'Обновить',
       'Пропустить',
     );
-    if (action !== 'Обновить') return false;
+    if (action !== 'Обновить') {return false;}
 
     return this.downloadLatest();
   }
@@ -111,12 +123,12 @@ export class BslAnalyzerService implements vscode.Disposable {
   /** Скачать последнюю версию */
   async downloadLatest(token?: vscode.CancellationToken): Promise<boolean> {
     const release = await this.fetchLatestRelease();
-    if (!release) return false;
+    if (!release) {return false;}
 
     return vscode.window.withProgress(
       { location: vscode.ProgressLocation.Notification, title: `bsl-analyzer ${release.tag}`, cancellable: true },
       async (progress, cancelToken) => {
-        const ct = token || cancelToken;
+        const ct = token ?? cancelToken;
         progress.report({ message: 'Загрузка...' });
 
         const tmpPath = this.binaryPath + '.tmp';
@@ -153,7 +165,7 @@ export class BslAnalyzerService implements vscode.Disposable {
           return true;
         } catch (err) {
           try { fs.unlinkSync(tmpPath); } catch { /* ignore */ }
-          if (ct?.isCancellationRequested) return false;
+          if (ct.isCancellationRequested) {return false;}
           const msg = err instanceof Error ? err.message : String(err);
           vscode.window.showErrorMessage(`bsl-analyzer: ошибка загрузки: ${msg}`);
           return false;
@@ -167,7 +179,7 @@ export class BslAnalyzerService implements vscode.Disposable {
     try {
       const data = await this.httpGetJson(`${GITHUB_API_BASE}/releases/latest`);
       const tag = data.tag_name as string;
-      const asset = (data.assets as Array<{ name: string; browser_download_url: string }>)
+      const asset = (data.assets as { name: string; browser_download_url: string }[])
         .find((a) => a.name === platformAssetName());
 
       if (!asset) {
@@ -208,7 +220,7 @@ export class BslAnalyzerService implements vscode.Disposable {
           }
           if (res.statusCode !== 200) {
             clearTimeout(timer);
-            fail(new Error(`HTTP ${res.statusCode}`));
+            fail(new Error(`HTTP ${String(res.statusCode)}`));
             return;
           }
           res.pipe(file);
@@ -234,8 +246,16 @@ export class BslAnalyzerService implements vscode.Disposable {
         let body = '';
         res.on('data', (c: Buffer) => { body += c.toString(); });
         res.on('end', () => {
-          try { resolve(JSON.parse(body)); }
-          catch (e) { reject(e); }
+          try {
+            const parsed: unknown = JSON.parse(body);
+            if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+              resolve(parsed as Record<string, unknown>);
+              return;
+            }
+            reject(new Error('GitHub API вернул JSON не в формате объекта'));
+          } catch (e) {
+            reject(e instanceof Error ? e : new Error(String(e)));
+          }
         });
       }).on('error', reject);
     });

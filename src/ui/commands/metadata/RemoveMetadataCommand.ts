@@ -1,12 +1,12 @@
 import * as path from 'path';
 import * as vscode from 'vscode';
-import { ChildTag } from '../../../domain/ChildTag';
+import type { ChildTag } from '../../../domain/ChildTag';
 import { buildMetadataCacheScopeKey, saveMetadataCacheForEntry } from '../../../infra/cache/MetadataCache';
 import { getObjectLocationFromXml } from '../../../infra/fs/ObjectLocation';
 import { SupportMode } from '../../../infra/support/SupportInfoService';
 import { parseConfigXml } from '../../../infra/xml';
-import { MetadataNode } from '../../tree/TreeNode';
-import { CommandServices } from '../_shared';
+import type { MetadataNode } from '../../tree/TreeNode';
+import type { CommandServices } from '../_shared';
 
 export function registerRemoveMetadataCommand(
   context: vscode.ExtensionContext,
@@ -78,15 +78,15 @@ async function removeMetadata(node: MetadataNode | undefined, services: CommandS
     return;
   }
 
-  await finishRemove(node, services, result.changedFiles, result.warnings);
+  finishRemove(node, services, result.changedFiles, result.warnings);
 }
 
-async function finishRemove(
+function finishRemove(
   node: MetadataNode,
   services: CommandServices,
   changedFiles: string[],
   warnings: string[]
-): Promise<void> {
+): void {
   for (const warning of warnings) {
     services.outputChannel.appendLine(`[remove-metadata][warn] ${warning}`);
   }
@@ -112,8 +112,8 @@ function buildReferenceBlockMessage(node: MetadataNode, references: { filePath: 
         : reference.filePath;
       return `${filePath}: ${reference.pattern}`;
     });
-  const tail = references.length > details.length ? `; ещё ${references.length - details.length}` : '';
-  return `Удаление "${node.textLabel}" запрещено: найдены ссылки (${references.length}). ${details.join('; ')}${tail}`;
+  const tail = references.length > details.length ? `; ещё ${String(references.length - details.length)}` : '';
+  return `Удаление "${node.textLabel}" запрещено: найдены ссылки (${String(references.length)}). ${details.join('; ')}${tail}`;
 }
 
 function rebuildCacheForNode(node: MetadataNode, services: CommandServices): void {

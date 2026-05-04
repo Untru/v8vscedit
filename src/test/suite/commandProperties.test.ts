@@ -9,7 +9,7 @@ import { structuredMetaChildHandler } from '../../ui/tree/nodeBuilders/structure
 import { MetadataNode } from '../../ui/tree/TreeNode';
 import { buildCommandProperties } from '../../ui/views/properties/PropertyBuilder';
 import { TypeRegistryService } from '../../ui/views/properties/TypeRegistryService';
-import { EnumPropertyValue, MetadataTypeValue } from '../../ui/views/properties/_types';
+import type { EnumPropertyValue, MetadataTypeValue } from '../../ui/views/properties/_types';
 
 const EXAMPLE_CF = path.resolve(__dirname, '../../../../example/cf');
 const EXAMPLE_CFE = path.resolve(__dirname, '../../../../example/cfe/EVOLC');
@@ -27,7 +27,10 @@ suite('Properties — команды', () => {
       },
     }, vscode.TreeItemCollapsibleState.None);
 
-    const props = structuredMetaChildHandler.getProperties!(node);
+    if (!structuredMetaChildHandler.getProperties) {
+      assert.fail('Обработчик свойств команды не найден');
+    }
+    const props = structuredMetaChildHandler.getProperties(node);
     const group = props.find((item) => item.key === 'Group');
 
     assert.ok(group, 'Group не найден');
@@ -79,7 +82,11 @@ suite('Properties — команды', () => {
       nodeKind: 'CommonCommand',
       xmlPath,
     }, vscode.TreeItemCollapsibleState.None);
-    const props = getNodeHandler('CommonCommand')!.getProperties!(node);
+    const handler = getNodeHandler('CommonCommand');
+    if (!handler?.getProperties) {
+      assert.fail('Обработчик свойств общей команды не найден');
+    }
+    const props = handler.getProperties(node);
     const group = props.find((item) => item.key === 'Group');
 
     assert.ok(group, 'Group не найден');
@@ -100,7 +107,7 @@ suite('Properties — команды', () => {
     );
     assert.ok(commandXml, 'Команда Календарь не найдена');
 
-    const customXml = commandXml!.replace(
+    const customXml = commandXml.replace(
       '<Group>NavigationPanelOrdinary</Group>',
       '<Group>CommandGroup.Сервис</Group>'
     );

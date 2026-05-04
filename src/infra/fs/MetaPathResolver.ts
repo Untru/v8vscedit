@@ -1,8 +1,8 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import { MetaKind, getMetaFolder } from '../../domain/MetaTypes';
-import { ModuleSlot } from '../../domain/ModuleSlot';
-import { ObjectLocation, getObjectLocationFromXml } from './ObjectLocation';
+import { type MetaKind, getMetaFolder } from '../../domain/MetaTypes';
+import type { ModuleSlot } from '../../domain/ModuleSlot';
+import { type ObjectLocation, getObjectLocationFromXml } from './ObjectLocation';
 
 export { getObjectLocationFromXml } from './ObjectLocation';
 
@@ -91,14 +91,14 @@ export class MetaPathResolver {
       case 'CommonForm':
         return [path.join(extDir, 'Form', 'Module.bsl')];
       case 'ChildForm': {
-        if (!label) return [];
+        if (!label) {return [];}
         return [
           path.join(loc.objectDir, 'Forms', label, 'Ext', 'Form', 'Module.bsl'),
           path.join(loc.objectDir, 'Forms', label, 'Ext', 'Module.bsl'),
         ];
       }
       case 'ChildCommand': {
-        if (!label) return [];
+        if (!label) {return [];}
         return [
           path.join(loc.objectDir, 'Commands', label, 'Ext', 'CommandModule.bsl'),
           path.join(loc.objectDir, 'Commands', label, 'Ext', 'Module.bsl'),
@@ -126,15 +126,15 @@ export class MetaPathResolver {
 
 const singleton = new MetaPathResolver();
 
-type NodeLike = {
+interface NodeLike {
   xmlPath?: string;
   nodeKind?: string;
   kind?: string;
   label?: string;
-};
+}
 
 function toInfo(node: NodeLike | null | undefined): NodePathInfo | null {
-  if (!node || !node.xmlPath) {
+  if (!node?.xmlPath) {
     return null;
   }
   return {
@@ -146,7 +146,7 @@ function toInfo(node: NodeLike | null | undefined): NodePathInfo | null {
 
 function resolve(slot: ModuleSlot, node: NodeLike): string | null {
   const info = toInfo(node);
-  if (!info) return null;
+  if (!info) {return null;}
   return singleton.resolveModule(info, slot);
 }
 

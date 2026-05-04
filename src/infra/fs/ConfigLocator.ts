@@ -1,6 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import { ConfigEntry } from '../../domain/Configuration';
+import type { ConfigEntry } from '../../domain/Configuration';
 
 /**
  * Запись реестра совпадает с {@link ConfigEntry} домена; алиас оставлен,
@@ -77,6 +77,6 @@ export class ConfigLocator {
  * Функция-фасад над {@link ConfigLocator} — совместимый API для потребителей,
  * которые исторически вызывали `findConfigurations(root)`.
  */
-export async function findConfigurations(rootDir: string): Promise<ConfigEntry[]> {
+export function findConfigurations(rootDir: string): ConfigEntry[] {
   return new ConfigLocator().find(rootDir);
 }

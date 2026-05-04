@@ -309,7 +309,7 @@ function buildDefaultPropertyBlock(key: string, indent: string): string {
 
 function findPropertiesInner(xml: string): { inner: string; start: number; end: number } | null {
   const match = /<Properties>([\s\S]*?)<\/Properties>/.exec(xml);
-  if (!match || match.index === undefined) {
+  if (match?.index === undefined) {
     return null;
   }
   const start = match.index + match[0].indexOf('>') + 1;
@@ -318,10 +318,10 @@ function findPropertiesInner(xml: string): { inner: string; start: number; end: 
 
 function collectPropertyBlocks(propertiesInner: string): {
   byKey: Map<string, string>;
-  ordered: Array<{ key: string; xml: string }>;
+  ordered: { key: string; xml: string }[];
 } {
   const byKey = new Map<string, string>();
-  const ordered: Array<{ key: string; xml: string }> = [];
+  const ordered: { key: string; xml: string }[] = [];
   let index = 0;
   while (index < propertiesInner.length) {
     const open = /<([A-Za-z_][\w:.-]*)(?:\s[^>]*)?>/.exec(propertiesInner.slice(index));

@@ -1,5 +1,5 @@
 import { extractSimpleTag } from '../../../infra/xml';
-import { LocalizedStringValue } from '../../tree/nodeBuilders/_types';
+import type { LocalizedStringValue } from '../../tree/nodeBuilders/_types';
 
 /**
  * Разбор XML-выгрузки метаданных 1С для панели свойств:
@@ -10,13 +10,13 @@ import { LocalizedStringValue } from '../../tree/nodeBuilders/_types';
  * Возвращает верхнеуровневые дочерние элементы секции `<Properties>` в порядке XML.
  * Учитывает вложенность (тело элемента — всё до парного закрывающего тега).
  */
-export function extractTopLevelPropertiesChildren(xml: string): Array<{ tag: string; inner: string }> {
+export function extractTopLevelPropertiesChildren(xml: string): { tag: string; inner: string }[] {
   const block = extractFirstBalancedBlock(xml, 'Properties');
   if (!block) {
     return [];
   }
 
-  const result: Array<{ tag: string; inner: string }> = [];
+  const result: { tag: string; inner: string }[] = [];
   let pos = 0;
   const s = block;
 
@@ -160,7 +160,7 @@ function findClosingTagIndex(xml: string, innerStart: number, tagName: string): 
 
     openTag.lastIndex = pos;
     const nextOpen = openTag.exec(xml);
-    if (nextOpen != null && nextOpen.index < nextClose) {
+    if (nextOpen !== null && nextOpen.index < nextClose) {
       depth++;
       pos = nextOpen.index + nextOpen[0].length;
     } else {

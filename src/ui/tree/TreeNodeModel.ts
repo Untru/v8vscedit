@@ -1,6 +1,7 @@
-import { ChildTag } from '../../domain/ChildTag';
-import { MetaKind, getMetaLabel } from '../../domain/MetaTypes';
+import type { ChildTag } from '../../domain/ChildTag';
+import { type MetaKind, getMetaLabel } from '../../domain/MetaTypes';
 import type { MetadataGitDecorationTarget } from '../../infra/git/GitMetadataStatusService';
+import type { MetadataNode } from './TreeNode';
 
 /**
  * Тип узла дерева совпадает с доменным идентификатором типа метаданных.
@@ -46,7 +47,7 @@ export interface TreeNodeModel {
   decorationPath?: string;
   /** Виртуальная цель для git-декорации вложенного XML-элемента */
   gitDecorationTarget?: MetadataGitDecorationTarget;
-  childrenLoader?: () => import('./TreeNode').MetadataNode[];
+  childrenLoader?: () => MetadataNode[];
   ownershipTag?: 'OWN' | 'BORROWED';
   hidePropertiesCommand?: boolean;
   metaContext?: MetaTreeNodeContext;

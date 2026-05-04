@@ -4,13 +4,13 @@ import * as os from 'os';
 import * as path from 'path';
 import { spawn } from 'child_process';
 import {
-  InstalledOnecPlatform,
+  type InstalledOnecPlatform,
   normalizeInfoBasePath,
   resolveV8ExecutablePath,
   resolveV8PathHintFromVersion,
   scanInstalledOnecPlatforms,
 } from '../process';
-import { Logger } from '../support/Logger';
+import type { Logger } from '../support/Logger';
 
 export type StandaloneServerState = 'unconfigured' | 'running' | 'unresponsive' | 'stopped' | 'stale' | 'busy';
 
@@ -126,7 +126,7 @@ export class StandaloneServerService {
       };
     }
 
-    if (alive && this.health?.pid === pid && this.health.httpReady === false) {
+    if (alive && this.health?.pid === pid && !this.health.httpReady) {
       return {
         configured,
         state: 'unresponsive',
@@ -156,7 +156,7 @@ export class StandaloneServerService {
         configured,
         state: 'stale',
         message: lastExit
-          ? `Сервер завершился: код ${lastExit.code ?? '-'}, сигнал ${lastExit.signal ?? '-'}`
+          ? `Сервер завершился: код ${String(lastExit.code ?? '-')}, сигнал ${lastExit.signal ?? '-'}`
           : 'Сервер остановлен, сохранённый pid устарел.',
         pid,
         url: null,
@@ -170,7 +170,7 @@ export class StandaloneServerService {
       configured,
       state: 'stopped',
       message: lastExit
-        ? `Сервер остановлен. Последнее завершение: код ${lastExit.code ?? '-'}, сигнал ${lastExit.signal ?? '-'}`
+        ? `Сервер остановлен. Последнее завершение: код ${String(lastExit.code ?? '-')}, сигнал ${lastExit.signal ?? '-'}`
         : 'Сервер остановлен.',
       pid: null,
       url: null,
@@ -250,8 +250,8 @@ export class StandaloneServerService {
         }
         this.watchStartedProcess(child, settings);
         child.unref();
-        fs.writeFileSync(this.getPidPath(), `${child.pid}\n`, 'utf-8');
-        this.logger.appendLine(`[standalone] Сервер запущен, pid=${child.pid}, url=${buildServerUrl(settings)}`);
+        fs.writeFileSync(this.getPidPath(), `${String(child.pid)}\n`, 'utf-8');
+        this.logger.appendLine(`[standalone] Сервер запущен, pid=${String(child.pid)}, url=${buildServerUrl(settings)}`);
       } finally {
         fs.closeSync(logHandle);
       }
@@ -279,7 +279,7 @@ export class StandaloneServerService {
         return;
       }
 
-      this.logger.appendLine(`[standalone] Остановка сервера, pid=${pid}`);
+      this.logger.appendLine(`[standalone] Остановка сервера, pid=${String(pid)}`);
       try {
         process.kill(-pid, 'SIGTERM');
       } catch {
@@ -288,7 +288,7 @@ export class StandaloneServerService {
 
       const stopped = await waitUntilStopped(pid, 5_000);
       if (!stopped) {
-        this.logger.appendLine(`[standalone] Сервер не остановился по SIGTERM, отправляю SIGKILL, pid=${pid}`);
+        this.logger.appendLine(`[standalone] Сервер не остановился по SIGTERM, отправляю SIGKILL, pid=${String(pid)}`);
         try {
           process.kill(-pid, 'SIGKILL');
         } catch {
@@ -500,7 +500,7 @@ export class StandaloneServerService {
 
     child.once('exit', (code, signal) => {
       const pid = typeof child.pid === 'number' ? child.pid : this.readPid();
-      const message = `[standalone] Процесс ibsrv завершён, pid=${pid ?? '-'}, code=${code ?? '-'}, signal=${signal ?? '-'}`;
+      const message = `[standalone] Процесс ibsrv завершён, pid=${String(pid ?? '-')}, code=${String(code ?? '-')}, signal=${signal ?? '-'}`;
       this.logger.appendLine(message);
       appendStandaloneLog(this.getLogPath(), message);
       if (pid !== null) {
@@ -544,7 +544,7 @@ export class StandaloneServerService {
           at: parsed.at,
           pid: parsed.pid,
           code: typeof parsed.code === 'number' ? parsed.code : null,
-          signal: typeof parsed.signal === 'string' ? parsed.signal as NodeJS.Signals : null,
+          signal: typeof parsed.signal === 'string' ? parsed.signal : null,
         };
       }
     } catch {
@@ -560,7 +560,7 @@ function buildServerArgs(settings: StandaloneServerSettings, lockPath: string): 
     `--lock=${lockPath}`,
     `--database-path=${settings.databasePath}`,
     `--http-address=${settings.httpAddress}`,
-    `--http-port=${settings.httpPort}`,
+    `--http-port=${String(settings.httpPort)}`,
     `--http-base=${settings.httpBase}`,
     `--name=${settings.name}`,
     `--distribute-licenses=${settings.distributeLicenses}`,
@@ -657,7 +657,7 @@ function normalizeHttpBase(value: string): string {
 function buildServerUrl(settings: StandaloneServerSettings): string {
   const host = settings.httpAddress === 'any' ? 'localhost' : settings.httpAddress;
   const base = settings.httpBase === '/' ? '/' : settings.httpBase.replace(/\/+$/, '');
-  return `http://${host}:${settings.httpPort}${base}`;
+  return `http://${host}:${String(settings.httpPort)}${base}`;
 }
 
 function appendStandaloneLog(logPath: string, message: string): void {

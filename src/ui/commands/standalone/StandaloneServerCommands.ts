@@ -1,7 +1,7 @@
 import * as fs from 'fs';
 import * as vscode from 'vscode';
-import { StandaloneServerStatus } from '../../../infra/standalone';
-import { CommandServices } from '../_shared';
+import type { StandaloneServerStatus } from '../../../infra/standalone';
+import type { CommandServices } from '../_shared';
 
 /** Регистрирует команды управления автономным сервером 1С. */
 export function registerStandaloneServerCommands(
@@ -75,12 +75,12 @@ type OpenWebClientResult =
   | { readonly kind: 'open'; readonly status: StandaloneServerStatus; readonly ready: boolean };
 
 async function prepareWebClient(services: CommandServices): Promise<OpenWebClientResult> {
-  let status = services.standaloneServerService.getStatus();
+  const status = services.standaloneServerService.getStatus();
   if (!status.configured) {
     return { kind: 'configure' };
   }
   if (status.state !== 'running') {
-    status = await services.standaloneServerService.start();
+    await services.standaloneServerService.start();
   }
   const ready = await services.standaloneServerService.waitForHttpReady(15_000);
   return {

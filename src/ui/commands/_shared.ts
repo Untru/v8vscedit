@@ -1,19 +1,19 @@
-import * as vscode from 'vscode';
-import { ChangedConfiguration } from '../../infra/fs/ConfigurationChangeDetector';
-import { RepositoryService } from '../../infra/repository/RepositoryService';
-import { AiSkillsInstaller } from '../../infra/skills/AiSkillsInstaller';
-import { StandaloneServerService } from '../../infra/standalone';
-import { SupportInfoService } from '../../infra/support/SupportInfoService';
-import { MetadataXmlCreator, MetadataXmlRemover } from '../../infra/xml';
-import { BslAnalyzerConfigService } from '../../infra/environment';
-import { MetadataTreeProvider } from '../tree/MetadataTreeProvider';
-import { MetadataNode } from '../tree/TreeNode';
-import { PropertiesViewProvider } from '../views/PropertiesViewProvider';
-import { RepositoryCommitViewProvider } from '../views/RepositoryCommitViewProvider';
-import { RepositoryConnectionViewProvider } from '../views/RepositoryConnectionViewProvider';
-import { ProjectEnvironmentViewProvider } from '../views/environment/ProjectEnvironmentViewProvider';
-import { StandaloneServerViewProvider } from '../views/standalone/StandaloneServerViewProvider';
-import { SubsystemEditorViewProvider } from '../views/subsystem/SubsystemEditorViewProvider';
+import type * as vscode from 'vscode';
+import type { ChangedConfiguration } from '../../infra/fs/ConfigurationChangeDetector';
+import type { RepositoryService } from '../../infra/repository/RepositoryService';
+import type { AiSkillsInstaller } from '../../infra/skills/AiSkillsInstaller';
+import type { StandaloneServerService } from '../../infra/standalone';
+import type { SupportInfoService } from '../../infra/support/SupportInfoService';
+import type { MetadataXmlCreator, MetadataXmlRemover } from '../../infra/xml';
+import type { BslAnalyzerConfigService } from '../../infra/environment';
+import type { MetadataTreeProvider } from '../tree/MetadataTreeProvider';
+import type { MetadataNode } from '../tree/TreeNode';
+import type { PropertiesViewProvider } from '../views/PropertiesViewProvider';
+import type { RepositoryCommitViewProvider } from '../views/RepositoryCommitViewProvider';
+import type { RepositoryConnectionViewProvider } from '../views/RepositoryConnectionViewProvider';
+import type { ProjectEnvironmentViewProvider } from '../views/environment/ProjectEnvironmentViewProvider';
+import type { StandaloneServerViewProvider } from '../views/standalone/StandaloneServerViewProvider';
+import type { SubsystemEditorViewProvider } from '../views/subsystem/SubsystemEditorViewProvider';
 
 export type NodeArg = MetadataNode | { xmlPath?: string; nodeKind?: string; label?: string };
 

@@ -1,7 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as crypto from 'crypto';
-import { Logger } from './Logger';
+import type { Logger } from './Logger';
 
 /**
  * Режим поддержки объекта метаданных 1С.
@@ -68,8 +68,8 @@ export class SupportInfoService {
     }
 
     this.log.appendLine(
-      `[support] ${path.basename(configRoot)}: загружено ${uuidToMode.size} объектов` +
-      ` (запрещено: ${locked}, разрешено: ${editable}, снято: ${none})` +
+      `[support] ${path.basename(configRoot)}: загружено ${String(uuidToMode.size)} объектов` +
+      ` (запрещено: ${String(locked)}, разрешено: ${String(editable)}, снято: ${String(none)})` +
       ` hash=${fileHash.slice(0, 8)}…`
     );
 
@@ -159,7 +159,7 @@ export class SupportInfoService {
       }
     }
     if (cleared > 0) {
-      this.log.appendLine(`[support] очищено ${cleared} записей кэша UUID`);
+      this.log.appendLine(`[support] очищено ${String(cleared)} записей кэша UUID`);
     }
   }
 
@@ -204,8 +204,9 @@ export class SupportInfoService {
 
   private getUuidForFile(filePath: string): string | undefined {
     const key = normPath(filePath);
-    if (this.pathUuidCache.has(key)) {
-      const v = this.pathUuidCache.get(key)!;
+    const cached = this.pathUuidCache.get(key);
+    if (cached !== undefined) {
+      const v = cached;
       return v || undefined;
     }
 
@@ -214,7 +215,7 @@ export class SupportInfoService {
       const buf = Buffer.alloc(2048);
       const bytesRead = fs.readSync(fd, buf, 0, 2048, 0);
       fs.closeSync(fd);
-      const head = buf.slice(0, bytesRead).toString('utf-8');
+      const head = buf.subarray(0, bytesRead).toString('utf-8');
       const m = UUID_ATTR_RE.exec(head);
       const uuid = m ? m[1].toLowerCase() : '';
       this.pathUuidCache.set(key, uuid);
@@ -242,7 +243,7 @@ export class SupportInfoService {
     while ((m = RE.exec(content)) !== null) {
       if (m[1].toLowerCase() !== m[2].toLowerCase()) { continue; }
       const uuid = m[1].toLowerCase();
-      const mode = parseInt(m[3], 10) as SupportMode;
+      const mode = parseInt(m[3], 10);
       uuidToMode.set(uuid, mode);
     }
     return uuidToMode;

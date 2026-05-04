@@ -1,7 +1,7 @@
 import * as crypto from 'crypto';
 import * as fs from 'fs';
 import * as path from 'path';
-import { MetaKind } from '../../domain/MetaTypes';
+import type { MetaKind } from '../../domain/MetaTypes';
 import { parseConfigXml, parseObjectXml } from '../xml';
 
 export interface RepositoryBinding {
@@ -178,7 +178,7 @@ export class RepositoryService {
     if (target.configKind === 'cfe') {
       const extensionSection = this.getExtensionSection(defaults);
       const extensionName = target.extensionName ?? '';
-      const item = extensionSection[extensionName];
+      const item = extensionSection[extensionName] as Record<string, unknown> | undefined;
       const repoPath = this.readString(item?.['repo-path']);
       if (!repoPath) {
         return null;
@@ -234,8 +234,9 @@ export class RepositoryService {
     if (target.configKind === 'cfe') {
       const extensionName = target.extensionName ?? '';
       const extensionSection = this.getExtensionSection(defaults);
-      delete extensionSection[extensionName];
-      defaults.extension = extensionSection;
+      defaults.extension = Object.fromEntries(
+        Object.entries(extensionSection).filter(([name]) => name !== extensionName)
+      );
     } else {
       delete defaults['--repo-path'];
       delete defaults['--repo-user'];
@@ -256,7 +257,7 @@ export class RepositoryService {
     }
 
     const state = this.loadStateFile();
-    const scope = state.scopes[this.buildScopeKey(target)];
+    const scope = state.scopes[this.buildScopeKey(target)] as RepositoryScopeState | undefined;
     return scope?.connected ?? true;
   }
 
@@ -273,7 +274,7 @@ export class RepositoryService {
 
   isLocked(target: RepositoryTarget, fullName: string): boolean {
     const state = this.loadStateFile();
-    const scope = state.scopes[this.buildScopeKey(target)];
+    const scope = state.scopes[this.buildScopeKey(target)] as RepositoryScopeState | undefined;
     return scope?.lockedFullNames.includes(fullName) ?? false;
   }
 
@@ -350,7 +351,7 @@ export class RepositoryService {
   clearLocks(target: RepositoryTarget): void {
     const state = this.loadStateFile();
     const scopeKey = this.buildScopeKey(target);
-    const scope = state.scopes[scopeKey];
+    const scope = state.scopes[scopeKey] as RepositoryScopeState | undefined;
     if (!scope) {
       return;
     }
@@ -434,7 +435,7 @@ export class RepositoryService {
       return null;
     }
 
-    const objectName = fallbackLabel || (xmlPath ? parseObjectXml(xmlPath)?.name : undefined);
+    const objectName = fallbackLabel ?? (xmlPath ? parseObjectXml(xmlPath)?.name : undefined);
     if (!objectName) {
       return null;
     }
@@ -630,7 +631,7 @@ export class RepositoryService {
   private ensureScopeState(target: RepositoryTarget): void {
     const state = this.loadStateFile();
     const scopeKey = this.buildScopeKey(target);
-    if (!state.scopes[scopeKey]) {
+    if (!Object.prototype.hasOwnProperty.call(state.scopes, scopeKey)) {
       state.scopes[scopeKey] = { connected: true, lockedFullNames: [] };
       this.saveStateFile(state);
     }
@@ -644,7 +645,10 @@ export class RepositoryService {
 
   private clearScopeState(target: RepositoryTarget): void {
     const state = this.loadStateFile();
-    delete state.scopes[this.buildScopeKey(target)];
+    const scopeKey = this.buildScopeKey(target);
+    state.scopes = Object.fromEntries(
+      Object.entries(state.scopes).filter(([key]) => key !== scopeKey)
+    );
     this.saveStateFile(state);
   }
 
@@ -664,7 +668,7 @@ export class RepositoryService {
       '.v8vscedit',
       'repository',
       'objects',
-      `${scopeKey}-${Date.now()}.xml`
+      `${scopeKey}-${String(Date.now())}.xml`
     );
     fs.mkdirSync(path.dirname(filePath), { recursive: true });
     fs.writeFileSync(filePath, `${xml}\n`, 'utf-8');

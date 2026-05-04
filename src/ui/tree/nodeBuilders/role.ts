@@ -4,7 +4,7 @@ import * as vscode from 'vscode';
 import { buildNode } from '../nodes/_base';
 import { getNodeDescriptor } from '../nodes/index';
 import { extractSimpleTag } from '../../../infra/xml';
-import {
+import type {
   HandlerContext,
   LocalizedStringValue,
   ObjectHandler,

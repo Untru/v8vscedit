@@ -1,12 +1,12 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import { MetadataNode, NodeKind } from '../TreeNode';
+import type { MetadataNode, NodeKind } from '../TreeNode';
 import {
   extractChildMetaElementXml,
   extractColumnXmlFromTabularSection,
 } from '../../../infra/xml';
 import { getObjectLocationFromXml } from '../../../infra/fs/MetaPathResolver';
-import { ObjectHandler, ObjectPropertiesCollection } from './_types';
+import type { ObjectHandler, ObjectPropertiesCollection } from './_types';
 import {
   buildCommandProperties,
   buildEnumValueProperties,

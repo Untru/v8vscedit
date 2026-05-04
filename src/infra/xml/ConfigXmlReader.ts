@@ -1,10 +1,10 @@
 import * as fs from 'fs';
 import { XMLParser } from 'fast-xml-parser';
-import { ConfigInfo } from '../../domain/Configuration';
+import type { ConfigInfo } from '../../domain/Configuration';
 import { extractSimpleTag, extractSynonym } from './XmlUtils';
 
-type XmlTextNode = { '#text': string };
-type XmlElementNode = { [tagName: string]: XmlNodeList };
+interface XmlTextNode { '#text': string }
+type XmlElementNode = Record<string, XmlNodeList>;
 type XmlNode = XmlTextNode | XmlElementNode;
 type XmlNodeList = XmlNode[];
 
@@ -25,7 +25,7 @@ function getElementName(node: XmlNode): string | null {
     return null;
   }
   const [name] = Object.keys(node);
-  return name ?? null;
+  return name;
 }
 
 function getElementChildren(node: XmlNode): XmlNodeList {
@@ -101,10 +101,12 @@ export class ConfigXmlReader {
         continue;
       }
 
-      if (!result.has(tagName)) {
-        result.set(tagName, []);
+      const values = result.get(tagName);
+      if (values) {
+        values.push(objectName);
+      } else {
+        result.set(tagName, [objectName]);
       }
-      result.get(tagName)!.push(objectName);
     }
 
     return result;

@@ -1,10 +1,10 @@
 import * as fs from 'fs';
-import { MetadataNode } from '../TreeNode';
+import type { MetadataNode } from '../TreeNode';
 import {
   buildTreeNodesForMetaKind,
   rootMetaObjectCanShowProperties,
 } from './metaObjectTreeBuilder';
-import { HandlerContext, ObjectHandler, ObjectPropertiesCollection } from './_types';
+import type { HandlerContext, ObjectHandler, ObjectPropertiesCollection } from './_types';
 import { EventSubscriptionPropertyService } from '../../views/properties/EventSubscriptionPropertyService';
 
 // ---------------------------------------------------------------------------

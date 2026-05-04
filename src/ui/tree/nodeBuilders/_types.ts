@@ -1,4 +1,4 @@
-import { MetadataNode } from '../TreeNode';
+import type { MetadataNode } from '../TreeNode';
 
 /**
  * Контекст, передаваемый обработчику при построении узлов навигатора.
@@ -79,10 +79,10 @@ export interface MultiEnumPropertyValue {
 /** Описание локализованной строки */
 export interface LocalizedStringValue {
   presentation: string;
-  values: Array<{
+  values: {
     lang: string;
     content: string;
-  }>;
+  }[];
 }
 
 /** Значение свойства объекта метаданных */

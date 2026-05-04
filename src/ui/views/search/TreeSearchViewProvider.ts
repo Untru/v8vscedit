@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
-import { StandaloneServerStatus } from '../../../infra/standalone';
-import { MetadataTreeProvider } from '../../tree/MetadataTreeProvider';
+import type { StandaloneServerStatus } from '../../../infra/standalone';
+import type { MetadataTreeProvider } from '../../tree/MetadataTreeProvider';
 
 type TreeSearchMessage =
   | { readonly type: 'command'; readonly command: string }
@@ -310,8 +310,8 @@ export class TreeSearchViewProvider implements vscode.WebviewViewProvider {
       ${cloudDownloadIcon()}
     </button>
     <button type="button" data-command="v8vscedit.updateChangedConfigurations" title="Обновить изменённые конфигурации" aria-label="Обновить изменённые конфигурации">
-      <img class="theme-icon light" src="${updateIconLight}" alt="">
-      <img class="theme-icon dark" src="${updateIconDark}" alt="">
+      <img class="theme-icon light" src="${String(updateIconLight)}" alt="">
+      <img class="theme-icon dark" src="${String(updateIconDark)}" alt="">
     </button>
     <button type="button" data-command="v8vscedit.runThinClient" title="Запустить тонкий клиент" aria-label="Запустить тонкий клиент">
       ${runIcon()}

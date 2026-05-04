@@ -1,10 +1,10 @@
-import { MetadataNode, NodeKind } from '../TreeNode';
+import type { MetadataNode, NodeKind } from '../TreeNode';
 import {
   buildTreeNodesForMetaKind,
   rootMetaObjectCanShowProperties,
   rootMetaObjectGetProperties,
 } from './metaObjectTreeBuilder';
-import { HandlerContext, ObjectHandler, ObjectPropertiesCollection } from './_types';
+import type { HandlerContext, ObjectHandler, ObjectPropertiesCollection } from './_types';
 
 /** Обработчик «листового» объекта метаданных по типу узла (дерево + свойства корня из XML). */
 export function createLeafMetaObjectHandler(nodeKind: NodeKind): ObjectHandler {

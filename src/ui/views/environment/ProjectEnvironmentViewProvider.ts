@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import {
+import type {
   ProjectEnvironmentService,
   ProjectEnvironmentSnapshot,
   SaveProjectEnvironmentInput,

@@ -33,12 +33,12 @@ suite('RepositoryService', () => {
 
     assert.ok(target, 'Не удалось определить цель хранилища для примера.');
 
-    service.saveBinding(target!, {
+    service.saveBinding(target, {
       repoPath: '\\\\repo\\storage',
       repoUser: 'tester',
       repoPassword: 'secret',
     });
-    service.setConnected(target!, true);
+    service.setConnected(target, true);
 
     assert.strictEqual(service.isEditRestricted(modulePath), true);
 
@@ -49,7 +49,7 @@ suite('RepositoryService', () => {
     });
     assert.strictEqual(fullName, 'БизнесПроцесс.УдалитьЗаявкаКабинетСотрудника');
 
-    service.setLocked(target!, [fullName!], true);
+    service.setLocked(target, [fullName], true);
     assert.strictEqual(service.isEditRestricted(modulePath), false);
   });
 
@@ -70,16 +70,16 @@ suite('RepositoryService', () => {
 
     assert.ok(target, 'Не удалось определить цель хранилища для примера.');
 
-    service.saveBinding(target!, {
+    service.saveBinding(target, {
       repoPath: '\\\\repo\\storage',
       repoUser: 'tester',
       repoPassword: 'secret',
     });
-    service.setConnected(target!, true);
+    service.setConnected(target, true);
 
     assert.strictEqual(service.isEditRestricted(formModulePath), true);
 
-    service.setLocked(target!, ['БизнесПроцесс.УдалитьЗаявкаКабинетСотрудника'], true);
+    service.setLocked(target, ['БизнесПроцесс.УдалитьЗаявкаКабинетСотрудника'], true);
     assert.strictEqual(service.isEditRestricted(formModulePath), false);
   });
   test('Для создания корневых объектов требуется захват корня конфигурации', () => {
@@ -88,15 +88,15 @@ suite('RepositoryService', () => {
 
     assert.ok(target, 'Не удалось определить цель хранилища для корня конфигурации.');
 
-    service.saveBinding(target!, {
+    service.saveBinding(target, {
       repoPath: '\\\\repo\\storage',
       repoUser: 'tester',
       repoPassword: 'secret',
     });
-    service.setConnected(target!, true);
+    service.setConnected(target, true);
 
-    assert.strictEqual(service.isMetadataEditRestricted(target!), true);
-    assert.strictEqual(service.isRootLocked(target!), false);
+    assert.strictEqual(service.isMetadataEditRestricted(target), true);
+    assert.strictEqual(service.isRootLocked(target), false);
 
     const objects = service.createObjectsFileForNode({
       nodeKind: 'configuration',
@@ -104,10 +104,10 @@ suite('RepositoryService', () => {
       xmlPath: configXmlPath,
     }, false);
 
-    service.setLocked(target!, objects.fullNames, true);
+    service.setLocked(target, objects.fullNames, true);
 
-    assert.strictEqual(service.isRootLocked(target!), true);
-    assert.strictEqual(service.isMetadataEditRestricted(target!), false);
+    assert.strictEqual(service.isRootLocked(target), true);
+    assert.strictEqual(service.isMetadataEditRestricted(target), false);
   });
 });
 

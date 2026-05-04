@@ -3,7 +3,7 @@ import * as fs from 'fs';
 import * as vscode from 'vscode';
 import { buildNode } from '../nodes/_base';
 import { getNodeDescriptor } from '../nodes/index';
-import {
+import type {
   HandlerContext,
   ObjectHandler,
   ObjectPropertiesCollection,

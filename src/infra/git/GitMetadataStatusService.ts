@@ -1,8 +1,8 @@
 import { execFileSync } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
-import { ChildTag } from '../../domain/ChildTag';
-import { MetaKind } from '../../domain/MetaTypes';
+import type { ChildTag } from '../../domain/ChildTag';
+import type { MetaKind } from '../../domain/MetaTypes';
 import {
   extractChildMetaElementXml,
   extractChildMetaElementsXml,

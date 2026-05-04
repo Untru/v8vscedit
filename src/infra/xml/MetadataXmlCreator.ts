@@ -1,9 +1,9 @@
 import * as crypto from 'crypto';
 import * as fs from 'fs';
 import * as path from 'path';
-import { ChildTag } from '../../domain/ChildTag';
-import { getMetaFolder, MetaKind } from '../../domain/MetaTypes';
-import { ConfigurationXmlEditor, EditResult } from './ConfigurationXmlEditor';
+import type { ChildTag } from '../../domain/ChildTag';
+import { getMetaFolder, type MetaKind } from '../../domain/MetaTypes';
+import { ConfigurationXmlEditor, type EditResult } from './ConfigurationXmlEditor';
 import { getObjectLocationFromXml } from '../fs/MetaPathResolver';
 import { buildTypedFieldPropertyBlocks } from './TypedFieldPropertyRules';
 
@@ -234,7 +234,7 @@ export class MetadataXmlCreator {
     const xml = fs.readFileSync(options.ownerObjectXmlPath, 'utf-8');
     const nextXml = addChildToObjectXml(xml, options);
     if (!nextXml.changed) {
-      return fail(nextXml.error ?? 'Не удалось добавить дочерний элемент.');
+      return fail(nextXml.error);
     }
 
     fs.writeFileSync(options.ownerObjectXmlPath, nextXml.xml, 'utf-8');
@@ -431,7 +431,7 @@ function buildGeneratedTypeLines(name: string, category: string, indent: string)
 function buildSimpleChildFragment(tag: 'Form' | 'Command' | 'Template' | 'EnumValue', name: string, indent: string, extraRawTags: string[] = []): string {
   const extra = extraRawTags.map((raw) => {
     const [tagName, value] = raw.split('>');
-    return `${indent}\t\t<${tagName}>${escapeXml(value ?? '')}</${tagName}>`;
+    return `${indent}\t\t<${tagName}>${escapeXml(value)}</${tagName}>`;
   });
   return [
     `${indent}<${tag} uuid="${newUuid()}">`,
@@ -452,7 +452,7 @@ function getChildObjectsBlock(xml: string): { inner: string; start: number; end:
     return { inner: '', start: pos, end: pos + openClose[0].length, selfClosing: true };
   }
   const match = /<ChildObjects\b[^>]*>([\s\S]*?)<\/ChildObjects>/.exec(xml);
-  if (!match || match.index === undefined) {
+  if (match?.index === undefined) {
     return null;
   }
   const innerStart = match.index + match[0].indexOf('>') + 1;

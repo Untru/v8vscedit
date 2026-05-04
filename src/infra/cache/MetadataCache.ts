@@ -1,10 +1,10 @@
 import * as crypto from 'crypto';
 import * as fs from 'fs';
 import * as path from 'path';
-import { CHILD_TAG_CONFIG, ChildTag } from '../../domain/ChildTag';
-import { ConfigEntry, ConfigInfo } from '../../domain/Configuration';
-import { MetaChild } from '../../domain/MetaObject';
-import { MetaKind, getMetaFolder, getMetaType, getMetaTypesByGroup } from '../../domain/MetaTypes';
+import { CHILD_TAG_CONFIG, type ChildTag } from '../../domain/ChildTag';
+import type { ConfigEntry, ConfigInfo } from '../../domain/Configuration';
+import type { MetaChild } from '../../domain/MetaObject';
+import { type MetaKind, getMetaFolder, getMetaType, getMetaTypesByGroup } from '../../domain/MetaTypes';
 import { buildScopeKey } from './HashCache';
 import type { MetadataGitDecorationTarget } from '../git/GitMetadataStatusService';
 import { getObjectLocationFromXml, resolveObjectXmlPath } from '../fs/MetaPathResolver';
@@ -382,7 +382,7 @@ function buildObjectNode(
   }
 
   const objectInfo = parseObjectXml(xmlPath);
-  const label = objectInfo?.name || name;
+  const label = objectInfo?.name ?? name;
   const ownershipTag = getOwnershipTag(entry, info, label);
   const children = childTags.length > 0
     ? buildStructuredChildren(xmlPath, type, objectInfo?.children ?? [], childTags)
@@ -395,7 +395,7 @@ function buildObjectNode(
     xmlPath,
     decorationPath: resolveObjectDecorationPath(xmlPath),
     gitDecorationTarget: buildObjectGitDecorationTarget(type, xmlPath),
-    tooltip: objectInfo?.synonym || undefined,
+    tooltip: objectInfo?.synonym ?? undefined,
     ownershipTag,
     canRemoveMetadata: true,
     children,
@@ -566,7 +566,7 @@ function buildSubsystemNode(
   const nextVisited = new Set(visited);
   nextVisited.add(xmlPath);
   const objectInfo = parseObjectXml(xmlPath);
-  const name = objectInfo?.name || label;
+  const name = objectInfo?.name ?? label;
   const children = (objectInfo?.children ?? [])
     .filter((item) => item.tag === 'Subsystem' && item.name !== name)
     .map((item) => {
@@ -584,7 +584,7 @@ function buildSubsystemNode(
     xmlPath,
     decorationPath: resolveObjectDecorationPath(xmlPath),
     gitDecorationTarget: buildObjectGitDecorationTarget('Subsystem', xmlPath),
-    tooltip: objectInfo?.synonym || undefined,
+    tooltip: objectInfo?.synonym ?? undefined,
     ownershipTag: getOwnershipTag(entry, info, name),
     canRemoveMetadata: true,
     children,
@@ -740,7 +740,7 @@ function updateChildObjectCache(snapshot: MetadataCacheSnapshot, ownerObjectXmlP
 
   const objectInfo = parseObjectXml(ownerObjectXmlPath);
   const childTags = getMetaType(ownerNode.type).childTags ?? [];
-  ownerNode.tooltip = objectInfo?.synonym || undefined;
+  ownerNode.tooltip = objectInfo?.synonym ?? undefined;
   ownerNode.children = buildStructuredChildren(ownerObjectXmlPath, ownerNode.type, objectInfo?.children ?? [], childTags);
   return true;
 }
@@ -772,7 +772,7 @@ function rebuildObjectNodeFromXml(
     ownershipTag: getOwnershipTag(entry, info, label),
     canRemoveMetadata: existing.canRemoveMetadata,
     children: childTags.length > 0
-      ? buildStructuredChildren(existing.xmlPath, existing.type, objectInfo.children ?? [], childTags)
+      ? buildStructuredChildren(existing.xmlPath, existing.type, objectInfo.children, childTags)
       : [],
   });
 }
@@ -791,7 +791,7 @@ function findObjectNodeByChangedPathInner(
 ): { parent: MetadataCacheNode; index: number; node: MetadataCacheNode } | null {
   for (let index = 0; index < parent.children.length; index += 1) {
     const child = parent.children[index];
-    if (isObjectCacheNode(child) && isPathOwnedByObject(normalizedChangedPath, child.xmlPath!)) {
+    if (isObjectCacheNode(child) && child.xmlPath && isPathOwnedByObject(normalizedChangedPath, child.xmlPath)) {
       return { parent, index, node: child };
     }
 

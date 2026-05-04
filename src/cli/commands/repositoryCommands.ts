@@ -1,11 +1,11 @@
 import * as path from 'path';
-import { CliArgs } from '../core/types';
+import type { CliArgs } from '../core/types';
 import { resolveConnection } from '../core/connection';
 import {
   appendRepositoryArgs,
   createTempDir,
   printLogFile,
-  RepositoryConnection,
+  type RepositoryConnection,
   runDesignerAndPrintResult,
   safeRemoveDir,
 } from '../core/onecCommon';

@@ -5,7 +5,7 @@ import { resolveConnection } from '../core/connection';
 import { buildHashSnapshot, buildScopeKey, collectCurrentHashes, loadHashCache, patchHashSnapshot, saveHashCache } from '../core/hashCache';
 import { createTempDir, printLogFile, runDesignerAndPrintResult, safeRemoveDir, writeUtf8BomLines } from '../core/onecCommon';
 import { resolveConfigDir } from '../core/projectLayout';
-import { CliArgs } from '../core/types';
+import type { CliArgs } from '../core/types';
 import { saveMetadataCacheForEntry } from '../../infra/cache/MetadataCache';
 
 export async function importConfiguration(args: CliArgs): Promise<number> {
@@ -55,7 +55,7 @@ export async function importConfiguration(args: CliArgs): Promise<number> {
         writeUtf8BomLines(listFile, fileList);
         partialFiles = fileList;
         if (verbose) {
-          console.log(`Files to load: ${fileList.length}`);
+          console.log(`Files to load: ${String(fileList.length)}`);
         }
       }
       designerArgs.push('-listFile', listFile, '-partial', '-updateConfigDumpInfo');

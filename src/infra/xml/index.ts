@@ -7,9 +7,9 @@
 import { ConfigXmlReader } from './ConfigXmlReader';
 import { ObjectXmlReader } from './ObjectXmlReader';
 import { MetaPathResolver } from '../fs/MetaPathResolver';
-import { ConfigInfo } from '../../domain/Configuration';
-import { MetaObject, MetaChild } from '../../domain/MetaObject';
-import { MetaKind } from '../../domain/MetaTypes';
+import type { ConfigInfo } from '../../domain/Configuration';
+import type { MetaObject } from '../../domain/MetaObject';
+import type { MetaKind } from '../../domain/MetaTypes';
 
 export * from './XmlUtils';
 export * from './ConfigXmlReader';

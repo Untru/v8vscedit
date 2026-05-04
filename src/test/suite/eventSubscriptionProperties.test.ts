@@ -8,7 +8,7 @@ import {
   EventSubscriptionPropertyService,
 } from '../../ui/views/properties/EventSubscriptionPropertyService';
 import { parseMetadataType } from '../../ui/views/properties/MetadataTypeService';
-import { EnumPropertyValue, MetadataTypeValue } from '../../ui/views/properties/_types';
+import type { EnumPropertyValue, MetadataTypeValue } from '../../ui/views/properties/_types';
 
 suite('eventSubscriptionProperties', () => {
   test('показывает Source как состав типов, а Event как зависимый список', () => {

@@ -3,7 +3,7 @@ import * as path from 'path';
 import { getBool, getString } from '../core/args';
 import { resolveConnection } from '../core/connection';
 import { runDesignerAndPrintResult, createTempDir, printLogFile, safeRemoveDir, writeUtf8BomLines } from '../core/onecCommon';
-import { CliArgs } from '../core/types';
+import type { CliArgs } from '../core/types';
 import { resolveConfigDir } from '../core/projectLayout';
 
 export async function exportConfiguration(args: CliArgs): Promise<number> {
@@ -45,7 +45,7 @@ export async function exportConfiguration(args: CliArgs): Promise<number> {
       writeUtf8BomLines(listFile, objectList);
       designerArgs.push('-listFile', listFile);
       if (verbose) {
-        console.log(`Objects to dump: ${objectList.length}`);
+        console.log(`Objects to dump: ${String(objectList.length)}`);
       }
     } else if (mode === 'UpdateInfo') {
       designerArgs.push('-configDumpInfoOnly');

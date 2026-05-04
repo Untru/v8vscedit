@@ -21,16 +21,19 @@ suite('sessionParameterHandler', () => {
       xmlPath,
     }, vscode.TreeItemCollapsibleState.None);
 
-    const props = sessionParameterHandler.getProperties!(node);
+    if (!sessionParameterHandler.getProperties) {
+      assert.fail('Обработчик свойств параметра сеанса не найден');
+    }
+    const props = sessionParameterHandler.getProperties(node);
     const keys = props.map((p) => p.key);
 
     assert.deepStrictEqual(keys, ['Name', 'Synonym', 'Comment', 'Type']);
 
     const typeProp = props.find((p) => p.key === 'Type');
-    assert.ok(typeProp && typeProp.kind === 'metadataType');
-    const typeValue = typeProp!.value as {
+    assert.ok(typeProp?.kind === 'metadataType');
+    const typeValue = typeProp.value as {
       presentation: string;
-      items: Array<{ canonical: string }>;
+      items: { canonical: string }[];
     };
 
     assert.ok(

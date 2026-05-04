@@ -1,11 +1,11 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
-import { ConfigEntry } from './domain/Configuration';
+import type { ConfigEntry } from './domain/Configuration';
 import { findConfigurations } from './infra/fs/ConfigLocator';
-import { ChangedConfiguration, ConfigurationChangeDetector } from './infra/fs/ConfigurationChangeDetector';
+import { type ChangedConfiguration, ConfigurationChangeDetector } from './infra/fs/ConfigurationChangeDetector';
 import { MetadataTreeProvider } from './ui/tree/MetadataTreeProvider';
-import { MetadataNode } from './ui/tree/TreeNode';
+import type { MetadataNode } from './ui/tree/TreeNode';
 import { registerCommands } from './ui/commands/CommandRegistry';
 import { PropertiesViewProvider } from './ui/views/PropertiesViewProvider';
 import { SubsystemEditorViewProvider } from './ui/views/subsystem/SubsystemEditorViewProvider';
@@ -161,7 +161,7 @@ export class Container {
   }
 
   /** Создаёт контейнер и выполняет регистрацию всех подсистем */
-  static async bootstrap(context: vscode.ExtensionContext, folder: vscode.WorkspaceFolder): Promise<Container> {
+  static bootstrap(context: vscode.ExtensionContext, folder: vscode.WorkspaceFolder): Container {
     const c = new Container(context, folder);
     c.wireTreeView();
     c.wireTreeSearchView();
@@ -171,15 +171,15 @@ export class Container {
     c.wireGitDecorationWatcher();
     c.wireCommands();
     c.wireReadonlyGuard();
-    await c.reloadEntries();
+    c.reloadEntries();
     c.wireLsp();
     return c;
   }
 
   /** Перечитывает список конфигураций в рабочей области */
-  async reloadEntries(): Promise<void> {
+  reloadEntries(): void {
     const rootPath = this.workspaceFolder.uri.fsPath;
-    const entries = await findConfigurations(rootPath);
+    const entries = findConfigurations(rootPath);
     this.ensureHashCaches(entries);
     this.treeProvider.updateEntries(entries);
     if (this.isProjectInitialized()) {
@@ -188,7 +188,7 @@ export class Container {
     this.refreshChangedConfigurationState();
     const hasCfe = entries.some((e) => e.kind === 'cfe');
     void vscode.commands.executeCommand('setContext', 'v8vscedit.hasCfeEntries', hasCfe);
-    this.outputChannel.appendLine(`[init] Найдено конфигураций: ${entries.length}`);
+    this.outputChannel.appendLine(`[init] Найдено конфигураций: ${String(entries.length)}`);
   }
 
   private wireTreeView(): void {
@@ -341,7 +341,7 @@ export class Container {
         this.outputChannel.appendLine(`[init] ${message}`);
       });
       if (created > 0) {
-        this.outputChannel.appendLine(`[hash-cache] Создано первичных кэшей: ${created}`);
+        this.outputChannel.appendLine(`[hash-cache] Создано первичных кэшей: ${String(created)}`);
       }
     } finally {
       if (this.treeView) {

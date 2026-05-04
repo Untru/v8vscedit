@@ -2,7 +2,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import * as vscode from 'vscode';
-import { MetadataNode } from '../../tree/TreeNode';
+import type { MetadataNode } from '../../tree/TreeNode';
 import {
   decodeProcessOutput,
   normalizeInfoBasePath,
@@ -38,9 +38,10 @@ let statusBarItem: vscode.StatusBarItem | undefined;
 let clearStatusTimer: NodeJS.Timeout | undefined;
 
 export function extractExtensionTarget(node: NodeArg): { extensionName: string; extensionRoot: string } | null {
-  const nodeKind = node?.nodeKind;
-  const xmlPath = node?.xmlPath;
-  const extensionName = String((node as MetadataNode | undefined)?.label ?? '');
+  const nodeKind = node.nodeKind;
+  const xmlPath = node.xmlPath;
+  const rawLabel = (node as MetadataNode).label;
+  const extensionName = typeof rawLabel === 'string' ? rawLabel : rawLabel?.label ?? '';
   if (nodeKind !== 'extension' || !xmlPath || !extensionName) {
     return null;
   }
@@ -686,7 +687,7 @@ function asString(value: unknown): string | undefined {
 }
 
 function resolveV8PathFromSettings(defaults: Record<string, unknown>): string {
-  return asString(defaults['--path']) || resolveV8PathHintFromVersion(asString(defaults['--v8version']) ?? '');
+  return asString(defaults['--path']) ?? resolveV8PathHintFromVersion(asString(defaults['--v8version']) ?? '');
 }
 
 function trimStatusMessage(text: string): string {
@@ -709,7 +710,7 @@ function extractFailureReason(details: string[], exitCode: number): string {
     .map((item) => item.replace(/\r/g, '').trim())
     .filter(Boolean);
   if (merged.length === 0) {
-    return `команда завершилась с кодом ${exitCode}`;
+    return `команда завершилась с кодом ${String(exitCode)}`;
   }
 
   const lines = merged
@@ -731,7 +732,7 @@ function extractFailureReason(details: string[], exitCode: number): string {
     return meaningfulLines.slice(start, end).join('\n');
   }
 
-  return meaningfulLines.at(-1) ?? lines.at(-1) ?? `команда завершилась с кодом ${exitCode}`;
+  return meaningfulLines.at(-1) ?? lines.at(-1) ?? `команда завершилась с кодом ${String(exitCode)}`;
 }
 
 function findLastIndex<T>(items: T[], predicate: (item: T) => boolean): number {
@@ -756,7 +757,7 @@ function isDiagnosticNoise(line: string, exitCode: number): boolean {
   if (!normalized || normalized === '--- Log ---' || normalized === '--- End ---') {
     return true;
   }
-  if (new RegExp(`\\(code:\\s*${exitCode}\\)`, 'i').test(normalized)) {
+  if (new RegExp(`\\(code:\\s*${String(exitCode)}\\)`, 'i').test(normalized)) {
     return true;
   }
   return /^(\[INFO\]|\[WARN\]|Getting |Git changes detected|Hash changes detected|Files for loading|Executing |Created output directory:|Выгрузка исходников|Загрузка исходников|Применение изменений)$/i.test(normalized);

@@ -1,7 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { extractSimpleTag, extractSynonym } from '../../../infra/xml';
-import {
+import type {
   EnumPropertyValue,
   ObjectPropertiesCollection,
 } from './_types';

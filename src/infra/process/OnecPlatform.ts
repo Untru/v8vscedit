@@ -78,7 +78,7 @@ export function resolveV8PathHintFromVersion(version: string, platform: NodeJS.P
       `/opt/1C/v8.3/${normalizedVersion}`,
     ];
 
-  return candidates.find((candidate) => fs.existsSync(candidate)) ?? candidates[0] ?? '';
+  return candidates.find((candidate) => fs.existsSync(candidate)) ?? candidates[0];
 }
 
 /**

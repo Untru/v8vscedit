@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import {
-  LanguageClient, LanguageClientOptions, ServerOptions,
+  LanguageClient, type LanguageClientOptions, type ServerOptions,
   ErrorAction, CloseAction, Trace,
 } from 'vscode-languageclient/node';
 import { BslAnalyzerService } from './analyzer/BslAnalyzerService';
@@ -83,7 +83,9 @@ export class LspManager implements vscode.Disposable {
   /** Проверить обновления bsl-analyzer. */
   async checkForUpdate(): Promise<void> {
     const updated = await this.analyzerService.checkForUpdate();
-    if (updated) await this.restart();
+    if (updated) {
+      await this.restart();
+    }
   }
 
   /** Регистрирует команды и подписки, связанные с LSP */
@@ -99,13 +101,13 @@ export class LspManager implements vscode.Disposable {
       vscode.commands.registerCommand('v8vscedit.bslAnalyzer.showOutput', () => this.outputChannel.show()),
       vscode.commands.registerCommand('v8vscedit.bslAnalyzer.update', () => this.checkForUpdate()),
       vscode.commands.registerCommand('v8vscedit.bslAnalyzer.showMenu', () => this.showMenu()),
-      { dispose: () => { this.client?.stop(); } },
+      { dispose: () => { void this.client?.stop(); } },
     );
 
     context.subscriptions.push(
       vscode.workspace.onDidChangeConfiguration((e) => {
         if (e.affectsConfiguration('v8vscedit.lsp') || e.affectsConfiguration('v8vscedit.bslAnalyzer')) {
-          this.restart();
+          void this.restart();
         }
       }),
     );
@@ -113,16 +115,16 @@ export class LspManager implements vscode.Disposable {
 
   /** Запустить + запланировать фоновую проверку обновлений */
   startWithAutoUpdate(): void {
-    this.start();
+    void this.start();
 
     if (this.mode === 'bsl-analyzer' &&
         vscode.workspace.getConfiguration('v8vscedit.bslAnalyzer').get<boolean>('autoUpdate', true)) {
-      setTimeout(() => this.checkForUpdate(), 30_000);
+      setTimeout(() => { void this.checkForUpdate(); }, 30_000);
     }
   }
 
   dispose(): void {
-    this.client?.stop();
+    void this.client?.stop();
   }
 
   // ── Приватные методы ────────────────────────────────────────────────────
@@ -174,12 +176,12 @@ export class LspManager implements vscode.Disposable {
         error: () => ({ action: ErrorAction.Continue }),
         closed: () => {
           crashCount++;
-          this.outputChannel.appendLine(`[lsp] Сервер упал (${crashCount}/${MAX_CRASHES})`);
+          this.outputChannel.appendLine(`[lsp] Сервер упал (${String(crashCount)}/${String(MAX_CRASHES)})`);
           if (crashCount >= MAX_CRASHES) {
-            this.statusBar.setState('error', `Сервер упал ${crashCount} раз`);
+            this.statusBar.setState('error', `Сервер упал ${String(crashCount)} раз`);
             return { action: CloseAction.DoNotRestart };
           }
-          this.statusBar.setState('starting', `Перезапуск (${crashCount}/${MAX_CRASHES})…`);
+          this.statusBar.setState('starting', `Перезапуск (${String(crashCount)}/${String(MAX_CRASHES)})…`);
           return { action: CloseAction.Restart };
         },
       },
@@ -193,8 +195,10 @@ export class LspManager implements vscode.Disposable {
       crashCount = 0;
       this.statusBar.setState('running');
       const version = this.analyzerService.installedVersion;
-      if (version) this.statusBar.setVersion(version);
-      this.outputChannel.appendLine(`[lsp] bsl-analyzer запущен (${version || 'custom'})`);
+      if (version) {
+        this.statusBar.setVersion(version);
+      }
+      this.outputChannel.appendLine(`[lsp] bsl-analyzer запущен (${version ?? 'custom'})`);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       this.statusBar.setState('error', msg);
@@ -212,13 +216,19 @@ export class LspManager implements vscode.Disposable {
     if (m === 'bsl-analyzer') {
       items.splice(1, 0, {
         label: '$(cloud-download) Проверить обновления',
-        description: `Текущая: ${this.analyzerService.installedVersion || '—'}`,
+        description: `Текущая: ${this.analyzerService.installedVersion ?? '—'}`,
       });
     }
     const pick = await vscode.window.showQuickPick(items, { title: 'BSL Language Server' });
-    if (!pick) return;
-    if (pick.label.includes('Перезапустить')) await this.restart();
-    else if (pick.label.includes('обновления')) await this.checkForUpdate();
-    else if (pick.label.includes('лог')) this.outputChannel.show();
+    if (!pick) {
+      return;
+    }
+    if (pick.label.includes('Перезапустить')) {
+      await this.restart();
+    } else if (pick.label.includes('обновления')) {
+      await this.checkForUpdate();
+    } else if (pick.label.includes('лог')) {
+      this.outputChannel.show();
+    }
   }
 }

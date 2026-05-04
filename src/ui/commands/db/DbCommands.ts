@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { CommandServices } from '../_shared';
+import type { CommandServices } from '../_shared';
 import { runDbClientFromWorkspace } from './DbRunCommandRunner';
 
 /** Регистрирует команды запуска 1С из настроек рабочей области. */
@@ -38,7 +38,7 @@ async function confirmUpdateBeforeThinClient(services: CommandServices): Promise
       id: 'update',
       label: '$(sync) Обновить и запустить',
       description: 'Загрузить изменения в базу перед запуском',
-      detail: `Изменено конфигураций: ${changed.length}`,
+      detail: `Изменено конфигураций: ${String(changed.length)}`,
     },
     {
       id: 'run',
@@ -58,5 +58,5 @@ async function confirmUpdateBeforeThinClient(services: CommandServices): Promise
   }
 
   const updated = await vscode.commands.executeCommand<boolean>('v8vscedit.updateChangedConfigurations');
-  return updated === true;
+  return updated;
 }

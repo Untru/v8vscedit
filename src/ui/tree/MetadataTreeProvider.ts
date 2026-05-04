@@ -1,15 +1,15 @@
 import * as path from 'path';
 import * as vscode from 'vscode';
-import { ConfigEntry } from '../../infra/fs/ConfigLocator';
-import { RepositoryService } from '../../infra/repository/RepositoryService';
+import type { ConfigEntry } from '../../infra/fs/ConfigLocator';
+import type { RepositoryService } from '../../infra/repository/RepositoryService';
 import { parseConfigXml } from '../../infra/xml';
-import { SupportInfoService } from '../../infra/support/SupportInfoService';
+import type { SupportInfoService } from '../../infra/support/SupportInfoService';
 import {
   buildMetadataCacheScopeKey,
-  MetadataCacheAddTarget,
+  type MetadataCacheAddTarget,
   loadMetadataCache,
-  MetadataCacheNode,
-  MetadataCacheSnapshot,
+  type MetadataCacheNode,
+  type MetadataCacheSnapshot,
   saveMetadataCacheForEntry,
   updateMetadataCacheForChangedFiles,
 } from '../../infra/cache/MetadataCache';
@@ -205,7 +205,7 @@ export class MetadataTreeProvider implements vscode.TreeDataProvider<MetadataNod
 
     const mode = this.supportService.getSupportMode(element.xmlPath);
     const baseContextValue = (element.contextValue ?? '').replace(/-support\d$/, '');
-    element.contextValue = `${baseContextValue}-support${mode}`;
+    element.contextValue = `${baseContextValue}-support${String(mode)}`;
   }
 
   /** Привязывает узел к реальному файлу или каталогу, чтобы работали штатные git-декорации VS Code. */
@@ -335,7 +335,7 @@ export class MetadataTreeProvider implements vscode.TreeDataProvider<MetadataNod
 
     const fullName = this.repositoryService.resolveFullName({
       nodeKind: element.nodeKind,
-      label: element.label ? String(element.label) : undefined,
+      label: typeof element.label === 'string' ? element.label : element.label?.label,
       xmlPath: element.xmlPath,
       metaContext: element.metaContext,
     });

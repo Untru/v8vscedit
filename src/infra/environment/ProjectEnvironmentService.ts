@@ -1,13 +1,13 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import {
-  InstalledOnecPlatform,
+  type InstalledOnecPlatform,
   scanInstalledOnecPlatforms,
 } from '../process';
 import {
-  InfoBaseRegistryScanResult,
+  type InfoBaseRegistryScanResult,
   InfoBaseRegistryService,
-  RegisteredInfoBase,
+  type RegisteredInfoBase,
 } from './InfoBaseRegistryService';
 
 export interface ProjectLaunchSettings {
@@ -159,19 +159,19 @@ export class ProjectEnvironmentService {
   private readEnv(): Record<string, unknown> {
     const envPath = this.getEnvPath();
     if (!fs.existsSync(envPath)) {
-      return structuredClone(DEFAULT_ENV) as Record<string, unknown>;
+      return structuredClone(DEFAULT_ENV);
     }
 
     const raw = fs.readFileSync(envPath, 'utf-8').trim();
     if (!raw) {
-      return structuredClone(DEFAULT_ENV) as Record<string, unknown>;
+      return structuredClone(DEFAULT_ENV);
     }
 
     const parsed = JSON.parse(raw) as unknown;
     if (isRecord(parsed)) {
       return parsed;
     }
-    return structuredClone(DEFAULT_ENV) as Record<string, unknown>;
+    return structuredClone(DEFAULT_ENV);
   }
 
   private writeEnv(env: Record<string, unknown>): void {

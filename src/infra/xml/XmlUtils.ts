@@ -1,8 +1,8 @@
 import { XMLParser } from 'fast-xml-parser';
 import * as fs from 'fs';
 
-type XmlTextNode = { '#text': string };
-type XmlElementNode = { [tagName: string]: XmlNodeList };
+interface XmlTextNode { '#text': string }
+type XmlElementNode = Record<string, XmlNodeList>;
 type XmlNode = XmlTextNode | XmlElementNode;
 type XmlNodeList = XmlNode[];
 
@@ -31,7 +31,7 @@ function getElementName(node: XmlNode): string | null {
     return null;
   }
   const [name] = Object.keys(node);
-  return name ?? null;
+  return name;
 }
 
 function getElementChildren(node: XmlNode): XmlNodeList {
@@ -130,8 +130,8 @@ function findFirstElementRange(xml: string, tagName: string): { start: number; o
   return null;
 }
 
-function findDirectElementRanges(xml: string, tagName: string): Array<{ start: number; end: number }> {
-  const ranges: Array<{ start: number; end: number }> = [];
+function findDirectElementRanges(xml: string, tagName: string): { start: number; end: number }[] {
+  const ranges: { start: number; end: number }[] = [];
   const tagRe = /<\/?([A-Za-z_][\w:.-]*)(?:\s[^<>]*)?\/?>/g;
   let depth = 0;
   let current: { tag: string; start: number } | null = null;
@@ -142,7 +142,7 @@ function findDirectElementRanges(xml: string, tagName: string): Array<{ start: n
     const name = match[1];
     if (text.startsWith('</')) {
       depth = Math.max(0, depth - 1);
-      if (depth === 0 && current && current.tag === name) {
+      if (depth === 0 && current?.tag === name) {
         ranges.push({ start: current.start, end: match.index + text.length });
         current = null;
       }
@@ -218,7 +218,7 @@ export function findChildElementFullXmlInBlock(
   for (const range of findDirectElementRanges(block, childTag)) {
     const childXml = block.slice(range.start, range.end);
     const children = getWrappedRootChildren(childXml);
-    const child = findDirectChildren(children, childTag)[0];
+    const child = findDirectChildren(children, childTag).at(0);
     if (!child) {
       continue;
     }
@@ -238,12 +238,12 @@ export function findChildElementFullXmlInBlock(
 export function findChildElementsFullXmlInBlock(
   block: string,
   childTag: string
-): Array<{ name: string; xml: string }> {
-  const result: Array<{ name: string; xml: string }> = [];
+): { name: string; xml: string }[] {
+  const result: { name: string; xml: string }[] = [];
   for (const range of findDirectElementRanges(block, childTag)) {
     const childXml = block.slice(range.start, range.end);
     const children = getWrappedRootChildren(childXml);
-    const child = findDirectChildren(children, childTag)[0];
+    const child = findDirectChildren(children, childTag).at(0);
     if (!child) {
       continue;
     }
@@ -277,7 +277,7 @@ export function extractChildMetaElementXml(
 export function extractChildMetaElementsXml(
   xml: string,
   childTag: string
-): Array<{ name: string; xml: string }> {
+): { name: string; xml: string }[] {
   const mainBlock = extractMainChildObjectsInnerXml(xml);
   if (!mainBlock) {
     return [];
@@ -308,7 +308,7 @@ export function extractColumnXmlFromTabularSection(
 export function extractColumnsXmlFromTabularSection(
   objectXml: string,
   sectionName: string
-): Array<{ name: string; xml: string }> {
+): { name: string; xml: string }[] {
   const tabularSectionXml = extractChildMetaElementXml(objectXml, 'TabularSection', sectionName);
   if (!tabularSectionXml) {
     return [];

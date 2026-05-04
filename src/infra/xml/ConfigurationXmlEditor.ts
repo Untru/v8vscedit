@@ -1,6 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import { getMetaFolder, MetaKind } from '../../domain/MetaTypes';
+import { getMetaFolder, type MetaKind } from '../../domain/MetaTypes';
 import { getObjectLocationFromXml } from '../fs/ObjectLocation';
 import { ObjectXmlReader } from './ObjectXmlReader';
 import { writeTextFilePreservingBomAndEol } from './XmlUtils';
@@ -124,7 +124,9 @@ export class ConfigurationXmlEditor {
     const nextInner = this.buildChildObjectsBlock(current, this.detectIndent(childObjects, '\t\t\t'));
     const updatedXml = childObjectsMatch
       ? xml.replace(childObjects, nextInner)
-      : xml.replace(selfClosingChildObjectsMatch![0], `<ChildObjects>${nextInner}</ChildObjects>`);
+      : selfClosingChildObjectsMatch
+        ? xml.replace(selfClosingChildObjectsMatch[0], `<ChildObjects>${nextInner}</ChildObjects>`)
+        : xml;
     writeTextFilePreservingBomAndEol(configXmlPath, xml, updatedXml);
     return this.ok([configXmlPath]);
   }
@@ -221,7 +223,6 @@ export class ConfigurationXmlEditor {
     const newDirPath = path.join(location.configRoot, location.folderName, newObjectName);
     const oldFilePath = path.join(location.configRoot, location.folderName, `${oldObjectName}.xml`);
     const newFilePath = path.join(location.configRoot, location.folderName, `${newObjectName}.xml`);
-    const oldDeepXmlPath = path.join(oldDirPath, `${oldObjectName}.xml`);
     const newDeepXmlPath = path.join(newDirPath, `${newObjectName}.xml`);
     const isDeep = fs.existsSync(oldDirPath);
 
@@ -244,15 +245,11 @@ export class ConfigurationXmlEditor {
     }
 
     const changedFiles: string[] = [configXmlPath];
-    let resultXmlPath = currentXmlPath;
     if (isDeep) {
       fs.renameSync(oldDirPath, newDirPath);
       const oldNameXmlInNewDir = path.join(newDirPath, `${oldObjectName}.xml`);
       if (fs.existsSync(oldNameXmlInNewDir)) {
         fs.renameSync(oldNameXmlInNewDir, newDeepXmlPath);
-      }
-      if (this.isSamePath(currentXmlPath, oldDeepXmlPath)) {
-        resultXmlPath = newDeepXmlPath;
       }
       changedFiles.push(newDirPath);
     }
@@ -262,13 +259,9 @@ export class ConfigurationXmlEditor {
     }
     if (!isDeep || !fs.existsSync(newDeepXmlPath)) {
       writeTextFilePreservingBomAndEol(newFilePath, objectXml, objectXmlUpdated);
-      resultXmlPath = newFilePath;
       changedFiles.push(newFilePath);
     } else {
       writeTextFilePreservingBomAndEol(newDeepXmlPath, objectXml, objectXmlUpdated);
-      if (this.isSamePath(currentXmlPath, oldDeepXmlPath)) {
-        resultXmlPath = newDeepXmlPath;
-      }
       changedFiles.push(newDeepXmlPath);
     }
 
@@ -318,7 +311,7 @@ export class ConfigurationXmlEditor {
       return `<${propertyName}>${value === true ? 'true' : 'false'}</${propertyName}>`;
     }
     if (kind === 'multiEnum' && propertyName === 'UsePurposes') {
-      const values = Array.isArray(value) ? value : [String(value ?? '')].filter((item) => item.length > 0);
+      const values = Array.isArray(value) ? value : [String(value)].filter((item) => item.length > 0);
       if (values.length === 0) {
         return '<UsePurposes/>';
       }
@@ -329,7 +322,7 @@ export class ConfigurationXmlEditor {
       ].join('\n');
     }
     if (kind === 'localized') {
-      const localizedValue = String(value ?? '');
+      const localizedValue = String(value);
       if (!localizedValue) {
         return `<${propertyName}></${propertyName}>`;
       }
@@ -342,7 +335,7 @@ export class ConfigurationXmlEditor {
         `</${propertyName}>`,
       ].join('\n');
     }
-    const stringValue = String(value ?? '');
+    const stringValue = String(value);
     const normalized = kind === 'reference' && stringValue && !stringValue.includes('.') ? `Language.${stringValue}` : stringValue;
     return `<${propertyName}>${escapeXmlText(normalized)}</${propertyName}>`;
   }
@@ -355,14 +348,14 @@ export class ConfigurationXmlEditor {
     return [value.slice(0, dotIndex).trim(), value.slice(dotIndex + 1).trim()];
   }
 
-  private readChildEntries(block: string): Array<{ type: string; name: string }> {
+  private readChildEntries(block: string): { type: string; name: string }[] {
     return Array.from(block.matchAll(/<([A-Za-z][A-Za-z0-9]*)>([^<]+)<\/\1>/g)).map((m) => ({
       type: m[1],
       name: m[2].trim(),
     }));
   }
 
-  private buildChildObjectsBlock(items: Array<{ type: string; name: string }>, indent: string): string {
+  private buildChildObjectsBlock(items: { type: string; name: string }[], indent: string): string {
     return items.length === 0
       ? ''
       : `\n${items.map((item) => `${indent}<${item.type}>${escapeXmlText(item.name)}</${item.type}>`).join('\n')}\n${indent.slice(0, -1)}`;
@@ -409,14 +402,14 @@ export class ConfigurationXmlEditor {
       return null;
     }
     let replaced = false;
-    const next = block.replace(new RegExp(`(<${childTag}>)([\\s\\S]*?)(<\\/${childTag}>)`, 'g'), (full, open, value, close) => {
-      if (replaced || String(value).trim() !== oldName) {
+    const next = block.replace(new RegExp(`(<${childTag}>)([\\s\\S]*?)(<\\/${childTag}>)`, 'g'), (full: string, open: string, value: string, close: string) => {
+      if (replaced || value.trim() !== oldName) {
         return full;
       }
       replaced = true;
       return `${open}${escapeXmlText(newName)}${close}`;
     });
-    return replaced ? configXml.replace(block, next) : null;
+    return next !== block ? configXml.replace(block, next) : null;
   }
 
   private isObjectNameOccupiedInType(configXml: string, childTag: string, oldName: string, newName: string): boolean {

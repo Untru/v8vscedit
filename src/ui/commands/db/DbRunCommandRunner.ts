@@ -152,5 +152,5 @@ function asString(value: unknown): string | undefined {
 }
 
 function resolveV8PathFromSettings(defaults: Record<string, unknown>): string {
-  return asString(defaults['--path']) || resolveV8PathHintFromVersion(asString(defaults['--v8version']) ?? '');
+  return asString(defaults['--path']) ?? resolveV8PathHintFromVersion(asString(defaults['--v8version']) ?? '');
 }

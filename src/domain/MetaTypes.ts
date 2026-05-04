@@ -10,8 +10,8 @@
  * Любое расширение функциональности должно читать данные отсюда, а не
  * заводить параллельные словари.
  */
-import { ChildTag } from './ChildTag';
-import { OpenModuleCommandId } from './ModuleSlot';
+import type { ChildTag } from './ChildTag';
+import type { OpenModuleCommandId } from './ModuleSlot';
 
 /** Группа дерева, в которую попадает тип */
 export type MetaGroup =
@@ -324,21 +324,17 @@ export const META_TYPES: Readonly<Record<MetaKind, MetaTypeDef>> = {
 
 /** Возвращает описание типа по идентификатору; выбрасывает исключение, если тип неизвестен */
 export function getMetaType(kind: MetaKind): MetaTypeDef {
-  const metaType = META_TYPES[kind];
-  if (!metaType) {
-    throw new Error(`Неизвестный тип метаданных: ${kind}`);
-  }
-  return metaType;
+  return META_TYPES[kind];
 }
 
 /** Короткое имя типа (label) */
 export function getMetaLabel(kind: MetaKind): string {
-  return META_TYPES[kind]?.label ?? kind;
+  return META_TYPES[kind].label;
 }
 
 /** Имя иконки для типа (без пути и расширения) */
 export function getMetaIcon(kind: MetaKind): string {
-  return META_TYPES[kind]?.icon ?? 'attribute';
+  return META_TYPES[kind].icon;
 }
 
 /** Возвращает все типы указанной группы, отсортированные по `groupOrder` */
@@ -350,5 +346,5 @@ export function getMetaTypesByGroup(group: MetaGroup): MetaTypeDef[] {
 
 /** Возвращает папку выгрузки по типу или `null`, если у типа нет файлов на диске */
 export function getMetaFolder(kind: MetaKind): string | null {
-  return META_TYPES[kind]?.folder ?? null;
+  return META_TYPES[kind].folder ?? null;
 }

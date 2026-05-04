@@ -129,14 +129,15 @@ export function patchHashSnapshot(
   for (const [file, hash] of Object.entries(changedHashes)) {
     mergedFiles[file] = hash;
   }
-  for (const file of deletedFiles) {
-    delete mergedFiles[file];
-  }
+  const deleted = new Set(deletedFiles);
+  const files = Object.fromEntries(
+    Object.entries(mergedFiles).filter(([file]) => !deleted.has(file))
+  );
   return {
     schemaVersion: CACHE_SCHEMA_VERSION,
     scopeKey: previous.scopeKey,
     generatedAt: new Date().toISOString(),
-    files: mergedFiles,
+    files,
   };
 }
 

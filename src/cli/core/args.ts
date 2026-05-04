@@ -1,4 +1,4 @@
-import { CliArgs } from './types';
+import type { CliArgs } from './types';
 
 export function parseArgs(argv: string[], switches: Set<string>): CliArgs {
   const result: CliArgs = {};

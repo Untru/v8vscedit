@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { CommandServices } from '../_shared';
+import type { CommandServices } from '../_shared';
 
 /**
  * Регистрирует команды поиска по навигатору метаданных.

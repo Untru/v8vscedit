@@ -1,7 +1,7 @@
 import * as assert from 'assert';
 import * as path from 'path';
 import { SupportInfoService, SupportMode } from '../../infra/support/SupportInfoService';
-import { Logger } from '../../infra/support/Logger';
+import type { Logger } from '../../infra/support/Logger';
 
 const EXAMPLE_CF = path.resolve(__dirname, '../../../example/src/cf');
 

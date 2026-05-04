@@ -1,7 +1,7 @@
 import * as path from 'path';
 import * as vscode from 'vscode';
-import { RepositoryService } from '../../infra/repository/RepositoryService';
-import { SupportInfoService } from '../../infra/support/SupportInfoService';
+import type { RepositoryService } from '../../infra/repository/RepositoryService';
+import type { SupportInfoService } from '../../infra/support/SupportInfoService';
 
 /**
  * Переводит file:// BSL-файлы в readonly, если редактирование запрещено
@@ -16,7 +16,7 @@ export class BslReadonlyGuard {
 
   /** Подписывается на открытия BSL-файлов и помечает редактор readonly в текущей сессии. */
   register(): vscode.Disposable {
-    return vscode.workspace.onDidOpenTextDocument(async (doc) => {
+    return vscode.workspace.onDidOpenTextDocument((doc) => {
       if (doc.uri.scheme !== 'file') {
         return;
       }
@@ -46,7 +46,9 @@ export class BslReadonlyGuard {
         await vscode.commands.executeCommand('workbench.action.files.setActiveEditorReadonlyInSession');
       });
 
-      setTimeout(() => watcher.dispose(), 5_000);
+      setTimeout(() => {
+        watcher.dispose();
+      }, 5_000);
     });
   }
 }

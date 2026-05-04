@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { CommandServices } from '../_shared';
+import type { CommandServices } from '../_shared';
 
 /** Регистрирует команду открытия XML с учётом блокировки поддержки. */
 export function registerOpenXmlCommand(
@@ -8,7 +8,7 @@ export function registerOpenXmlCommand(
 ): void {
   context.subscriptions.push(
     vscode.commands.registerCommand('v8vscedit.openXmlFile', async (node: { xmlPath?: string }) => {
-      if (!node?.xmlPath) {
+      if (!node.xmlPath) {
         return;
       }
 

@@ -1,5 +1,5 @@
 import { getString } from './args';
-import { CliArgs, OnecConnection } from './types';
+import type { CliArgs, OnecConnection } from './types';
 import { resolveV8Path } from './onecCommon';
 
 /**

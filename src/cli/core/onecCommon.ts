@@ -3,7 +3,7 @@ import * as os from 'os';
 import * as path from 'path';
 import { decode } from 'iconv-lite';
 import { resolveV8ExecutablePath, runProcess } from '../../infra/process';
-import { OnecConnection } from './types';
+import type { OnecConnection } from './types';
 
 export interface RepositoryConnection {
   repoPath: string;
@@ -77,7 +77,7 @@ export async function runDesignerAndPrintResult(
     for (const detail of processDetails) {
       console.error(detail);
     }
-    console.error(`${errorMessage} (code: ${result.exitCode})`);
+    console.error(`${errorMessage} (code: ${String(result.exitCode)})`);
   }
   return result.exitCode;
 }

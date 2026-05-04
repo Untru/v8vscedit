@@ -303,7 +303,7 @@ function compactTypeLabel(label: string): string {
 }
 
 function formatMetadataReferences(value: string): string {
-  return value.replace(/\b([A-Za-z][A-Za-z0-9]*Ref?|[A-Za-z][A-Za-z0-9]*)\.([A-Za-zА-Яа-яЁё_][\wА-Яа-яЁё]*)/g, (full, type, name) => {
+  return value.replace(/\b([A-Za-z][A-Za-z0-9]*Ref?|[A-Za-z][A-Za-z0-9]*)\.([A-Za-zА-Яа-яЁё_][\wА-Яа-яЁё]*)/g, (full: string, type: string, name: string) => {
     const presentation = referencePresentationByXmlType.get(type);
     return presentation ? `${presentation.ruType}.${name}` : full;
   });

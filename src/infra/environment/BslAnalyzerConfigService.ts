@@ -99,7 +99,7 @@ function normalizeExtensionPaths(workspaceRoot: string, extensionRootPaths: read
 
 function findSourceSectionRange(content: string): { start: number; end: number } | null {
   const sourceMatch = /^\s*\[source]\s*$/m.exec(content);
-  if (!sourceMatch || sourceMatch.index === undefined) {
+  if (sourceMatch?.index === undefined) {
     return null;
   }
 
@@ -108,7 +108,7 @@ function findSourceSectionRange(content: string): { start: number; end: number }
   const nextSectionMatch = /^\s*\[[^\]]+]\s*$/m.exec(rest);
   return {
     start: sourceMatch.index,
-    end: nextSectionMatch && nextSectionMatch.index !== undefined
+    end: nextSectionMatch?.index !== undefined
       ? restStart + nextSectionMatch.index
       : content.length,
   };

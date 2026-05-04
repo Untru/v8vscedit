@@ -14,7 +14,7 @@ import {
   saveHashCache,
 } from '../core/hashCache';
 import { resolveConfigDir } from '../core/projectLayout';
-import { CliArgs } from '../core/types';
+import type { CliArgs } from '../core/types';
 import { saveMetadataCacheForEntry } from '../../infra/cache/MetadataCache';
 
 export async function importGitChanges(args: CliArgs): Promise<number> {
@@ -47,7 +47,7 @@ export async function importGitChanges(args: CliArgs): Promise<number> {
     return 0;
   }
 
-  console.log(`Hash changes detected: added=${diff.added.length}, modified=${diff.modified.length}, deleted=${diff.deleted.length}`);
+  console.log(`Hash changes detected: added=${String(diff.added.length)}, modified=${String(diff.modified.length)}, deleted=${String(diff.deleted.length)}`);
   if (forceFullLoad) {
     console.log('Обнаружено переименование объектов. Включен принудительный полный режим загрузки.');
   }
@@ -59,7 +59,7 @@ export async function importGitChanges(args: CliArgs): Promise<number> {
       console.log('No configuration files found in changes');
       return 0;
     }
-    console.log(`Files for loading: ${filesForLoad.length}`);
+    console.log(`Files for loading: ${String(filesForLoad.length)}`);
     filesForLoad.forEach((item) => console.log(`  ${item}`));
   }
 

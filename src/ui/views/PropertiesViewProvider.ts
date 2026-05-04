@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
 import { getNodeKindLabel, MetadataNode } from '../tree/TreeNode';
-import {
+import type {
   EnumPropertyValue,
   LocalizedStringValue,
   MetadataTypeValue,
@@ -11,7 +11,7 @@ import {
   ObjectPropertiesCollection,
 } from '../tree/nodeBuilders/_types';
 import { getHandlerForNode } from '../tree/nodeBuilders/index';
-import { TypeRegistryFilter, TypeRegistryService } from './properties/TypeRegistryService';
+import { type TypeRegistryFilter, TypeRegistryService } from './properties/TypeRegistryService';
 import {
   buildCommandParameterTypeInnerXml,
   buildMetadataTypeInnerXml,
@@ -21,11 +21,11 @@ import { buildEventSourceInnerXml } from './properties/EventSubscriptionProperty
 import { toCanonicalPropertyInput } from './properties/PropertyPresentationRegistry';
 import { ConfigurationXmlEditor } from '../../infra/xml';
 import { extractChildMetaElementXml, extractColumnXmlFromTabularSection } from '../../infra/xml';
-import { RepositoryService } from '../../infra/repository/RepositoryService';
-import { SupportInfoService, SupportMode } from '../../infra/support/SupportInfoService';
+import type { RepositoryService } from '../../infra/repository/RepositoryService';
+import { type SupportInfoService, SupportMode } from '../../infra/support/SupportInfoService';
 import { getObjectLocationFromXml } from '../../infra/fs';
 import { META_TYPES } from '../../domain/MetaTypes';
-import {
+import type {
   SubsystemMembershipSnapshot,
   SubsystemMembershipTreeNode,
   SubsystemXmlService,
@@ -406,7 +406,7 @@ export class PropertiesViewProvider implements vscode.Disposable {
     const handler = getHandlerForNode(node);
     const canShowProperties = handler?.canShowProperties?.(node) ?? false;
 
-    if (!handler || !handler.getProperties || !canShowProperties) {
+    if (!handler?.getProperties || !canShowProperties) {
       return this.renderState(
         node.textLabel,
         'Для выбранного объекта отсутствуют свойства',
@@ -515,7 +515,7 @@ export class PropertiesViewProvider implements vscode.Disposable {
 
     return `
       <div class="subsystem-toolbar">
-        <span>Выбрано подсистем: <span id="selectedSubsystemCount">${selectedCount}</span></span>
+        <span>Выбрано подсистем: <span id="selectedSubsystemCount">${String(selectedCount)}</span></span>
       </div>
       ${treeHtml}
       <div class="subsystem-save-row">
@@ -561,8 +561,8 @@ export class PropertiesViewProvider implements vscode.Disposable {
     const darkUri = webview.asWebviewUri(vscode.Uri.joinPath(this.extensionUri, 'src', 'icons', 'dark', 'subsystem.svg'));
     return `
       <picture>
-        <source srcset="${lightUri}" media="(prefers-color-scheme: light)">
-        <img class="tree-icon" src="${darkUri}" alt="">
+        <source srcset="${String(lightUri)}" media="(prefers-color-scheme: light)">
+        <img class="tree-icon" src="${String(darkUri)}" alt="">
       </picture>
     `;
   }
@@ -601,7 +601,7 @@ export class PropertiesViewProvider implements vscode.Disposable {
   /** Формирует HTML значения свойства */
   private renderPropertyValue(property: ObjectPropertyItem, isEditLocked: boolean): string {
     if (property.key === '_note') {
-      return `<div class="static-text">${escapeHtml(String(property.value ?? ''))}</div>`;
+      return `<div class="static-text">${escapeHtml(typeof property.value === 'string' ? property.value : '')}</div>`;
     }
 
     const isEditable = !isEditLocked && !property.readonly;
@@ -628,11 +628,11 @@ export class PropertiesViewProvider implements vscode.Disposable {
           })
           .join('');
         const size = Math.min(Math.max(multiValue.allowedValues.length, 2), 8);
-        return `<select class="select" data-prop-key="${escapeHtml(property.key)}" data-prop-kind="multiEnum" multiple size="${size}" ${disabledAttr}>${options}</select>`;
+        return `<select class="select" data-prop-key="${escapeHtml(property.key)}" data-prop-kind="multiEnum" multiple size="${String(size)}" ${disabledAttr}>${options}</select>`;
       }
       case 'localizedString': {
         const localized = property.value as LocalizedStringValue;
-        const renderValue = String(localized.presentation);
+        const renderValue = localized.presentation;
         const items = localized.values
           .map((item) => {
             return `<div class="localized-item"><strong>${escapeHtml(item.lang)}:</strong> ${escapeHtml(item.content)}</div>`;
@@ -644,15 +644,18 @@ export class PropertiesViewProvider implements vscode.Disposable {
           ${items ? `<div class="property-note">Локализации:</div>${items}` : ''}
         `;
       }
-      case 'string':
-      default:
-        if (property.kind === 'metadataType') {
-          return this.renderMetadataTypeControl(property, isEditLocked || property.readonly === true);
+      case 'metadataType':
+        return this.renderMetadataTypeControl(property, isEditLocked || property.readonly === true);
+      case 'string': {
+        if (typeof property.value !== 'string') {
+          return `<input class="input" data-prop-key="${escapeHtml(property.key)}" data-prop-kind="string" type="text" value="" ${readonlyAttr} />`;
         }
-        if (String(property.value ?? '').includes('\n')) {
-          return `<textarea class="textarea" data-prop-key="${escapeHtml(property.key)}" data-prop-kind="string" ${readonlyAttr}>${escapeHtml(String(property.value ?? ''))}</textarea>`;
+        const strVal = property.value;
+        if (strVal.includes('\n')) {
+          return `<textarea class="textarea" data-prop-key="${escapeHtml(property.key)}" data-prop-kind="string" ${readonlyAttr}>${escapeHtml(strVal)}</textarea>`;
         }
-        return `<input class="input" data-prop-key="${escapeHtml(property.key)}" data-prop-kind="string" type="text" value="${escapeHtml(String(property.value ?? ''))}" ${readonlyAttr} />`;
+        return `<input class="input" data-prop-key="${escapeHtml(property.key)}" data-prop-kind="string" type="text" value="${escapeHtml(strVal)}" ${readonlyAttr} />`;
+      }
     }
   }
 
@@ -677,7 +680,7 @@ export class PropertiesViewProvider implements vscode.Disposable {
       blocks.push(`
         <div class="qual-row">
           <label>Длина</label>
-          <input class="input" id="qStringLength" type="number" value="${value.stringQualifiers.length ?? ''}" ${disabledAttr} />
+          <input class="input" id="qStringLength" type="number" value="${String(value.stringQualifiers.length ?? '')}" ${disabledAttr} />
           <label>Допустимая длина</label>
           <select class="select" id="qStringAllowedLength" ${disabledAttr}>
             <option value="Variable" ${value.stringQualifiers.allowedLength !== 'Fixed' ? 'selected' : ''}>Переменная</option>
@@ -690,9 +693,9 @@ export class PropertiesViewProvider implements vscode.Disposable {
       blocks.push(`
         <div class="qual-row">
           <label>Разрядов</label>
-          <input class="input" id="qNumberDigits" type="number" value="${value.numberQualifiers.digits ?? ''}" ${disabledAttr} />
+          <input class="input" id="qNumberDigits" type="number" value="${String(value.numberQualifiers.digits ?? '')}" ${disabledAttr} />
           <label>Дробных</label>
-          <input class="input" id="qNumberFractionDigits" type="number" value="${value.numberQualifiers.fractionDigits ?? ''}" ${disabledAttr} />
+          <input class="input" id="qNumberFractionDigits" type="number" value="${String(value.numberQualifiers.fractionDigits ?? '')}" ${disabledAttr} />
           <label>Знак</label>
           <select class="select" id="qNumberAllowedSign" ${disabledAttr}>
             <option value="Any" ${value.numberQualifiers.allowedSign !== 'Nonnegative' ? 'selected' : ''}>Любой</option>
@@ -939,7 +942,7 @@ export class PropertiesViewProvider implements vscode.Disposable {
   /**
    * Выполняет изменения свойств последовательно, чтобы не допускать конкурентной записи XML.
    */
-  private async enqueuePropertyOperation(operation: () => Promise<void>): Promise<void> {
+  private async enqueuePropertyOperation(operation: () => void | Promise<void>): Promise<void> {
     const run = this.propertyUpdateQueue.then(async () => {
       await operation();
     });
@@ -957,7 +960,7 @@ export class PropertiesViewProvider implements vscode.Disposable {
     }
     const filter = resolveTypeRegistryFilter(key);
     const groups = this.typeRegistry.getAvailableTypes(this.activeNode.xmlPath, filter);
-    const items: Array<vscode.QuickPickItem & { canonical?: string }> = [];
+    const items: (vscode.QuickPickItem & { canonical?: string })[] = [];
     for (const group of groups) {
       items.push({ label: group.title, kind: vscode.QuickPickItemKind.Separator });
       for (const type of group.items) {
@@ -993,10 +996,10 @@ export class PropertiesViewProvider implements vscode.Disposable {
       items: nextItems,
       presentation: nextItems.map((item) => item.display).join(', '),
     });
-    await this.applyTypeValue(key, nextType);
+    this.applyTypeValue(key, nextType);
   }
 
-  private async applyQualifierChanges(qualifiers: Record<string, string>): Promise<void> {
+  private applyQualifierChanges(qualifiers: Record<string, string>): void {
     const current = this.getCurrentTypeValue('Type');
     if (!current) {
       return;
@@ -1022,18 +1025,18 @@ export class PropertiesViewProvider implements vscode.Disposable {
           }
         : undefined,
     });
-    await this.applyTypeValue('Type', next);
+    this.applyTypeValue('Type', next);
   }
 
   private getCurrentTypeValue(key = 'Type'): MetadataTypeValue | null {
     const original = this.activeProperties.find((item) => item.key === key);
-    if (!original || original.kind !== 'metadataType') {
+    if (original?.kind !== 'metadataType') {
       return null;
     }
     return this.normalizeTypeValueForProperty(key, original.value as MetadataTypeValue);
   }
 
-  private async applyTypeValue(key: string, typeValue: MetadataTypeValue): Promise<void> {
+  private applyTypeValue(key: string, typeValue: MetadataTypeValue): void {
     if (!this.activeNode) {
       return;
     }
@@ -1058,12 +1061,12 @@ export class PropertiesViewProvider implements vscode.Disposable {
       void vscode.window.showErrorMessage(typeSaved.errors[0] ?? 'Не удалось применить изменение типа.');
       return;
     }
-    if (this.panel && this.activeNode) {
+    if (this.panel) {
       this.panel.webview.html = this.renderHtml(this.activeNode, this.panel.webview);
     }
   }
 
-  private async applyPropertyChange(key?: string, value?: string | boolean | string[]): Promise<void> {
+  private applyPropertyChange(key?: string, value?: string | boolean | string[]): void {
     if (!this.activeNode || !key) {
       return;
     }
@@ -1089,20 +1092,23 @@ export class PropertiesViewProvider implements vscode.Disposable {
       : currentProperty.kind === 'multiEnum'
       ? Array.isArray(value) ? value : []
       : String(value ?? '');
-    const currentValue = currentProperty.kind === 'boolean'
-      ? currentProperty.value === true
-      : currentProperty.kind === 'localizedString'
-      ? (currentProperty.value as LocalizedStringValue).presentation
-      : currentProperty.kind === 'enum'
-      ? (currentProperty.value as EnumPropertyValue).current
-      : currentProperty.kind === 'multiEnum'
-      ? (currentProperty.value as MultiEnumPropertyValue).selected
-      : String(currentProperty.value ?? '');
+    const currentValue =
+      currentProperty.kind === 'boolean'
+        ? currentProperty.value === true
+        : currentProperty.kind === 'localizedString'
+          ? (currentProperty.value as LocalizedStringValue).presentation
+          : currentProperty.kind === 'enum'
+            ? (currentProperty.value as EnumPropertyValue).current
+            : currentProperty.kind === 'multiEnum'
+              ? (currentProperty.value as MultiEnumPropertyValue).selected
+              : typeof currentProperty.value === 'string'
+                ? currentProperty.value
+                : '';
     if (arePropertyEditValuesEqual(nextValue, currentValue)) {
       return;
     }
     if (this.isConfigurationRootNode(this.activeNode)) {
-      await this.applyConfigurationPropertyChange(key, currentProperty, nextValue);
+      this.applyConfigurationPropertyChange(key, currentProperty, nextValue);
       return;
     }
     const propertyTarget = resolvePropertyTarget(this.activeNode);
@@ -1114,7 +1120,7 @@ export class PropertiesViewProvider implements vscode.Disposable {
       if (typeof nextValue !== 'string') {
         return;
       }
-      await this.renameObject(nextValue);
+      this.renameObject(nextValue);
       return;
     }
     if (currentProperty.kind === 'multiEnum') {
@@ -1127,7 +1133,7 @@ export class PropertiesViewProvider implements vscode.Disposable {
     const objectValue = Array.isArray(nextValue)
       ? ''
       : currentProperty.kind === 'string'
-      ? toCanonicalPropertyInput(String(nextValue ?? ''))
+      ? toCanonicalPropertyInput(String(nextValue))
       : nextValue;
     const saved = this.xmlEditor.modifyObjectProperty(propertyTarget.xmlPath, {
       targetKind: propertyTarget.targetKind,
@@ -1141,16 +1147,16 @@ export class PropertiesViewProvider implements vscode.Disposable {
       void vscode.window.showErrorMessage(saved.errors[0] ?? `Не удалось изменить свойство "${key}".`);
       return;
     }
-    if (saved.changed && this.panel && this.activeNode) {
+    if (saved.changed && this.panel) {
       this.panel.webview.html = this.renderHtml(this.activeNode, this.panel.webview);
     }
   }
 
-  private async applyConfigurationPropertyChange(
+  private applyConfigurationPropertyChange(
     key: string,
     property: ObjectPropertyItem,
     value: string | boolean | string[]
-  ): Promise<void> {
+  ): void {
     if (!this.activeNode?.xmlPath) {
       return;
     }
@@ -1175,12 +1181,12 @@ export class PropertiesViewProvider implements vscode.Disposable {
       void vscode.window.showErrorMessage(saved.errors[0] ?? `Не удалось изменить свойство "${key}".`);
       return;
     }
-    if (saved.changed && this.panel && this.activeNode) {
+    if (saved.changed && this.panel) {
       this.panel.webview.html = this.renderHtml(this.activeNode, this.panel.webview);
     }
   }
 
-  private async applySubsystemMembershipChange(selectedXmlPaths: string[]): Promise<void> {
+  private applySubsystemMembershipChange(selectedXmlPaths: string[]): void {
     if (!this.activeNode?.xmlPath) {
       return;
     }
@@ -1195,7 +1201,7 @@ export class PropertiesViewProvider implements vscode.Disposable {
     if (changed) {
       this.onAfterSubsystemMembershipSave?.();
     }
-    if (this.panel && this.activeNode) {
+    if (this.panel) {
       this.panel.webview.html = this.renderHtml(this.activeNode, this.panel.webview);
     }
     void vscode.window.showInformationMessage(changed
@@ -1230,7 +1236,7 @@ export class PropertiesViewProvider implements vscode.Disposable {
     if (node.nodeKind === 'Subsystem') {
       return false;
     }
-    return Boolean(META_TYPES[node.nodeKind]?.folder);
+    return Boolean(META_TYPES[node.nodeKind].folder);
   }
 
   private getRenderTypeValue(property: ObjectPropertyItem): MetadataTypeValue {
@@ -1254,7 +1260,7 @@ export class PropertiesViewProvider implements vscode.Disposable {
     void vscode.window.showWarningMessage('Это свойство доступно только для чтения.');
   }
 
-  private async renameObject(nextName: string): Promise<void> {
+  private renameObject(nextName: string): void {
     if (!this.activeNode) {
       return;
     }
@@ -1472,7 +1478,7 @@ function resolveTypeTarget(node: MetadataNode, propertyName = 'Type'): {
       targetName: node.textLabel,
     };
   }
-  const supported: Record<string, 'Attribute' | 'AddressingAttribute' | 'Dimension' | 'Resource' | 'Column'> = {
+  const supported: Partial<Record<string, 'Attribute' | 'AddressingAttribute' | 'Dimension' | 'Resource' | 'Column'>> = {
     Attribute: 'Attribute',
     AddressingAttribute: 'AddressingAttribute',
     Dimension: 'Dimension',
@@ -1510,7 +1516,7 @@ function resolvePropertyTarget(node: MetadataNode): {
   if (!node.xmlPath) {
     return null;
   }
-  const directKinds: Record<string, 'Attribute' | 'AddressingAttribute' | 'Dimension' | 'Resource' | 'Column' | 'TabularSection' | 'Command' | 'EnumValue'> = {
+  const directKinds: Partial<Record<string, 'Attribute' | 'AddressingAttribute' | 'Dimension' | 'Resource' | 'Column' | 'TabularSection' | 'Command' | 'EnumValue'>> = {
     Attribute: 'Attribute',
     AddressingAttribute: 'AddressingAttribute',
     Dimension: 'Dimension',

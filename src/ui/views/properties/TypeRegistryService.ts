@@ -1,7 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { parseConfigXml } from '../../../infra/xml';
-import { MetadataTypeItem } from './_types';
+import type { MetadataTypeItem } from './_types';
 import { buildEventSourceItemsFromConfiguration } from './EventSubscriptionPropertyService';
 
 export interface TypeRegistryTreeGroup {
@@ -83,7 +83,7 @@ export class TypeRegistryService {
     try {
       const cfg = parseConfigXml(configXml);
       const groups: TypeRegistryTreeGroup[] = [];
-      const mapped: Array<{ key: string; prefix: string; display: string }> = [
+      const mapped: { key: string; prefix: string; display: string }[] = [
         { key: 'Catalog', prefix: 'CatalogRef.', display: 'СправочникСсылка.' },
         { key: 'Document', prefix: 'DocumentRef.', display: 'ДокументСсылка.' },
         { key: 'Enum', prefix: 'EnumRef.', display: 'ПеречислениеСсылка.' },
@@ -122,7 +122,7 @@ function resolveConfigurationXml(sourceXmlPath: string | undefined): string | nu
     return null;
   }
   let current = path.dirname(sourceXmlPath);
-  while (true) {
+  for (;;) {
     const cfg = path.join(current, 'Configuration.xml');
     if (fs.existsSync(cfg)) {
       return cfg;

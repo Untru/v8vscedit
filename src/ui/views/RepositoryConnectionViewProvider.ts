@@ -1,6 +1,6 @@
 import * as path from 'path';
 import * as vscode from 'vscode';
-import { RepositoryBinding, RepositoryTarget } from '../../infra/repository/RepositoryService';
+import type { RepositoryBinding, RepositoryTarget } from '../../infra/repository/RepositoryService';
 
 type ConnectionMode = 'bind' | 'create';
 
@@ -136,7 +136,7 @@ export class RepositoryConnectionViewProvider {
       try {
         const result = await onSubmit(message.payload);
         if (result.success) {
-          this.panel?.dispose();
+          this.panel.dispose();
           return;
         }
 

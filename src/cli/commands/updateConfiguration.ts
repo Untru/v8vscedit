@@ -1,5 +1,5 @@
 import * as path from 'path';
-import { CliArgs } from '../core/types';
+import type { CliArgs } from '../core/types';
 import { resolveConnection } from '../core/connection';
 import { createTempDir, printLogFile, runDesignerAndPrintResult, safeRemoveDir } from '../core/onecCommon';
 import { getBool, getString } from '../core/args';

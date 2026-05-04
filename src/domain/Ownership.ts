@@ -1,4 +1,4 @@
-import { ConfigInfo } from './Configuration';
+import type { ConfigInfo } from './Configuration';
 
 /**
  * Метка владения объектом внутри расширения (CFE):

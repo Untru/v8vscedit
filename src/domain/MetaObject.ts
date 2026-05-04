@@ -1,5 +1,4 @@
-import { ChildTag } from './ChildTag';
-import { MetaKind } from './MetaTypes';
+import type { MetaKind } from './MetaTypes';
 
 /**
  * Дочерний элемент объекта метаданных (реквизит, ТЧ, форма, команда, макет, ...).
@@ -7,7 +6,7 @@ import { MetaKind } from './MetaTypes';
  */
 export interface MetaChild {
   /** Тег XML — соответствует одному из значений {@link ChildTag}; для обратной совместимости — строка */
-  tag: ChildTag | string;
+  tag: string;
   name: string;
   synonym: string;
   /** Для табличной части — список её колонок (Attribute) */

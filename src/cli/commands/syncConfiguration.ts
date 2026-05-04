@@ -1,4 +1,4 @@
-import { CliArgs } from '../core/types';
+import type { CliArgs } from '../core/types';
 import { importConfiguration } from './importConfiguration';
 import { updateConfiguration } from './updateConfiguration';
 

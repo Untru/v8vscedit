@@ -1,10 +1,10 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
-import { ChangedConfiguration } from '../../../infra/fs/ConfigurationChangeDetector';
-import { ConfigEntry } from '../../../domain/Configuration';
+import type { ChangedConfiguration } from '../../../infra/fs/ConfigurationChangeDetector';
+import type { ConfigEntry } from '../../../domain/Configuration';
 import { parseConfigXml } from '../../../infra/xml';
-import { CommandServices, NodeArg } from '../_shared';
+import type { CommandServices, NodeArg } from '../_shared';
 import {
   extractExtensionTarget,
   runCompileExtension,
@@ -69,7 +69,7 @@ export function registerExtensionCommands(
             const target = ordered[index];
             setConfigurationOperationStatus(
               'Импорт конфигураций',
-              `${index + 1}/${ordered.length}: ${target.name}`,
+              `${String(index + 1)}/${String(ordered.length)}: ${target.name}`,
               true
             );
             const imported = target.kind === 'cf'
@@ -94,7 +94,7 @@ export function registerExtensionCommands(
           }
 
           if (ordered.length > 1) {
-            void vscode.window.showInformationMessage(`Импортировано конфигураций: ${ordered.length}.`);
+            void vscode.window.showInformationMessage(`Импортировано конфигураций: ${String(ordered.length)}.`);
           }
           setConfigurationOperationStatus('Импорт конфигураций', 'завершено', false);
           await services.reloadEntries();
@@ -147,7 +147,7 @@ export function registerExtensionCommands(
             const target = ordered[index];
             setConfigurationOperationStatus(
               'Обновление конфигураций',
-              `${index + 1}/${ordered.length}: ${target.name}`,
+              `${String(index + 1)}/${String(ordered.length)}: ${target.name}`,
               true
             );
             const updated = target.kind === 'cf'
@@ -174,7 +174,7 @@ export function registerExtensionCommands(
           }
 
           if (ordered.length > 1) {
-            void vscode.window.showInformationMessage(`Обновлено конфигураций: ${ordered.length}.`);
+            void vscode.window.showInformationMessage(`Обновлено конфигураций: ${String(ordered.length)}.`);
           }
           setConfigurationOperationStatus('Обновление конфигураций', 'завершено', false);
           return true;
@@ -258,7 +258,7 @@ export function registerExtensionCommands(
         await vscode.commands.executeCommand('v8vscedit.importConfigurationFromDb', node);
       } else if (picked.actionId === 'update') {
         await vscode.commands.executeCommand('v8vscedit.updateConfigurationInDb', node);
-      } else if (picked.actionId === 'compileAndUpdateExt') {
+      } else {
         await vscode.commands.executeCommand('v8vscedit.compileAndUpdateExtensionInDb', node);
       }
     }),
@@ -424,7 +424,7 @@ async function runWithStandaloneServerStopped(
   );
 
   services.outputChannel.appendLine(
-    `[standalone] Перед операцией "${operationTitle}": state=${status.state}, pid=${status.pid ?? '-'}, restart=${shouldRestart ? 'yes' : 'no'}`
+    `[standalone] Перед операцией "${operationTitle}": state=${status.state}, pid=${String(status.pid ?? '-')}, restart=${shouldRestart ? 'yes' : 'no'}`
   );
 
   if (!shouldRestart) {
@@ -439,7 +439,7 @@ async function runWithStandaloneServerStopped(
   let ok = false;
   try {
     const result = await operation();
-    ok = result === true;
+    ok = result;
     services.outputChannel.appendLine(`[standalone] Операция "${operationTitle}" вернула: ${String(result)}`);
     return ok;
   } finally {
@@ -449,7 +449,7 @@ async function runWithStandaloneServerStopped(
       try {
         const restartedStatus = await services.standaloneServerService.start();
         services.outputChannel.appendLine(
-          `[standalone] После операции "${operationTitle}": state=${restartedStatus.state}, pid=${restartedStatus.pid ?? '-'}, url=${restartedStatus.url ?? '-'}`
+          `[standalone] После операции "${operationTitle}": state=${restartedStatus.state}, pid=${String(restartedStatus.pid ?? '-')}, url=${restartedStatus.url ?? '-'}`
         );
         if (restartedStatus.state !== 'running') {
           void vscode.window.showWarningMessage(
@@ -592,7 +592,7 @@ async function pickImportTargets(
     let resolved = false;
     const selectAllItem: ImportTargetPickItem = {
       label: '$(check-all) Все',
-      description: `${targets.length}`,
+      description: String(targets.length),
       selectAll: true,
     };
     const targetItems = targets.map((target): ImportTargetPickItem => ({
@@ -683,13 +683,13 @@ async function pickChangedConfigurations(
     let resolved = false;
     const selectAllItem: ChangedConfigurationPickItem = {
       label: '$(check-all) Все изменённые',
-      description: `${changed.length}`,
+      description: String(changed.length),
       selectAll: true,
     };
     const targetItems = changed.map((target): ChangedConfigurationPickItem => ({
       label: `${target.kind === 'cf' ? '$(database)' : '$(extensions)'} ${target.name}`,
       description: target.kind === 'cf' ? 'Основная конфигурация' : 'Расширение',
-      detail: `${target.changedFilesCount} изменённых файлов`,
+      detail: `${String(target.changedFilesCount)} изменённых файлов`,
       target,
     }));
 
@@ -762,8 +762,8 @@ function orderUpdateTargets(targets: ChangedConfiguration[]): ChangedConfigurati
 }
 
 function extractRootConfigurationTarget(node: NodeArg): RootConfigurationTarget | null {
-  const nodeKind = node?.nodeKind;
-  const xmlPath = node?.xmlPath;
+  const nodeKind = node.nodeKind;
+  const xmlPath = node.xmlPath;
   if (!xmlPath) {
     return null;
   }
@@ -771,13 +771,13 @@ function extractRootConfigurationTarget(node: NodeArg): RootConfigurationTarget 
   if (nodeKind === 'configuration') {
     return {
       kind: 'cf',
-      name: String(node.label ?? 'Основная конфигурация'),
+      name: typeof node.label === 'string' ? node.label : node.label?.label ?? 'Основная конфигурация',
       rootPath: path.dirname(xmlPath),
     };
   }
 
   if (nodeKind === 'extension') {
-    const extensionName = String(node.label ?? '');
+    const extensionName = typeof node.label === 'string' ? node.label : node.label?.label ?? '';
     if (!extensionName) {
       return null;
     }

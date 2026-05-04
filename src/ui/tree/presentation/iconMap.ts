@@ -1,4 +1,4 @@
-import { NodeKind } from '../TreeNode';
+import type { NodeKind } from '../TreeNode';
 import { getNodeDescriptor } from '../nodes/index';
 
 /**
@@ -6,7 +6,6 @@ import { getNodeDescriptor } from '../nodes/index';
  * Значение берётся из соответствующего `NodeDescriptor`.
  */
 export function getIconName(nodeKind: NodeKind): string {
-  const descriptor = getNodeDescriptor(nodeKind);
-  return descriptor?.icon ?? 'attribute';
+  return getNodeDescriptor(nodeKind).icon;
 }
 

@@ -1,11 +1,11 @@
 import * as path from 'path';
 import * as vscode from 'vscode';
-import { ChildTag } from '../../../domain/ChildTag';
+import type { ChildTag } from '../../../domain/ChildTag';
 import { getMetaLabel } from '../../../domain/MetaTypes';
 import { updateMetadataCacheAfterAdd } from '../../../infra/cache/MetadataCache';
 import { getObjectLocationFromXml } from '../../../infra/fs/MetaPathResolver';
-import { AddMetadataTarget, MetadataNode } from '../../tree/TreeNode';
-import { CommandServices } from '../_shared';
+import type { AddMetadataTarget, MetadataNode } from '../../tree/TreeNode';
+import type { CommandServices } from '../_shared';
 
 export function registerAddMetadataCommand(
   context: vscode.ExtensionContext,

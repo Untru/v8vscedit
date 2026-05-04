@@ -1,7 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
-import { RepositoryBinding, RepositoryNodeRef, RepositoryService, RepositoryTarget } from '../../../infra/repository/RepositoryService';
+import type { RepositoryBinding, RepositoryNodeRef, RepositoryService, RepositoryTarget } from '../../../infra/repository/RepositoryService';
 import {
   decodeProcessOutput,
   normalizeInfoBasePath,
@@ -29,7 +29,7 @@ interface RepositoryCliRunOptions {
   errorTitle: string;
   failureOperation?: string;
   showSuccessMessage?: boolean;
-  afterSuccess?: () => Promise<void>;
+  afterSuccess?: () => void | Promise<void>;
 }
 
 let statusBarItem: vscode.StatusBarItem | undefined;
@@ -154,7 +154,7 @@ export async function runRepositoryLockAction(
     successMessage: `Объекты "${node.label ?? target.displayName}" захвачены.`,
     errorTitle: `Ошибка захвата объектов "${node.label ?? target.displayName}".`,
     failureOperation: 'захвате объектов хранилища',
-    afterSuccess: async () => {
+    afterSuccess: () => {
       services.repositoryService.setLocked(target, objects.fullNames, true);
     },
   }, services);
@@ -181,7 +181,7 @@ export async function runRepositoryUnlockAction(
     successMessage: `Объекты "${node.label ?? target.displayName}" освобождены.`,
     errorTitle: `Ошибка освобождения объектов "${node.label ?? target.displayName}".`,
     failureOperation: 'освобождении объектов хранилища',
-    afterSuccess: async () => {
+    afterSuccess: () => {
       services.repositoryService.setLocked(target, objects.fullNames, false);
     },
   }, services);
@@ -214,7 +214,7 @@ export async function runRepositoryCommitAction(
     successMessage: `Изменения "${node.label ?? target.displayName}" помещены в хранилище.`,
     errorTitle: `Ошибка помещения "${node.label ?? target.displayName}" в хранилище.`,
     failureOperation: 'помещении изменений в хранилище',
-    afterSuccess: async () => {
+    afterSuccess: () => {
       if (!options.keepLocked) {
         services.repositoryService.setLocked(target, objects.fullNames, false);
       }
@@ -381,7 +381,7 @@ function asString(value: unknown): string | undefined {
 }
 
 function resolveV8PathFromSettings(defaults: Record<string, unknown>): string {
-  return asString(defaults['--path']) || resolveV8PathHintFromVersion(asString(defaults['--v8version']) ?? '');
+  return asString(defaults['--path']) ?? resolveV8PathHintFromVersion(asString(defaults['--v8version']) ?? '');
 }
 
 function trimStatusMessage(text: string): string {
@@ -402,7 +402,7 @@ function extractFailureReason(details: string[], exitCode: number): string {
     .filter((line) => line !== '--- Log ---' && line !== '--- End ---');
 
   if (lines.length === 0) {
-    return `команда завершилась с кодом ${exitCode}`;
+    return `команда завершилась с кодом ${String(exitCode)}`;
   }
 
   const filtered = lines.filter((line) => {
@@ -414,7 +414,7 @@ function extractFailureReason(details: string[], exitCode: number): string {
     }
     return true;
   });
-  return filtered.at(-1) ?? lines.at(-1) ?? `команда завершилась с кодом ${exitCode}`;
+  return filtered.at(-1) ?? lines.at(-1) ?? `команда завершилась с кодом ${String(exitCode)}`;
 }
 
 function setOperationStatus(title: string, message: string, running: boolean): void {

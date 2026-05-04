@@ -1,4 +1,4 @@
-import { CliArgs } from '../core/types';
+import type { CliArgs } from '../core/types';
 import { exportConfiguration } from './exportConfiguration';
 import { importConfiguration } from './importConfiguration';
 import { importGitChanges } from './importGitChanges';
@@ -20,9 +20,9 @@ import {
 import { updateConfiguration } from './updateConfiguration';
 import { syncConfigurationFull, syncConfigurationPartial } from './syncConfiguration';
 
-type CommandHandler = (args: CliArgs) => Promise<number>;
+type CommandHandler = (args: CliArgs) => number | Promise<number>;
 
-export const CLI_COMMANDS: Record<string, CommandHandler> = {
+export const CLI_COMMANDS: Partial<Record<string, CommandHandler>> = {
   'export-configuration': exportConfiguration,
   'import-configuration': importConfiguration,
   'import-git-changes': importGitChanges,
