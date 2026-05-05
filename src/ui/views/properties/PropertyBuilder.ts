@@ -35,6 +35,10 @@ const LOCALIZED_PROPERTY_TAGS = new Set([
   'VendorInformationAddress',
   'ConfigurationInformationAddress',
   'ToolTip',
+  'ObjectPresentation',
+  'ExtendedObjectPresentation',
+  'ListPresentation',
+  'ExtendedListPresentation',
   'Explanation',
   'ExtendedExplanation',
 ]);
@@ -67,6 +71,11 @@ const BOOLEAN_PROPERTY_TAGS = new Set([
   'KeepMappingToExtendedConfigurationObjectsByIDs',
   'UseManagedFormInOrdinaryApplication',
   'UseOrdinaryFormInManagedApplication',
+  'Hierarchical',
+  'LimitLevelCount',
+  'FoldersOnTop',
+  'UpdateDataHistoryImmediatelyAfterWrite',
+  'ExecuteAfterWriteDataHistoryVersionProcessing',
 ]);
 
 const FILL_CHECKING_OPTIONS: EnumPropertyOption[] = [
@@ -302,6 +311,8 @@ const ENUM_PROPERTY_OPTIONS: Readonly<Record<string, readonly EnumPropertyOption
   ],
   SubordinationUse: [
     { value: 'ToItems', label: 'Элементам' },
+    { value: 'ToFolders', label: 'Группам' },
+    { value: 'ToFoldersAndItems', label: 'Группам и элементам' },
   ],
   AutoUse: [
     { value: 'DontUse', label: 'Не использовать' },
@@ -551,6 +562,10 @@ const PROPERTY_TITLE_RU: Record<string, string> = {
   ExtendedPresentation: 'Расширенное представление',
   ChoiceMode: 'Режим выбора',
   Color: 'Цвет',
+  ObjectPresentation: 'Представление объекта',
+  ExtendedObjectPresentation: 'Расширенное представление объекта',
+  ListPresentation: 'Представление списка',
+  ExtendedListPresentation: 'Расширенное представление списка',
   Explanation: 'Пояснение',
   ExtendedExplanation: 'Расширенное пояснение',
   DataLockControlMode: 'Режим управления блокировкой данных',
@@ -575,9 +590,17 @@ const PROPERTY_TITLE_RU: Record<string, string> = {
   ParameterUseMode: 'Режим использования параметра',
   Hierarchical: 'Иерархический',
   HierarchyType: 'Вид иерархии',
+  LimitLevelCount: 'Ограничение количества уровней иерархии',
+  LevelCount: 'Количество уровней иерархии',
   FoldersOnTop: 'Группы сверху',
   SubordinationUse: 'Использование подчинения',
   Owners: 'Владельцы',
+  DescriptionLength: 'Длина наименования',
+  DefaultFolderForm: 'Основная форма группы',
+  DefaultFolderChoiceForm: 'Основная форма выбора группы',
+  AuxiliaryFolderForm: 'Дополнительная форма группы',
+  AuxiliaryFolderChoiceForm: 'Дополнительная форма выбора группы',
+  DataLockFields: 'Поля блокировки данных',
   ExtDimensionAccountingFlag: 'Признак учёта субконто',
   Balance: 'Баланс',
   AccountingFlag: 'Признак учёта',
@@ -636,6 +659,130 @@ const COMMON_ROOT_META_PROPERTY_KEYS: string[] = [
   'Explanation',
   'BasedOn',
 ];
+
+/** Поля корня «Справочник» по разделам конфигуратора, без реквизитов и табличных частей. */
+const CATALOG_ROOT_META_PROPERTY_KEYS: string[] = [
+  'Name',
+  'Synonym',
+  'Comment',
+  'ObjectPresentation',
+  'ExtendedObjectPresentation',
+  'ListPresentation',
+  'ExtendedListPresentation',
+  'Explanation',
+  'ObjectBelonging',
+  'ExtendedConfigurationObject',
+  'Hierarchical',
+  'HierarchyType',
+  'FoldersOnTop',
+  'LimitLevelCount',
+  'LevelCount',
+  'Owners',
+  'SubordinationUse',
+  'CodeLength',
+  'DescriptionLength',
+  'CodeType',
+  'CodeAllowedLength',
+  'CodeSeries',
+  'CheckUnique',
+  'Autonumbering',
+  'DefaultPresentation',
+  'DefaultObjectForm',
+  'DefaultFolderForm',
+  'DefaultListForm',
+  'DefaultChoiceForm',
+  'DefaultFolderChoiceForm',
+  'AuxiliaryObjectForm',
+  'AuxiliaryFolderForm',
+  'AuxiliaryListForm',
+  'AuxiliaryChoiceForm',
+  'AuxiliaryFolderChoiceForm',
+  'QuickChoice',
+  'CreateOnInput',
+  'InputByString',
+  'SearchStringModeOnInputByString',
+  'FullTextSearchOnInputByString',
+  'ChoiceDataGetModeOnInputByString',
+  'ChoiceHistoryOnInput',
+  'UseStandardCommands',
+  'BasedOn',
+  'DataLockFields',
+  'DataLockControlMode',
+  'FullTextSearch',
+  'DataHistory',
+  'UpdateDataHistoryImmediatelyAfterWrite',
+  'ExecuteAfterWriteDataHistoryVersionProcessing',
+  'PredefinedDataUpdate',
+  'Characteristics',
+  'EditType',
+  'IncludeHelpInContents',
+];
+
+const CATALOG_READONLY_COMPLEX_PROPERTIES = new Set([
+  'Owners',
+  'InputByString',
+  'BasedOn',
+  'DataLockFields',
+  'Characteristics',
+]);
+
+const CATALOG_PROPERTY_SECTIONS: Readonly<Record<string, { title: string; order: number }>> = {
+  _other: { title: 'Прочее', order: 90 },
+  Name: { title: 'Основные', order: 10 },
+  Synonym: { title: 'Основные', order: 10 },
+  Comment: { title: 'Основные', order: 10 },
+  ObjectPresentation: { title: 'Основные', order: 10 },
+  ExtendedObjectPresentation: { title: 'Основные', order: 10 },
+  ListPresentation: { title: 'Основные', order: 10 },
+  ExtendedListPresentation: { title: 'Основные', order: 10 },
+  Explanation: { title: 'Основные', order: 10 },
+  Hierarchical: { title: 'Иерархия', order: 40 },
+  HierarchyType: { title: 'Иерархия', order: 40 },
+  FoldersOnTop: { title: 'Иерархия', order: 40 },
+  LimitLevelCount: { title: 'Иерархия', order: 40 },
+  LevelCount: { title: 'Иерархия', order: 40 },
+  Owners: { title: 'Владельцы', order: 50 },
+  SubordinationUse: { title: 'Владельцы', order: 50 },
+  CodeLength: { title: 'Данные', order: 60 },
+  DescriptionLength: { title: 'Данные', order: 60 },
+  CodeType: { title: 'Данные', order: 60 },
+  CodeAllowedLength: { title: 'Данные', order: 60 },
+  DefaultPresentation: { title: 'Данные', order: 60 },
+  CodeSeries: { title: 'Нумерация', order: 70 },
+  CheckUnique: { title: 'Нумерация', order: 70 },
+  Autonumbering: { title: 'Нумерация', order: 70 },
+  DefaultObjectForm: { title: 'Формы', order: 80 },
+  DefaultFolderForm: { title: 'Формы', order: 80 },
+  DefaultListForm: { title: 'Формы', order: 80 },
+  DefaultChoiceForm: { title: 'Формы', order: 80 },
+  DefaultFolderChoiceForm: { title: 'Формы', order: 80 },
+  AuxiliaryObjectForm: { title: 'Формы', order: 80 },
+  AuxiliaryFolderForm: { title: 'Формы', order: 80 },
+  AuxiliaryListForm: { title: 'Формы', order: 80 },
+  AuxiliaryChoiceForm: { title: 'Формы', order: 80 },
+  AuxiliaryFolderChoiceForm: { title: 'Формы', order: 80 },
+  QuickChoice: { title: 'Поле ввода', order: 90 },
+  CreateOnInput: { title: 'Поле ввода', order: 90 },
+  InputByString: { title: 'Поле ввода', order: 90 },
+  SearchStringModeOnInputByString: { title: 'Поле ввода', order: 90 },
+  FullTextSearchOnInputByString: { title: 'Поле ввода', order: 90 },
+  ChoiceDataGetModeOnInputByString: { title: 'Поле ввода', order: 90 },
+  ChoiceHistoryOnInput: { title: 'Поле ввода', order: 90 },
+  UseStandardCommands: { title: 'Команды', order: 100 },
+  BasedOn: { title: 'Ввод на основании', order: 120 },
+  DataLockFields: { title: 'Обмен данными', order: 140 },
+  DataLockControlMode: { title: 'Обмен данными', order: 140 },
+  FullTextSearch: { title: 'Обмен данными', order: 140 },
+  DataHistory: { title: 'Обмен данными', order: 140 },
+  UpdateDataHistoryImmediatelyAfterWrite: { title: 'Обмен данными', order: 140 },
+  ExecuteAfterWriteDataHistoryVersionProcessing: { title: 'Обмен данными', order: 140 },
+  PredefinedDataUpdate: { title: 'Прочее', order: 150 },
+  Characteristics: { title: 'Прочее', order: 150 },
+  EditType: { title: 'Прочее', order: 150 },
+  IncludeHelpInContents: { title: 'Прочее', order: 150 },
+  ObjectBelonging: { title: 'Служебное', order: 160 },
+  ExtendedConfigurationObject: { title: 'Служебное', order: 160 },
+};
 
 /** Поля корня «Перечисление» (без реквизитов/ТЧ/форм объекта метаданных) */
 const ENUM_ROOT_META_PROPERTY_KEYS: string[] = [
@@ -860,6 +1007,9 @@ export function getRootPropertyKeyOrder(rootMetaKind: NodeKind): string[] {
   }
   if (rootMetaKind === 'Document') {
     return mergePropertyKeys(COMMON_ROOT_META_PROPERTY_KEYS, DOCUMENT_ROOT_EXTRA_KEYS);
+  }
+  if (rootMetaKind === 'Catalog') {
+    return CATALOG_ROOT_META_PROPERTY_KEYS;
   }
   if (rootMetaKind === 'CommonCommand') {
     return COMMAND_PROPERTY_KEYS;
@@ -1198,8 +1348,21 @@ export function buildRootMetaObjectProperties(
   const inheritedInner = inheritedFullObjectXml
     ? extractRootObjectPropertiesInnerXml(inheritedFullObjectXml)
     : null;
-  return buildEffectivePropertyItemsForKeys(inner, inheritedInner, getRootPropertyKeyOrder(rootMetaKind), {
+  const properties = buildEffectivePropertyItemsForKeys(inner, inheritedInner, getRootPropertyKeyOrder(rootMetaKind), {
     includeExtraKeys: true,
+  });
+  return rootMetaKind === 'Catalog' ? applyCatalogPropertySections(properties) : properties;
+}
+
+function applyCatalogPropertySections(properties: ObjectPropertiesCollection): ObjectPropertiesCollection {
+  return properties.map((property) => {
+    const section = CATALOG_PROPERTY_SECTIONS[property.key] ?? CATALOG_PROPERTY_SECTIONS._other;
+    return {
+      ...property,
+      section: section.title,
+      sectionOrder: section.order,
+      readonly: property.readonly === true || CATALOG_READONLY_COMPLEX_PROPERTIES.has(property.key),
+    };
   });
 }
 

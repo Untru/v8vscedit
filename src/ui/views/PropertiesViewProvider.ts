@@ -31,6 +31,11 @@ import type {
   SubsystemXmlService,
 } from '../../infra/xml/SubsystemXmlService';
 
+interface RenderedPropertySection {
+  order: number;
+  html: string;
+}
+
 /** Управляет вкладкой свойств объекта метаданных (singleton WebviewPanel) */
 export class PropertiesViewProvider implements vscode.Disposable {
   private panel: vscode.WebviewPanel | undefined;
@@ -104,51 +109,27 @@ export class PropertiesViewProvider implements vscode.Disposable {
       font-size: var(--vscode-font-size);
     }
     .layout {
-      max-width: 1040px;
+      max-width: 1180px;
       margin: 0 auto;
       display: grid;
-      grid-template-columns: 160px minmax(0, 1fr);
       gap: 16px;
-    }
-    .layout.single {
-      grid-template-columns: minmax(0, 1fr);
-    }
-    .tabs {
-      display: grid;
-      align-content: start;
-      gap: 6px;
-    }
-    .tab {
-      min-height: 34px;
-      padding: 0 10px;
-      text-align: left;
-      color: var(--vscode-button-secondaryForeground);
-      background: var(--vscode-button-secondaryBackground);
-      border: 1px solid var(--vscode-button-border, var(--vscode-panel-border, transparent));
-      border-radius: 6px;
-      cursor: pointer;
-      font: inherit;
-    }
-    .tab.active {
-      color: var(--vscode-button-foreground);
-      background: var(--vscode-button-background);
     }
     .panel {
-      display: none;
-      gap: 16px;
-    }
-    .panel.active {
       display: grid;
+      gap: 16px;
     }
     .card {
       padding: 16px;
       border: 1px solid var(--vscode-panel-border, var(--vscode-input-border, transparent));
       border-radius: 10px;
-      background: linear-gradient(180deg, var(--vscode-sideBar-background), var(--vscode-editor-background));
+      background: var(--vscode-sideBar-background);
     }
     .header {
       display: grid;
       gap: 6px;
+    }
+    .page-header {
+      padding: 4px 0;
     }
     h1,
     .title {
@@ -175,17 +156,61 @@ export class PropertiesViewProvider implements vscode.Disposable {
       display: grid;
       gap: 12px;
     }
+    .section-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 16px;
+      align-items: start;
+    }
+    .section-column {
+      display: grid;
+      gap: 16px;
+      align-content: start;
+    }
+    .property-section {
+      display: inline-block;
+      position: relative;
+      width: 100%;
+      box-sizing: border-box;
+      margin: 10px 0 0;
+      padding: 22px 16px 16px;
+      border: 1px solid var(--vscode-panel-border, var(--vscode-input-border, transparent));
+      border-radius: 8px;
+      background: var(--vscode-sideBar-background);
+    }
+    .section-title {
+      position: absolute;
+      top: -12px;
+      left: 14px;
+      margin: 0;
+      padding: 0 8px;
+      background: transparent;
+      font-size: 17px;
+      line-height: 1.25;
+      font-weight: 700;
+      z-index: 1;
+    }
+    .section-title::before {
+      content: "";
+      position: absolute;
+      left: 0;
+      right: 0;
+      top: 12px;
+      height: 2px;
+      background: var(--vscode-sideBar-background);
+      transform: translateY(-50%);
+      z-index: -1;
+    }
     .form-row,
     .row {
       display: grid;
-      grid-template-columns: minmax(150px, 28%) minmax(0, 1fr);
-      gap: 12px;
-      align-items: start;
+      grid-template-columns: minmax(0, 1fr);
+      gap: 6px;
     }
     label,
     .label {
       font-weight: 600;
-      padding-top: 7px;
+      padding-top: 0;
     }
     .control {
       min-width: 0;
@@ -210,13 +235,25 @@ export class PropertiesViewProvider implements vscode.Disposable {
     .checkbox-row {
       display: flex;
       align-items: center;
-      min-height: 32px;
+      min-height: 20px;
     }
     .checkbox {
       width: auto;
       min-height: 0;
       margin: 3px 0 0;
       accent-color: var(--vscode-checkbox-selectBackground);
+    }
+    .boolean-control {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-height: 28px;
+    }
+    .boolean-control .checkbox-row {
+      min-height: 0;
+    }
+    .boolean-label {
+      padding: 0;
     }
     .static-text {
       padding: 7px 0;
@@ -378,16 +415,17 @@ export class PropertiesViewProvider implements vscode.Disposable {
       border-radius: 6px;
     }
     @media (max-width: 760px) {
-      .layout {
-        grid-template-columns: 1fr;
-      }
-      .tabs {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-      }
       .form-row,
       .row,
       .qual-row {
         grid-template-columns: 1fr;
+      }
+      .section-grid {
+        display: flex;
+        flex-direction: column;
+      }
+      .section-column {
+        display: contents;
       }
       .tree-box {
         height: 360px;
@@ -430,37 +468,16 @@ export class PropertiesViewProvider implements vscode.Disposable {
     }
 
     const header = this.renderHeaderCard(node, isEditLockedBySupport, isEditLockedByRepository);
+    const subsystemSection = subsystemSnapshot
+      ? [this.renderSubsystemMembershipSection(subsystemSnapshot, webview, isEditLocked)]
+      : [];
     return `
-      <div class="layout ${subsystemSnapshot ? '' : 'single'}">
-        ${subsystemSnapshot ? this.renderTabs() : ''}
+      <div class="layout">
         <main>
-          ${subsystemSnapshot
-            ? `
-              <section class="panel active" data-panel="properties">
-                ${header}
-                <section class="card grid">
-                  ${this.renderPropertiesComponent(properties, isEditLocked)}
-                </section>
-              </section>
-              <section class="panel" data-panel="subsystems">
-                <section class="card header">
-                  <h1>Подсистемы</h1>
-                  <p class="subtitle">Связь объекта с разделами командного интерфейса</p>
-                  ${isEditLocked ? '<p class="subtitle">Редактирование запрещено текущим состоянием поддержки или хранилища.</p>' : ''}
-                </section>
-                <section class="card grid">
-                  ${this.renderSubsystemMembershipComponent(subsystemSnapshot, webview, isEditLocked)}
-                </section>
-              </section>
-            `
-            : `
-              <section class="panel active" data-panel="properties">
-                ${header}
-                <section class="card grid">
-                  ${this.renderPropertiesComponent(properties, isEditLocked)}
-                </section>
-              </section>
-            `}
+          <section class="panel">
+            ${header}
+            ${this.renderPropertiesComponent(properties, isEditLocked, subsystemSection)}
+          </section>
         </main>
       </div>
       <script>${this.renderScript(isEditLocked, Boolean(subsystemSnapshot))}</script>
@@ -473,33 +490,116 @@ export class PropertiesViewProvider implements vscode.Disposable {
     isEditLockedByRepository: boolean
   ): string {
     return `
-      <section class="card header">
+      <header class="header page-header">
         <h1>${escapeHtml(node.textLabel)}</h1>
         <p class="subtitle">${escapeHtml(getNodeKindLabel(node.nodeKind))}</p>
         ${isEditLockedBySupport ? '<p class="subtitle">Редактирование запрещено поддержкой</p>' : ''}
         ${isEditLockedByRepository ? '<p class="subtitle">Редактирование запрещено: объект не захвачен в хранилище</p>' : ''}
-      </section>
+      </header>
     `;
   }
 
-  private renderTabs(): string {
-    return `
-      <nav class="tabs" aria-label="Разделы свойств">
-        <button class="tab active" type="button" data-tab="properties">Свойства</button>
-        <button class="tab" type="button" data-tab="subsystems">Подсистемы</button>
-      </nav>
-    `;
-  }
-
-  private renderPropertiesComponent(properties: ObjectPropertiesCollection, isEditLocked: boolean): string {
+  private renderPropertiesComponent(
+    properties: ObjectPropertiesCollection,
+    isEditLocked: boolean,
+    extraSections: RenderedPropertySection[] = []
+  ): string {
+    const sections: RenderedPropertySection[] = [];
     if (properties.length === 0) {
-      return '<div class="message">Для выбранного объекта отсутствуют свойства.</div>';
+      sections.push({
+        order: 10,
+        html: '<section class="property-section"><div class="message">Для выбранного объекта отсутствуют свойства.</div></section>',
+      });
+    } else if (properties.some((property) => property.section)) {
+      sections.push(...this.renderPropertySections(properties, isEditLocked));
+    } else {
+      sections.push({
+        order: 10,
+        html: `
+          <section class="property-section">
+            <div class="form">
+              ${properties.map((property) => this.renderProperty(property, isEditLocked)).join('')}
+            </div>
+          </section>
+        `,
+      });
     }
+    sections.push(...extraSections);
+    return this.renderSectionColumns(sections);
+  }
+
+  private renderSectionColumns(sections: RenderedPropertySection[]): string {
+    const sortedSections = [...sections].sort((left, right) => left.order - right.order);
+    const left: string[] = [];
+    const right: string[] = [];
+    sortedSections.forEach((section, index) => {
+      const html = `<div style="order: ${String(index)}">${section.html}</div>`;
+      if (index % 2 === 0) {
+        left.push(html);
+      } else {
+        right.push(html);
+      }
+    });
     return `
-      <div class="form">
-        ${properties.map((property) => this.renderProperty(property, isEditLocked)).join('')}
+      <div class="section-grid">
+        <div class="section-column">${left.join('')}</div>
+        <div class="section-column">${right.join('')}</div>
       </div>
     `;
+  }
+
+  private renderPropertySections(
+    properties: ObjectPropertiesCollection,
+    isEditLocked: boolean
+  ): RenderedPropertySection[] {
+    const sections = new Map<string, ObjectPropertiesCollection>();
+    for (const property of properties) {
+      const sectionName = property.section ?? 'Свойства';
+      const section = sections.get(sectionName);
+      if (section) {
+        section.push(property);
+      } else {
+        sections.set(sectionName, [property]);
+      }
+    }
+
+    return Array.from(sections.entries())
+      .sort((left, right) => this.getSectionOrder(left[1]) - this.getSectionOrder(right[1]))
+      .map(([title, items]) => {
+        return {
+          order: this.getSectionOrder(items),
+          html: `
+            <section class="property-section">
+              <h2 class="section-title">${escapeHtml(title)}</h2>
+              <div class="form">
+                ${items.map((property) => this.renderProperty(property, isEditLocked)).join('')}
+              </div>
+            </section>
+          `,
+        };
+      });
+  }
+
+  private getSectionOrder(properties: ObjectPropertiesCollection): number {
+    return properties.reduce((order, property) => Math.min(order, property.sectionOrder ?? Number.MAX_SAFE_INTEGER), Number.MAX_SAFE_INTEGER);
+  }
+
+  private renderSubsystemMembershipSection(
+    snapshot: SubsystemMembershipSnapshot,
+    webview: vscode.Webview,
+    isEditLocked: boolean
+  ): RenderedPropertySection {
+    return {
+      order: 20,
+      html: `
+        <section class="property-section">
+          <h2 class="section-title">Подсистемы</h2>
+          <p class="subtitle">Связь объекта с разделами командного интерфейса</p>
+          ${isEditLocked ? '<p class="subtitle">Редактирование запрещено текущим состоянием поддержки или хранилища.</p>' : ''}
+          ${this.renderSubsystemMembershipComponent(snapshot, webview, isEditLocked)}
+        </section>
+      `,
+    };
   }
 
   private renderSubsystemMembershipComponent(
@@ -572,7 +672,7 @@ export class PropertiesViewProvider implements vscode.Disposable {
     return `
       <div class="layout single">
         <main>
-          <section class="panel active">
+          <section class="panel">
             <section class="card header">
               <h1>${escapeHtml(title)}</h1>
               ${subtitle ? `<p class="subtitle">${escapeHtml(subtitle)}</p>` : ''}
@@ -590,6 +690,17 @@ export class PropertiesViewProvider implements vscode.Disposable {
   private renderProperty(property: ObjectPropertyItem, isEditLocked: boolean): string {
     const valueHtml = this.renderPropertyValue(property, isEditLocked);
     const noteHtml = this.renderPropertyNote(property);
+    if (property.kind === 'boolean') {
+      return `
+        <div class="row boolean-row">
+          <label class="label boolean-control" title="${escapeHtml(property.key)}">
+            ${valueHtml}
+            <span class="boolean-label">${escapeHtml(property.title)}</span>
+          </label>
+          ${noteHtml}
+        </div>
+      `;
+    }
     return `
       <div class="row">
         <label class="label" title="${escapeHtml(property.key)}">${escapeHtml(property.title)}</label>
@@ -633,16 +744,10 @@ export class PropertiesViewProvider implements vscode.Disposable {
       case 'localizedString': {
         const localized = property.value as LocalizedStringValue;
         const renderValue = localized.presentation;
-        const items = localized.values
-          .map((item) => {
-            return `<div class="localized-item"><strong>${escapeHtml(item.lang)}:</strong> ${escapeHtml(item.content)}</div>`;
-          })
-          .join('');
-
-        return `
-          <input class="input" data-prop-key="${escapeHtml(property.key)}" data-prop-kind="localizedString" type="text" value="${escapeHtml(renderValue)}" ${readonlyAttr} />
-          ${items ? `<div class="property-note">Локализации:</div>${items}` : ''}
-        `;
+        if (property.key === 'Explanation' || property.key === 'ExtendedExplanation') {
+          return `<textarea class="textarea" data-prop-key="${escapeHtml(property.key)}" data-prop-kind="localizedString" ${readonlyAttr}>${escapeHtml(renderValue)}</textarea>`;
+        }
+        return `<input class="input" data-prop-key="${escapeHtml(property.key)}" data-prop-kind="localizedString" type="text" value="${escapeHtml(renderValue)}" ${readonlyAttr} />`;
       }
       case 'metadataType':
         return this.renderMetadataTypeControl(property, isEditLocked || property.readonly === true);
@@ -728,26 +833,13 @@ export class PropertiesViewProvider implements vscode.Disposable {
     return '';
   }
 
-  private renderScript(isEditLocked: boolean, hasSubsystemTab: boolean): string {
+  private renderScript(isEditLocked: boolean, hasSubsystemMembership: boolean): string {
     return `
       const vscode = acquireVsCodeApi();
       const isEditLocked = ${isEditLocked ? 'true' : 'false'};
-      const hasSubsystemTab = ${hasSubsystemTab ? 'true' : 'false'};
+      const hasSubsystemMembership = ${hasSubsystemMembership ? 'true' : 'false'};
       const isValidMetadataName = (value) => /^[\\p{L}][\\p{L}\\p{Nd}_]*$/u.test(value);
       const lastValidByKey = new Map();
-      if (hasSubsystemTab) {
-        document.querySelectorAll('.tab').forEach((button) => {
-          button.addEventListener('click', () => {
-            const tab = button.dataset.tab;
-            if (!tab) return;
-            document.querySelectorAll('.tab').forEach((item) => {
-              const active = item === button;
-              item.classList.toggle('active', active);
-            });
-            document.querySelectorAll('.panel').forEach((panel) => panel.classList.toggle('active', panel.dataset.panel === tab));
-          });
-        });
-      }
       const submitOnEnter = (el, key, kind) => {
         if (el.tagName === 'TEXTAREA') return;
         el.addEventListener('keydown', (event) => {
@@ -834,7 +926,7 @@ export class PropertiesViewProvider implements vscode.Disposable {
           postPropertyChange(el, key, kind);
         });
       });
-      if (hasSubsystemTab) {
+      if (hasSubsystemMembership) {
         const saveSubsystemsBtn = document.getElementById('saveSubsystemsBtn');
         const selectedSubsystemCount = document.getElementById('selectedSubsystemCount');
         const subsystemSaveStatus = document.getElementById('subsystemSaveStatus');

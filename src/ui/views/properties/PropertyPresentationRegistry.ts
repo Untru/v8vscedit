@@ -270,6 +270,15 @@ export function formatXmlPropertyDisplay(key: string, innerXml: string): string 
   if (key === 'UsedMobileApplicationFunctionalities') {
     return formatMobileFunctionalities(innerXml);
   }
+  if (key === 'Owners' || key === 'BasedOn') {
+    return formatMetadataReferenceItems(innerXml);
+  }
+  if (key === 'InputByString' || key === 'DataLockFields') {
+    return formatFieldItems(innerXml);
+  }
+  if (key === 'Characteristics') {
+    return formatCharacteristics(innerXml);
+  }
 
   return formatKnownScalarValue(formatMetadataReferences(innerXml.replace(/\s+/g, ' ').trim()));
 }
@@ -329,6 +338,27 @@ function formatMobileFunctionalities(innerXml: string): string {
   });
 
   return items.join('\n');
+}
+
+function formatMetadataReferenceItems(innerXml: string): string {
+  const items = Array.from(innerXml.matchAll(/<xr:Item\b[^>]*>([^<]+)<\/xr:Item>/g))
+    .map((match) => formatPropertyDisplayValue(match[1].trim()))
+    .filter((item) => item.length > 0);
+  return items.join('\n');
+}
+
+function formatFieldItems(innerXml: string): string {
+  const items = Array.from(innerXml.matchAll(/<xr:Field\b[^>]*>([^<]+)<\/xr:Field>/g))
+    .map((match) => formatPropertyDisplayValue(match[1].trim()))
+    .filter((item) => item.length > 0);
+  return items.join('\n');
+}
+
+function formatCharacteristics(innerXml: string): string {
+  const characteristics = Array.from(innerXml.matchAll(/<xr:Characteristic\b[^>]*>([\s\S]*?)<\/xr:Characteristic>/g))
+    .map((match) => formatPropertyDisplayValue(match[1].replace(/\s+/g, ' ').trim()))
+    .filter((item) => item.length > 0);
+  return characteristics.join('\n');
 }
 
 function titleFromPascalCase(key: string): string {

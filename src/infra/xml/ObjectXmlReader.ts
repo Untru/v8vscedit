@@ -384,12 +384,15 @@ function updatePropertyInElement(
     return elementXml;
   }
   const propsInner = propertiesMatch[1];
-  const nextValueBlock = buildPropertyValueBlock(propertyKey, valueKind, value);
   const propertyRe = new RegExp(`<${propertyKey}>[\\s\\S]*?<\\/${propertyKey}>`);
   const selfClosingRe = new RegExp(`<${propertyKey}(?:\\s[^>]*)?\\/>`);
+  const propertyMatch = propertyRe.exec(propsInner);
+  const nextValueBlock = propertyMatch && valueKind === 'localizedString'
+    ? updateLocalizedPropertyContent(propertyMatch[0], value)
+    : buildPropertyValueBlock(propertyKey, valueKind, value);
 
-  const nextPropsInner = propertyRe.test(propsInner)
-    ? propsInner.replace(propertyRe, nextValueBlock)
+  const nextPropsInner = propertyMatch
+    ? propsInner.replace(propertyMatch[0], nextValueBlock)
     : selfClosingRe.test(propsInner)
     ? propsInner.replace(selfClosingRe, nextValueBlock)
     : /<Comment[\s\S]*?<\/Comment>/.test(propsInner)
@@ -424,6 +427,15 @@ function buildPropertyValueBlock(
     ].join('\n');
   }
   return `<${propertyKey}>${escapeXmlText(String(value))}</${propertyKey}>`;
+}
+
+function updateLocalizedPropertyContent(propertyBlock: string, value: string | boolean): string {
+  const content = escapeXmlText(typeof value === 'string' ? value : String(value));
+  const contentRe = /(<v8:content>)[\s\S]*?(<\/v8:content>)/;
+  if (!contentRe.test(propertyBlock)) {
+    return propertyBlock.replace(/<v8:content\s*\/>/, `<v8:content>${content}</v8:content>`);
+  }
+  return propertyBlock.replace(contentRe, `$1${content}$2`);
 }
 
 function escapeXmlText(value: string): string {

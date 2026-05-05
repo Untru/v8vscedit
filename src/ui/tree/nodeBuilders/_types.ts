@@ -100,6 +100,10 @@ export interface ObjectPropertyItem {
   title: string;
   kind: PropertyValueKind;
   value: PropertyValue;
+  /** Раздел формы свойств, близкий к группам конфигуратора */
+  section?: string;
+  /** Порядок раздела внутри карточной раскладки */
+  sectionOrder?: number;
   /** Значение пришло из основной конфигурации, а не из XML расширения */
   inherited?: boolean;
   /** Свойство показано только для чтения */
