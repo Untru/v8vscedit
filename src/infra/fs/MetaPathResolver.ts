@@ -1,6 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import { type MetaKind, getMetaFolder } from '../../domain/MetaTypes';
+import { type MetaKind, getMetaFolder, getMetaLabel, isModuleSlotValid } from '../../domain/MetaTypes';
 import type { ModuleSlot } from '../../domain/ModuleSlot';
 import { type ObjectLocation, getObjectLocationFromXml } from './ObjectLocation';
 
@@ -69,6 +69,51 @@ export class MetaPathResolver {
   }
 
   /**
+   * Возвращает путь к модулю, создавая пустой BSL-файл в штатном месте,
+   * если модуль ещё не выгружен. Используется только явными командами
+   * открытия модулей, когда пользователь ожидает получить редактируемый файл.
+   *
+   * Если файл не существует и слот не поддерживается типом метаданных —
+   * выбрасывает ошибку, чтобы предотвратить создание файла, который платформа
+   * не распознаёт (например, ObjectModule для регистров).
+   */
+  ensureModule(node: NodePathInfo, slot: ModuleSlot): string | null {
+    const xmlPath = node.xmlPath;
+    if (!xmlPath) {
+      return null;
+    }
+
+    const loc = getObjectLocationFromXml(xmlPath);
+    const candidates = this.getSlotCandidates(slot, loc, node.label);
+    const existing = this.firstExisting(candidates);
+    if (existing) {
+      return existing;
+    }
+
+    if (node.kind && !isModuleSlotValid(node.kind, slot)) {
+      const typeLabel = this.kindLabel(node.kind);
+      throw new Error(`Тип «${typeLabel}» не поддерживает слот модуля «${slot}»`);
+    }
+
+    const target = candidates[0];
+    if (!target) {
+      return null;
+    }
+
+    fs.mkdirSync(path.dirname(target), { recursive: true });
+    fs.writeFileSync(target, '', { encoding: 'utf8', flag: 'wx' });
+    return target;
+  }
+
+  private kindLabel(kind: string): string {
+    try {
+      return getMetaLabel(kind as MetaKind);
+    } catch {
+      return kind;
+    }
+  }
+
+  /**
    * Строит список путей-кандидатов для слота относительно каталога объекта.
    * Для дочерних форм/команд имя берётся из {@link label} — это имя узла дерева.
    */
@@ -104,6 +149,8 @@ export class MetaPathResolver {
           path.join(loc.objectDir, 'Commands', label, 'Ext', 'Module.bsl'),
         ];
       }
+      case 'RecordSet':
+        return [path.join(extDir, 'RecordSetModule.bsl')];
       default:
         return [];
     }
@@ -150,6 +197,12 @@ function resolve(slot: ModuleSlot, node: NodeLike): string | null {
   return singleton.resolveModule(info, slot);
 }
 
+function ensure(slot: ModuleSlot, node: NodeLike): string | null {
+  const info = toInfo(node);
+  if (!info) {return null;}
+  return singleton.ensureModule(info, slot);
+}
+
 /** Путь к XML объекта по корню конфигурации, типу и имени */
 export function resolveObjectXmlPath(
   configRoot: string,
@@ -163,34 +216,88 @@ export function getObjectModulePath(node: NodeLike): string | null {
   return resolve('Object', node);
 }
 
+/** Путь к модулю объекта; создаёт пустой файл, если его ещё нет */
+export function ensureObjectModulePath(node: NodeLike): string | null {
+  return ensure('Object', node);
+}
+
 export function getManagerModulePath(node: NodeLike): string | null {
   return resolve('Manager', node);
+}
+
+/** Путь к модулю менеджера; создаёт пустой файл, если его ещё нет */
+export function ensureManagerModulePath(node: NodeLike): string | null {
+  return ensure('Manager', node);
 }
 
 export function getConstantModulePath(node: NodeLike): string | null {
   return resolve('ValueManager', node);
 }
 
+/** Путь к модулю менеджера значения; создаёт пустой файл, если его ещё нет */
+export function ensureConstantModulePath(node: NodeLike): string | null {
+  return ensure('ValueManager', node);
+}
+
 export function getServiceModulePath(node: NodeLike): string | null {
   return resolve('Service', node);
+}
+
+/** Путь к модулю сервиса; создаёт пустой файл, если его ещё нет */
+export function ensureServiceModulePath(node: NodeLike): string | null {
+  return ensure('Service', node);
 }
 
 export function getCommonFormModulePath(node: NodeLike): string | null {
   return resolve('CommonForm', node);
 }
 
+/** Путь к модулю общей формы; создаёт пустой файл, если его ещё нет */
+export function ensureCommonFormModulePath(node: NodeLike): string | null {
+  return ensure('CommonForm', node);
+}
+
 export function getCommonCommandModulePath(node: NodeLike): string | null {
   return resolve('CommonCommand', node);
+}
+
+/** Путь к модулю общей команды; создаёт пустой файл, если его ещё нет */
+export function ensureCommonCommandModulePath(node: NodeLike): string | null {
+  return ensure('CommonCommand', node);
 }
 
 export function getFormModulePathForChild(node: NodeLike): string | null {
   return resolve('ChildForm', node);
 }
 
+/** Путь к модулю формы объекта; создаёт пустой файл, если его ещё нет */
+export function ensureFormModulePathForChild(node: NodeLike): string | null {
+  return ensure('ChildForm', node);
+}
+
 export function getCommandModulePathForChild(node: NodeLike): string | null {
   return resolve('ChildCommand', node);
 }
 
+/** Путь к модулю команды объекта; создаёт пустой файл, если его ещё нет */
+export function ensureCommandModulePathForChild(node: NodeLike): string | null {
+  return ensure('ChildCommand', node);
+}
+
 export function getCommonModuleCodePath(node: NodeLike): string | null {
   return resolve('CommonModule', node);
+}
+
+/** Путь к коду общего модуля; создаёт пустой файл, если его ещё нет */
+export function ensureCommonModuleFile(node: NodeLike): string | null {
+  return ensure('CommonModule', node);
+}
+
+export function getRecordSetModulePath(node: NodeLike): string | null {
+  return resolve('RecordSet', node);
+}
+
+/** Путь к модулю записи регистра; создаёт пустой файл, если его ещё нет */
+export function ensureRecordSetModulePath(node: NodeLike): string | null {
+  return ensure('RecordSet', node);
 }

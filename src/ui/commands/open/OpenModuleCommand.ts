@@ -1,5 +1,15 @@
 import * as vscode from 'vscode';
 import {
+  ensureCommandModulePathForChild,
+  ensureCommonCommandModulePath,
+  ensureCommonFormModulePath,
+  ensureCommonModuleFile,
+  ensureConstantModulePath,
+  ensureFormModulePathForChild,
+  ensureManagerModulePath,
+  ensureObjectModulePath,
+  ensureRecordSetModulePath,
+  ensureServiceModulePath,
   getCommonCommandModulePath,
   getCommonFormModulePath,
   getCommandModulePathForChild,
@@ -8,6 +18,7 @@ import {
   getFormModulePathForChild,
   getManagerModulePath,
   getObjectModulePath,
+  getRecordSetModulePath,
   getServiceModulePath,
 } from '../../../infra/fs/MetaPathResolver';
 import { MetadataNode } from '../../tree/TreeNode';
@@ -21,9 +32,16 @@ export function registerOpenModuleCommands(
 ): void {
   context.subscriptions.push(
     vscode.commands.registerCommand('v8vscedit.openCommonModuleCode', async (node: NodeArg) => {
-      const modulePath = getCommonModuleCodePath(toNodePathInfo(node));
+      const info = toNodePathInfo(node);
+      const modulePath = await resolveModuleForOpen(
+        services,
+        info,
+        node.xmlPath,
+        getCommonModuleCodePath,
+        ensureCommonModuleFile,
+        'общего модуля'
+      );
       if (!modulePath) {
-        void vscode.window.showWarningMessage('Файл модуля общего модуля не найден в выгрузке.');
         return;
       }
 
@@ -32,7 +50,15 @@ export function registerOpenModuleCommands(
     }),
 
     vscode.commands.registerCommand('v8vscedit.openObjectModule', async (node: NodeArg) => {
-      const modulePath = getObjectModulePath(toNodePathInfo(node));
+      const info = toNodePathInfo(node);
+      const modulePath = await resolveModuleForOpen(
+        services,
+        info,
+        node.xmlPath,
+        getObjectModulePath,
+        ensureObjectModulePath,
+        'модуля объекта'
+      );
       if (!modulePath) {
         return;
       }
@@ -42,7 +68,33 @@ export function registerOpenModuleCommands(
     }),
 
     vscode.commands.registerCommand('v8vscedit.openManagerModule', async (node: NodeArg) => {
-      const modulePath = getManagerModulePath(toNodePathInfo(node));
+      const info = toNodePathInfo(node);
+      const modulePath = await resolveModuleForOpen(
+        services,
+        info,
+        node.xmlPath,
+        getManagerModulePath,
+        ensureManagerModulePath,
+        'модуля менеджера'
+      );
+      if (!modulePath) {
+        return;
+      }
+
+      const xmlPath = node.xmlPath;
+      await openModule(services, modulePath, xmlPath);
+    }),
+
+    vscode.commands.registerCommand('v8vscedit.openRecordSetModule', async (node: NodeArg) => {
+      const info = toNodePathInfo(node);
+      const modulePath = await resolveModuleForOpen(
+        services,
+        info,
+        node.xmlPath,
+        getRecordSetModulePath,
+        ensureRecordSetModulePath,
+        'модуля записи'
+      );
       if (!modulePath) {
         return;
       }
@@ -52,7 +104,15 @@ export function registerOpenModuleCommands(
     }),
 
     vscode.commands.registerCommand('v8vscedit.openConstantModule', async (node: NodeArg) => {
-      const modulePath = getConstantModulePath(toNodePathInfo(node));
+      const info = toNodePathInfo(node);
+      const modulePath = await resolveModuleForOpen(
+        services,
+        info,
+        node.xmlPath,
+        getConstantModulePath,
+        ensureConstantModulePath,
+        'модуля менеджера значения'
+      );
       if (!modulePath) {
         return;
       }
@@ -62,7 +122,15 @@ export function registerOpenModuleCommands(
     }),
 
     vscode.commands.registerCommand('v8vscedit.openServiceModule', async (node: NodeArg) => {
-      const modulePath = getServiceModulePath(toNodePathInfo(node));
+      const info = toNodePathInfo(node);
+      const modulePath = await resolveModuleForOpen(
+        services,
+        info,
+        node.xmlPath,
+        getServiceModulePath,
+        ensureServiceModulePath,
+        'модуля сервиса'
+      );
       if (!modulePath) {
         return;
       }
@@ -73,9 +141,24 @@ export function registerOpenModuleCommands(
 
     vscode.commands.registerCommand('v8vscedit.openFormModule', async (node: NodeArg) => {
       const isCommonForm = node.nodeKind === 'CommonForm';
+      const info = toNodePathInfo(node);
       const modulePath = isCommonForm
-        ? getCommonFormModulePath(toNodePathInfo(node))
-        : getFormModulePathForChild(toNodePathInfo(node));
+        ? await resolveModuleForOpen(
+          services,
+          info,
+          node.xmlPath,
+          getCommonFormModulePath,
+          ensureCommonFormModulePath,
+          'модуля общей формы'
+        )
+        : await resolveModuleForOpen(
+          services,
+          info,
+          node.xmlPath,
+          getFormModulePathForChild,
+          ensureFormModulePathForChild,
+          'модуля формы'
+        );
       if (!modulePath) {
         return;
       }
@@ -86,9 +169,24 @@ export function registerOpenModuleCommands(
 
     vscode.commands.registerCommand('v8vscedit.openCommandModule', async (node: NodeArg) => {
       const isCommonCommand = node.nodeKind === 'CommonCommand';
+      const info = toNodePathInfo(node);
       const modulePath = isCommonCommand
-        ? getCommonCommandModulePath(toNodePathInfo(node))
-        : getCommandModulePathForChild(toNodePathInfo(node));
+        ? await resolveModuleForOpen(
+          services,
+          info,
+          node.xmlPath,
+          getCommonCommandModulePath,
+          ensureCommonCommandModulePath,
+          'модуля общей команды'
+        )
+        : await resolveModuleForOpen(
+          services,
+          info,
+          node.xmlPath,
+          getCommandModulePathForChild,
+          ensureCommandModulePathForChild,
+          'модуля команды'
+        );
       if (!modulePath) {
         return;
       }
@@ -97,6 +195,46 @@ export function registerOpenModuleCommands(
       await openModule(services, modulePath, xmlPath);
     })
   );
+}
+
+type ModulePathResolver = (node: { xmlPath?: string; kind?: string; label?: string }) => string | null;
+
+async function resolveModuleForOpen(
+  services: CommandServices,
+  node: { xmlPath?: string; kind?: string; label?: string },
+  ownerXmlPath: string | undefined,
+  resolveExisting: ModulePathResolver,
+  ensureMissing: ModulePathResolver,
+  moduleLabel: string
+): Promise<string | null> {
+  const existing = resolveExisting(node);
+  if (existing) {
+    return existing;
+  }
+
+  if (isReadonlyModuleOwner(services, ownerXmlPath)) {
+    await vscode.window.showWarningMessage(`Нельзя создать файл ${moduleLabel}: объект заблокирован для редактирования.`);
+    return null;
+  }
+
+  try {
+    const created = ensureMissing(node);
+    if (!created) {
+      await vscode.window.showWarningMessage(`Не удалось определить путь ${moduleLabel}.`);
+      return null;
+    }
+    return created;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    await vscode.window.showErrorMessage(`Не удалось создать файл ${moduleLabel}: ${message}`);
+    return null;
+  }
+}
+
+function isReadonlyModuleOwner(services: CommandServices, ownerXmlPath: string | undefined): boolean {
+  const supportLocked = ownerXmlPath ? services.supportService?.isLocked(ownerXmlPath) ?? false : false;
+  const repositoryLocked = ownerXmlPath ? services.repositoryService.isEditRestricted(ownerXmlPath) : false;
+  return supportLocked || repositoryLocked;
 }
 
 async function openModule(

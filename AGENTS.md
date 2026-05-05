@@ -11,6 +11,17 @@ VSCode / Cursor-расширение `v8vscedit` — редактор выгру
 
 Главное: расширение читает уже выгруженные XML-файлы 1С и обеспечивает удобную навигацию + редактирование BSL-модулей; запись XML сейчас не реализована.
 
+### Основной пользовательский интерфейс
+
+**Основным UI навигатора является `UniversalPanelViewProvider` (`ui/views/universal/`)** — HTML-webview-панель со встроенным деревом метаданных, поиском, контекстным меню и быстрыми операциями.
+
+Нативный VSCode TreeView (`ui/tree/MetadataTreeProvider`) существует как вспомогательная структура данных — `UniversalPanelViewProvider` использует его как источник узлов (`treeProvider.getChildren()`), но сам TreeView-виджет в боковой панели является атавизмом и **не должен рассматриваться как основной UI**.
+
+Следствия:
+- Контекстное меню узлов (команды открытия модулей, XML и т.п.) формируется в `UniversalPanelViewProvider.getNodeActions()` / `addModuleActions()`, а **не** через `package.json → contributes.menus.view/item/context`.
+- Правила меню в `package.json` обновляются для совместимости, но **основной источник правды для команд узлов — `META_TYPES.modules`**, читаемый из `addModuleActions`.
+- При добавлении новой команды для узла: добавить в `MODULE_SLOT_ACTIONS` (в `UniversalPanelViewProvider.ts`) и зарегистрировать в `CommandRegistry`. Правки `package.json → menus` — по желанию, для нативного TreeView.
+
 ---
 
 ## Базовые правила общения
@@ -324,6 +335,8 @@ BSL-модули открываются только как реальные `fi
 11. **Не вешать синхронный I/O на getters, tooltip, decoration и hot path дерева.** Данные для подсказок и декораций читаются заранее, кэшируются сервисом или пропускаются.
 12. **Не терять формат XML.** Любой редактор существующего XML сохраняет BOM и стиль переводов строк исходного файла.
 13. **Справочники свойств не живут в UI.** Подписи, boolean/enum/localized-классификация и значения enum должны жить в `infra/xml/PropertySchema.ts` или специализированном infra-реестре; UI только рендерит готовые данные.
+14. **Команды контекстного меню не хардкодятся в `UniversalPanelViewProvider`.** Метод `addModuleActions` читает `META_TYPES[nodeKind].modules` и строит меню через `MODULE_SLOT_ACTIONS`. Добавление нового типа или слота — только через `META_TYPES` + `MODULE_SLOT_ACTIONS`, без новых `if`/regex в `addModuleActions`.
+15. **Нативный TreeView — не основной UI.** Контекстное меню `package.json → menus.view/item/context` не является основным для пользователя — основной UI это `UniversalPanelViewProvider`. Не тратить усилия на дублирование логики меню в `package.json`, если оно уже реализовано в `addModuleActions`.
 
 ---
 

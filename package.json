@@ -155,6 +155,10 @@
         "title": "Открыть модуль команды"
       },
       {
+        "command": "v8vscedit.openRecordSetModule",
+        "title": "Открыть модуль записи"
+      },
+      {
         "command": "v8vscedit.openConstantModule",
         "title": "Открыть модуль константы"
       },
@@ -361,12 +365,17 @@
         },
         {
           "command": "v8vscedit.openObjectModule",
-          "when": "view == v8vsceditTree && viewItem =~ /^(Catalog|Document|Report|DataProcessor|InformationRegister|AccumulationRegister|AccountingRegister|CalculationRegister|BusinessProcess|Task|ExchangePlan|ChartOfCharacteristicTypes|ChartOfAccounts|ChartOfCalculationTypes)-hasXml/ && !(viewItem =~ /-repoEditRestricted/)",
+          "when": "view == v8vsceditTree && viewItem =~ /^(Catalog|Document|Report|DataProcessor|BusinessProcess|Task|ExchangePlan|ChartOfCharacteristicTypes|ChartOfAccounts|ChartOfCalculationTypes)-hasXml/ && !(viewItem =~ /-repoEditRestricted/)",
           "group": "navigation@2"
         },
         {
           "command": "v8vscedit.openManagerModule",
           "when": "view == v8vsceditTree && viewItem =~ /^(Catalog|Document|Report|DataProcessor|InformationRegister|AccumulationRegister|AccountingRegister|CalculationRegister|BusinessProcess|Task|ExchangePlan|ChartOfCharacteristicTypes|ChartOfAccounts|ChartOfCalculationTypes|Enum|DocumentJournal)-hasXml/ && !(viewItem =~ /-repoEditRestricted/)",
+          "group": "navigation@2"
+        },
+        {
+          "command": "v8vscedit.openRecordSetModule",
+          "when": "view == v8vsceditTree && viewItem =~ /^(InformationRegister|AccumulationRegister|AccountingRegister|CalculationRegister)-hasXml/ && !(viewItem =~ /-repoEditRestricted/)",
           "group": "navigation@2"
         },
         {

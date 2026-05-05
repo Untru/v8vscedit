@@ -5,6 +5,8 @@ import type {
   MetadataGitDecorationTarget,
 } from '../../../infra/git/GitMetadataStatusService';
 import type { StandaloneServerStatus } from '../../../infra/standalone';
+import { META_TYPES, type MetaKind } from '../../../domain/MetaTypes';
+import type { ModuleSlot } from '../../../domain/ModuleSlot';
 import { getIconUris } from '../../tree/presentation/icon';
 import type { MetadataTreeProvider } from '../../tree/MetadataTreeProvider';
 import type { MetadataNode } from '../../tree/TreeNode';
@@ -42,8 +44,26 @@ interface TreeAction {
 }
 
 /**
- * Экспериментальная универсальная панель объединяет быстрые операции и
- * HTML-представление текущего дерева метаданных без удаления штатных view.
+ * Соответствие слотов модулей командам открытия.
+ * Является единственным местом, где слот → команда расширения.
+ */
+const MODULE_SLOT_ACTIONS: Partial<Record<ModuleSlot, { command: string; title: string }>> = {
+  Object:       { command: 'v8vscedit.openObjectModule',    title: 'Открыть модуль объекта'   },
+  Manager:      { command: 'v8vscedit.openManagerModule',   title: 'Открыть модуль менеджера' },
+  ValueManager: { command: 'v8vscedit.openConstantModule',  title: 'Открыть модуль константы' },
+  RecordSet:    { command: 'v8vscedit.openRecordSetModule', title: 'Открыть модуль записи'    },
+  Service:      { command: 'v8vscedit.openServiceModule',   title: 'Открыть модуль сервиса'   },
+  CommonModule: { command: 'v8vscedit.openCommonModuleCode', title: 'Открыть модуль'          },
+  CommonCommand:{ command: 'v8vscedit.openCommandModule',   title: 'Открыть модуль команды'   },
+  CommonForm:   { command: 'v8vscedit.openFormModule',      title: 'Открыть модуль формы'     },
+  ChildForm:    { command: 'v8vscedit.openFormModule',      title: 'Открыть модуль формы'     },
+  ChildCommand: { command: 'v8vscedit.openCommandModule',   title: 'Открыть модуль команды'   },
+};
+
+/**
+ * Универсальная панель объединяет быстрые операции и HTML-представление
+ * текущего дерева метаданных. Это ОСНОВНОЙ навигатор — нативный TreeView
+ * является резервным и не должен использоваться как основной интерфейс.
  */
 export class UniversalPanelViewProvider implements vscode.WebviewViewProvider, vscode.Disposable {
   static readonly viewType = 'v8vsceditUniversal';
@@ -105,6 +125,7 @@ export class UniversalPanelViewProvider implements vscode.WebviewViewProvider, v
     const node = 'nodeId' in message && message.nodeId ? this.nodeById.get(message.nodeId) : undefined;
     if (message.type === 'toggleNode') {
       this.rememberNodeState(message.nodeId, message.open);
+      await this.clearSelectedNode();
       return;
     }
 
@@ -114,7 +135,7 @@ export class UniversalPanelViewProvider implements vscode.WebviewViewProvider, v
     }
 
     if (message.type === 'selectNode') {
-      await this.selectNode(message.nodeId);
+      await this.selectNode(message.nodeId, node);
       return;
     }
 
@@ -199,7 +220,7 @@ export class UniversalPanelViewProvider implements vscode.WebviewViewProvider, v
     }
   }
 
-  private async selectNode(nodeId: string): Promise<void> {
+  private async selectNode(nodeId: string, node: MetadataNode | undefined): Promise<void> {
     const nodeKey = this.nodeKeyById.get(nodeId);
     if (!nodeKey) {
       return;
@@ -208,6 +229,25 @@ export class UniversalPanelViewProvider implements vscode.WebviewViewProvider, v
     this.selectedNodeKey = nodeKey;
     this.openSelectedAncestors(nodeKey);
     await this.services.state.update(UniversalPanelViewProvider.selectedNodeStateKey, nodeKey);
+    await this.executeTreeItemCommand(node);
+  }
+
+  private async executeTreeItemCommand(node: MetadataNode | undefined): Promise<void> {
+    const command = node?.command;
+    if (!command) {
+      return;
+    }
+
+    await this.executeCommand(command.command, node);
+  }
+
+  private async clearSelectedNode(): Promise<void> {
+    if (!this.selectedNodeKey) {
+      return;
+    }
+
+    this.selectedNodeKey = undefined;
+    await this.services.state.update(UniversalPanelViewProvider.selectedNodeStateKey, undefined);
   }
 
   private openSelectedAncestors(nodeKey: string): void {
@@ -851,6 +891,7 @@ export class UniversalPanelViewProvider implements vscode.WebviewViewProvider, v
           details.open = !details.open;
         });
         details.addEventListener('toggle', () => {
+          clearSelection();
           vscode.postMessage({ type: 'toggleNode', nodeId: details.dataset.nodeId, open: details.open });
           if (!details.open || details.dataset.loaded === 'true' || details.dataset.loading === 'true') return;
           details.dataset.loading = 'true';
@@ -883,6 +924,13 @@ export class UniversalPanelViewProvider implements vscode.WebviewViewProvider, v
       });
       row.classList.add('selected');
       row.setAttribute('aria-selected', 'true');
+    };
+
+    const clearSelection = () => {
+      document.querySelectorAll('[data-node-row].selected').forEach((item) => {
+        item.classList.remove('selected');
+        item.setAttribute('aria-selected', 'false');
+      });
     };
 
     const scrollSelectedIntoView = () => {
@@ -1307,32 +1355,18 @@ export class UniversalPanelViewProvider implements vscode.WebviewViewProvider, v
       return;
     }
 
+    // Команда одиночного клика (singleClickCommand из META_TYPES) — первой в меню
     if (node.command?.command) {
       add({ command: node.command.command, title: node.command.title, icon: codeIcon() });
     }
 
-    if (/^(Catalog|Document|Report|DataProcessor|InformationRegister|AccumulationRegister|AccountingRegister|CalculationRegister|BusinessProcess|Task|ExchangePlan|ChartOfCharacteristicTypes|ChartOfAccounts|ChartOfCalculationTypes)$/.test(node.nodeKind)) {
-      add({ command: 'v8vscedit.openObjectModule', title: 'Открыть модуль объекта', icon: codeIcon() });
-    }
-
-    if (/^(Catalog|Document|Report|DataProcessor|InformationRegister|AccumulationRegister|AccountingRegister|CalculationRegister|BusinessProcess|Task|ExchangePlan|ChartOfCharacteristicTypes|ChartOfAccounts|ChartOfCalculationTypes|Enum|DocumentJournal)$/.test(node.nodeKind)) {
-      add({ command: 'v8vscedit.openManagerModule', title: 'Открыть модуль менеджера', icon: codeIcon() });
-    }
-
-    if (node.nodeKind === 'Constant') {
-      add({ command: 'v8vscedit.openConstantModule', title: 'Открыть модуль константы', icon: codeIcon() });
-    }
-
-    if (node.nodeKind === 'CommonForm' || node.nodeKind === 'Form') {
-      add({ command: 'v8vscedit.openFormModule', title: 'Открыть модуль формы', icon: codeIcon() });
-    }
-
-    if (node.nodeKind === 'CommonCommand' || node.nodeKind === 'Command') {
-      add({ command: 'v8vscedit.openCommandModule', title: 'Открыть модуль команды', icon: codeIcon() });
-    }
-
-    if (node.nodeKind === 'WebService' || node.nodeKind === 'HTTPService') {
-      add({ command: 'v8vscedit.openServiceModule', title: 'Открыть модуль сервиса', icon: codeIcon() });
+    // Остальные слоты берём из META_TYPES — единственного источника правды по модулям
+    const def = (META_TYPES as Record<string, typeof META_TYPES[MetaKind] | undefined>)[node.nodeKind];
+    for (const slot of def?.modules ?? []) {
+      const action = MODULE_SLOT_ACTIONS[slot];
+      if (action) {
+        add({ command: action.command, title: action.title, icon: codeIcon() });
+      }
     }
   }
 

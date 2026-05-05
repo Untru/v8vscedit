@@ -11,7 +11,7 @@
  * заводить параллельные словари.
  */
 import type { ChildTag } from './ChildTag';
-import type { OpenModuleCommandId } from './ModuleSlot';
+import type { ModuleSlot, OpenModuleCommandId } from './ModuleSlot';
 
 /** Группа дерева, в которую попадает тип */
 export type MetaGroup =
@@ -45,6 +45,12 @@ export interface MetaTypeDef {
   groupOrder: number;
   /** Дочерние теги, ожидаемые внутри объекта (реквизиты, ТЧ, формы и т.п.) */
   childTags?: readonly ChildTag[];
+  /**
+   * Допустимые слоты BSL-модулей для этого типа.
+   * Если поле задано — только перечисленные слоты разрешено создавать.
+   * Если не задано — тип не проверяется (консервативно разрешаем).
+   */
+  modules?: readonly ModuleSlot[];
   /** Команда по одиночному клику по узлу этого типа */
   singleClickCommand?: OpenModuleCommandId;
   /** Ключ схемы свойств в `infra/xml/PropertySchema.ts` */
@@ -169,7 +175,7 @@ export const META_TYPES: Readonly<Record<MetaKind, MetaTypeDef>> = {
     folder: 'Subsystems', icon: 'subsystem', group: 'common', groupOrder: 10 }),
   CommonModule: metaDef({ kind: 'CommonModule', label: 'Общий модуль', pluralLabel: 'Общие модули',
     folder: 'CommonModules', icon: 'commonModule', group: 'common', groupOrder: 20,
-    singleClickCommand: 'openCommonModuleCode' }),
+    modules: ['CommonModule'], singleClickCommand: 'openCommonModuleCode' }),
   SessionParameter: metaDef({ kind: 'SessionParameter', label: 'Параметр сеанса', pluralLabel: 'Параметры сеанса',
     folder: 'SessionParameters', icon: 'sessionParameter', group: 'common', groupOrder: 30,
     propertySchema: 'sessionParameter' }),
@@ -181,7 +187,7 @@ export const META_TYPES: Readonly<Record<MetaKind, MetaTypeDef>> = {
   ExchangePlan: metaDef({ kind: 'ExchangePlan', label: 'План обмена', pluralLabel: 'Планы обмена',
     folder: 'ExchangePlans', icon: 'exchangePlan', group: 'common', groupOrder: 60,
     childTags: ['Attribute', 'TabularSection', 'Form', 'Command', 'Template'],
-    propertySchema: 'exchangePlan' }),
+    modules: ['Object', 'Manager'], propertySchema: 'exchangePlan' }),
   FilterCriterion: metaDef({ kind: 'FilterCriterion', label: 'Критерий отбора', pluralLabel: 'Критерии отбора',
     folder: 'FilterCriteria', icon: 'filterCriteria', group: 'common', groupOrder: 70 }),
   EventSubscription: metaDef({ kind: 'EventSubscription', label: 'Подписка на события', pluralLabel: 'Подписки на события',
@@ -201,12 +207,12 @@ export const META_TYPES: Readonly<Record<MetaKind, MetaTypeDef>> = {
     folder: 'SettingsStorages', icon: 'common', group: 'common', groupOrder: 140 }),
   CommonCommand: metaDef({ kind: 'CommonCommand', label: 'Общая команда', pluralLabel: 'Общие команды',
     folder: 'CommonCommands', icon: 'command', group: 'common', groupOrder: 150,
-    singleClickCommand: 'openCommandModule', propertySchema: 'command' }),
+    modules: ['CommonCommand'], singleClickCommand: 'openCommandModule', propertySchema: 'command' }),
   CommandGroup: metaDef({ kind: 'CommandGroup', label: 'Группа команд', pluralLabel: 'Группы команд',
     folder: 'CommandGroups', icon: 'command', group: 'common', groupOrder: 160 }),
   CommonForm: metaDef({ kind: 'CommonForm', label: 'Общая форма', pluralLabel: 'Общие формы',
     folder: 'CommonForms', icon: 'form', group: 'common', groupOrder: 170,
-    singleClickCommand: 'openFormModule' }),
+    modules: ['CommonForm'], singleClickCommand: 'openFormModule' }),
   CommonTemplate: metaDef({ kind: 'CommonTemplate', label: 'Общий макет', pluralLabel: 'Общие макеты',
     folder: 'CommonTemplates', icon: 'template', group: 'common', groupOrder: 180 }),
   CommonPicture: metaDef({ kind: 'CommonPicture', label: 'Общая картинка', pluralLabel: 'Общие картинки',
@@ -215,10 +221,10 @@ export const META_TYPES: Readonly<Record<MetaKind, MetaTypeDef>> = {
     folder: 'XDTOPackages', icon: 'common', group: 'common', groupOrder: 200 }),
   WebService: metaDef({ kind: 'WebService', label: 'Web-сервис', pluralLabel: 'Web-сервисы',
     folder: 'WebServices', icon: 'ws', group: 'common', groupOrder: 210,
-    singleClickCommand: 'openServiceModule' }),
+    modules: ['Service'], singleClickCommand: 'openServiceModule' }),
   HTTPService: metaDef({ kind: 'HTTPService', label: 'HTTP-сервис', pluralLabel: 'HTTP-сервисы',
     folder: 'HTTPServices', icon: 'http', group: 'common', groupOrder: 220,
-    singleClickCommand: 'openServiceModule' }),
+    modules: ['Service'], singleClickCommand: 'openServiceModule' }),
   WSReference: metaDef({ kind: 'WSReference', label: 'WS-ссылка', pluralLabel: 'WS-ссылки',
     folder: 'WSReferences', icon: 'wsLink', group: 'common', groupOrder: 230 }),
   WebSocketClient: metaDef({ kind: 'WebSocketClient', label: 'WebSocket-клиент', pluralLabel: 'WebSocket-клиенты',
@@ -239,59 +245,63 @@ export const META_TYPES: Readonly<Record<MetaKind, MetaTypeDef>> = {
   // ── Верхний уровень ───────────────────────────────────────────────────
   Constant: metaDef({ kind: 'Constant', label: 'Константа', pluralLabel: 'Константы',
     folder: 'Constants', icon: 'constant', group: 'top', groupOrder: 10,
-    propertySchema: 'constant' }),
+    modules: ['ValueManager'], propertySchema: 'constant' }),
   Catalog: metaDef({ kind: 'Catalog', label: 'Справочник', pluralLabel: 'Справочники',
     folder: 'Catalogs', icon: 'catalog', group: 'top', groupOrder: 20,
     childTags: ['Attribute', 'TabularSection', 'Form', 'Command', 'Template'],
-    propertySchema: 'catalog' }),
+    modules: ['Object', 'Manager'], propertySchema: 'catalog' }),
   Document: metaDef({ kind: 'Document', label: 'Документ', pluralLabel: 'Документы',
     folder: 'Documents', icon: 'document', group: 'top', groupOrder: 30,
     childTags: ['Attribute', 'TabularSection', 'Form', 'Command', 'Template'],
-    propertySchema: 'document' }),
+    modules: ['Object', 'Manager'], propertySchema: 'document' }),
   DocumentNumerator: metaDef({ kind: 'DocumentNumerator', label: 'Нумератор документов', pluralLabel: 'Нумераторы',
     folder: 'DocumentNumerators', icon: 'documentNumerator', group: 'documents-branch', groupOrder: 0 }),
   Sequence: metaDef({ kind: 'Sequence', label: 'Последовательность', pluralLabel: 'Последовательности',
     folder: 'Sequences', icon: 'sequence', group: 'documents-branch', groupOrder: 1 }),
   DocumentJournal: metaDef({ kind: 'DocumentJournal', label: 'Журнал документов', pluralLabel: 'Журналы документов',
-    folder: 'DocumentJournals', icon: 'documentJournal', group: 'top', groupOrder: 40 }),
+    folder: 'DocumentJournals', icon: 'documentJournal', group: 'top', groupOrder: 40,
+    modules: ['Manager'] }),
   Enum: metaDef({ kind: 'Enum', label: 'Перечисление', pluralLabel: 'Перечисления',
     folder: 'Enums', icon: 'enum', group: 'top', groupOrder: 50,
-    childTags: ['EnumValue', 'Form', 'Command', 'Template'] }),
+    childTags: ['EnumValue', 'Form', 'Command', 'Template'], modules: ['Manager'] }),
   Report: metaDef({ kind: 'Report', label: 'Отчёт', pluralLabel: 'Отчёты',
     folder: 'Reports', icon: 'report', group: 'top', groupOrder: 60,
-    childTags: ['Attribute', 'TabularSection', 'Form', 'Command', 'Template'] }),
+    childTags: ['Attribute', 'TabularSection', 'Form', 'Command', 'Template'],
+    modules: ['Object', 'Manager'] }),
   DataProcessor: metaDef({ kind: 'DataProcessor', label: 'Обработка', pluralLabel: 'Обработки',
     folder: 'DataProcessors', icon: 'dataProcessor', group: 'top', groupOrder: 70,
-    childTags: ['Attribute', 'TabularSection', 'Form', 'Command', 'Template'] }),
+    childTags: ['Attribute', 'TabularSection', 'Form', 'Command', 'Template'],
+    modules: ['Object', 'Manager'] }),
   ChartOfCharacteristicTypes: metaDef({ kind: 'ChartOfCharacteristicTypes', label: 'План видов характеристик',
     pluralLabel: 'Планы видов характеристик',
     folder: 'ChartsOfCharacteristicTypes', icon: 'chartsOfCharacteristicType', group: 'top', groupOrder: 80,
-    childTags: ['Attribute', 'TabularSection', 'Form', 'Command'] }),
+    childTags: ['Attribute', 'TabularSection', 'Form', 'Command'], modules: ['Object', 'Manager'] }),
   ChartOfAccounts: metaDef({ kind: 'ChartOfAccounts', label: 'План счетов', pluralLabel: 'Планы счетов',
     folder: 'ChartsOfAccounts', icon: 'chartsOfAccount', group: 'top', groupOrder: 90,
-    childTags: ['Attribute', 'TabularSection', 'Form', 'Command'] }),
+    childTags: ['Attribute', 'TabularSection', 'Form', 'Command'], modules: ['Object', 'Manager'] }),
   ChartOfCalculationTypes: metaDef({ kind: 'ChartOfCalculationTypes', label: 'План видов расчёта',
     pluralLabel: 'Планы видов расчёта',
     folder: 'ChartsOfCalculationTypes', icon: 'chartsOfCalculationType', group: 'top', groupOrder: 100,
-    childTags: ['Attribute', 'TabularSection', 'Form', 'Command'] }),
+    childTags: ['Attribute', 'TabularSection', 'Form', 'Command'], modules: ['Object', 'Manager'] }),
   InformationRegister: metaDef({ kind: 'InformationRegister', label: 'Регистр сведений', pluralLabel: 'Регистры сведений',
     folder: 'InformationRegisters', icon: 'informationRegister', group: 'top', groupOrder: 110,
-    childTags: ['Dimension', 'Resource', 'Form', 'Command'] }),
+    childTags: ['Dimension', 'Resource', 'Form', 'Command'], modules: ['Manager', 'RecordSet'] }),
   AccumulationRegister: metaDef({ kind: 'AccumulationRegister', label: 'Регистр накопления', pluralLabel: 'Регистры накопления',
     folder: 'AccumulationRegisters', icon: 'accumulationRegister', group: 'top', groupOrder: 120,
-    childTags: ['Dimension', 'Resource', 'Form', 'Command'] }),
+    childTags: ['Dimension', 'Resource', 'Form', 'Command'], modules: ['Manager', 'RecordSet'] }),
   AccountingRegister: metaDef({ kind: 'AccountingRegister', label: 'Регистр бухгалтерии', pluralLabel: 'Регистры бухгалтерии',
     folder: 'AccountingRegisters', icon: 'accountingRegister', group: 'top', groupOrder: 130,
-    childTags: ['Dimension', 'Resource', 'Form', 'Command'] }),
+    childTags: ['Dimension', 'Resource', 'Form', 'Command'], modules: ['Manager', 'RecordSet'] }),
   CalculationRegister: metaDef({ kind: 'CalculationRegister', label: 'Регистр расчёта', pluralLabel: 'Регистры расчёта',
     folder: 'CalculationRegisters', icon: 'calculationRegister', group: 'top', groupOrder: 140,
-    childTags: ['Dimension', 'Resource', 'Form', 'Command'] }),
+    childTags: ['Dimension', 'Resource', 'Form', 'Command'], modules: ['Manager', 'RecordSet'] }),
   BusinessProcess: metaDef({ kind: 'BusinessProcess', label: 'Бизнес-процесс', pluralLabel: 'Бизнес-процессы',
     folder: 'BusinessProcesses', icon: 'businessProcess', group: 'top', groupOrder: 150,
-    childTags: ['Attribute', 'TabularSection', 'Form', 'Command'] }),
+    childTags: ['Attribute', 'TabularSection', 'Form', 'Command'], modules: ['Object', 'Manager'] }),
   Task: metaDef({ kind: 'Task', label: 'Задача', pluralLabel: 'Задачи',
     folder: 'Tasks', icon: 'task', group: 'top', groupOrder: 160,
-    childTags: ['Attribute', 'AddressingAttribute', 'TabularSection', 'Form', 'Command'] }),
+    childTags: ['Attribute', 'AddressingAttribute', 'TabularSection', 'Form', 'Command'],
+    modules: ['Object', 'Manager'] }),
   ExternalDataSource: metaDef({ kind: 'ExternalDataSource', label: 'Внешний источник данных', pluralLabel: 'Внешние источники данных',
     folder: 'ExternalDataSources', icon: 'externalDataSource', group: 'top', groupOrder: 170 }),
 
@@ -306,10 +316,10 @@ export const META_TYPES: Readonly<Record<MetaKind, MetaTypeDef>> = {
     icon: 'attribute', group: 'child', groupOrder: 0, propertySchema: 'typedField' }),
   Form: metaDef({ kind: 'Form', label: 'Форма', pluralLabel: 'Формы',
     icon: 'form', group: 'child', groupOrder: 0,
-    singleClickCommand: 'openFormModule', propertySchema: 'form' }),
+    modules: ['ChildForm'], singleClickCommand: 'openFormModule', propertySchema: 'form' }),
   Command: metaDef({ kind: 'Command', label: 'Команда', pluralLabel: 'Команды',
     icon: 'command', group: 'child', groupOrder: 0,
-    singleClickCommand: 'openCommandModule', propertySchema: 'command' }),
+    modules: ['ChildCommand'], singleClickCommand: 'openCommandModule', propertySchema: 'command' }),
   Template: metaDef({ kind: 'Template', label: 'Макет', pluralLabel: 'Макеты',
     icon: 'template', group: 'child', groupOrder: 0, propertySchema: 'template' }),
   Dimension: metaDef({ kind: 'Dimension', label: 'Измерение', pluralLabel: 'Измерения',
@@ -347,4 +357,18 @@ export function getMetaTypesByGroup(group: MetaGroup): MetaTypeDef[] {
 /** Возвращает папку выгрузки по типу или `null`, если у типа нет файлов на диске */
 export function getMetaFolder(kind: MetaKind): string | null {
   return META_TYPES[kind].folder ?? null;
+}
+
+/**
+ * Возвращает `true`, если данный слот модуля допустим для указанного типа.
+ * Когда тип неизвестен или поле `modules` не задано — разрешаем (консервативно).
+ * Используется перед созданием нового BSL-файла, чтобы не порождать файлы,
+ * которые платформа 1С не распознаёт как свойства объекта метаданных.
+ */
+export function isModuleSlotValid(kind: string, slot: ModuleSlot): boolean {
+  const def = (META_TYPES as Readonly<Record<string, MetaTypeDef | undefined>>)[kind];
+  if (!def?.modules) {
+    return true;
+  }
+  return def.modules.includes(slot);
 }

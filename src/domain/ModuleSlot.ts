@@ -23,13 +23,16 @@ export type ModuleSlot =
   /** Модуль формы, принадлежащей объекту (`<Тип>/<Имя>/Forms/<Форма>/Ext/Form/Module.bsl`) */
   | 'ChildForm'
   /** Модуль команды, принадлежащей объекту (`<Тип>/<Имя>/Commands/<Команда>/Ext/CommandModule.bsl`) */
-  | 'ChildCommand';
+  | 'ChildCommand'
+  /** Модуль записи регистра (`<Регистр>/<Имя>/Ext/RecordSetModule.bsl`) */
+  | 'RecordSet';
 
 /** Идентификаторы команд открытия модулей, привязанные к слотам */
 export type OpenModuleCommandId =
   | 'openObjectModule'
   | 'openManagerModule'
   | 'openConstantModule'
+  | 'openRecordSetModule'
   | 'openFormModule'
   | 'openCommandModule'
   | 'openServiceModule'
