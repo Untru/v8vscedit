@@ -59,7 +59,7 @@ export function registerExtensionCommands(
 
       isUpdatingConfigurations = true;
       await vscode.commands.executeCommand('setContext', 'v8vscedit.isUpdatingConfigurations', true);
-      setConfigurationOperationStatus('Импорт конфигураций', 'подготовка', true);
+      setConfigurationProgress(services, 'Импорт конфигураций', 'подготовка', true);
       await yieldToUi();
       const completedRootPaths: string[] = [];
       try {
@@ -67,7 +67,8 @@ export function registerExtensionCommands(
           const ordered = orderImportTargets(selected);
           for (let index = 0; index < ordered.length; index += 1) {
             const target = ordered[index];
-            setConfigurationOperationStatus(
+            setConfigurationProgress(
+              services,
               'Импорт конфигураций',
               `${String(index + 1)}/${String(ordered.length)}: ${target.name}`,
               true
@@ -87,7 +88,7 @@ export function registerExtensionCommands(
                 );
 
             if (!imported) {
-              setConfigurationOperationStatus('Импорт конфигураций', `остановлено на "${target.name}"`, false);
+              setConfigurationProgress(services, 'Импорт конфигураций', `остановлено на "${target.name}"`, false);
               return false;
             }
             completedRootPaths.push(target.rootPath);
@@ -96,7 +97,7 @@ export function registerExtensionCommands(
           if (ordered.length > 1) {
             void vscode.window.showInformationMessage(`Импортировано конфигураций: ${String(ordered.length)}.`);
           }
-          setConfigurationOperationStatus('Импорт конфигураций', 'завершено', false);
+          setConfigurationProgress(services, 'Импорт конфигураций', 'завершено', false);
           await services.reloadEntries();
           return true;
         });
@@ -104,12 +105,13 @@ export function registerExtensionCommands(
           return;
         }
       } catch (error) {
-        setConfigurationOperationStatus('Импорт конфигураций', 'ошибка', false);
+        setConfigurationProgress(services, 'Импорт конфигураций', 'ошибка', false);
         showConfigurationCommandError('Ошибка импорта конфигураций.', error, services);
       } finally {
         isUpdatingConfigurations = false;
         await vscode.commands.executeCommand('setContext', 'v8vscedit.isUpdatingConfigurations', false);
         services.markConfigurationsClean(completedRootPaths);
+        clearConfigurationProgress(services);
       }
     }),
 
@@ -121,14 +123,14 @@ export function registerExtensionCommands(
 
       isUpdatingConfigurations = true;
       await vscode.commands.executeCommand('setContext', 'v8vscedit.isUpdatingConfigurations', true);
-      setConfigurationOperationStatus('Обновление конфигураций', 'проверка изменений', true);
+      setConfigurationProgress(services, 'Обновление конфигураций', 'проверка изменений', true);
       await yieldToUi();
       const completedRootPaths: string[] = [];
       try {
         const changed = services.getChangedConfigurations();
 
         if (changed.length === 0) {
-          setConfigurationOperationStatus('Обновление конфигураций', 'изменений нет', false);
+          setConfigurationProgress(services, 'Обновление конфигураций', 'изменений нет', false);
           await vscode.window.showInformationMessage('Изменений в конфигурациях не обнаружено.');
           return true;
         }
@@ -137,7 +139,7 @@ export function registerExtensionCommands(
           ? changed
           : await pickChangedConfigurations(changed);
         if (!selected || selected.length === 0) {
-          setConfigurationOperationStatus('Обновление конфигураций', 'отменено', false);
+          setConfigurationProgress(services, 'Обновление конфигураций', 'отменено', false);
           return false;
         }
 
@@ -145,7 +147,8 @@ export function registerExtensionCommands(
           const ordered = orderUpdateTargets(selected);
           for (let index = 0; index < ordered.length; index += 1) {
             const target = ordered[index];
-            setConfigurationOperationStatus(
+            setConfigurationProgress(
+              services,
               'Обновление конфигураций',
               `${String(index + 1)}/${String(ordered.length)}: ${target.name}`,
               true
@@ -167,7 +170,7 @@ export function registerExtensionCommands(
                 );
 
             if (!updated) {
-              setConfigurationOperationStatus('Обновление конфигураций', `остановлено на "${target.name}"`, false);
+              setConfigurationProgress(services, 'Обновление конфигураций', `остановлено на "${target.name}"`, false);
               return false;
             }
             completedRootPaths.push(target.rootPath);
@@ -176,17 +179,18 @@ export function registerExtensionCommands(
           if (ordered.length > 1) {
             void vscode.window.showInformationMessage(`Обновлено конфигураций: ${String(ordered.length)}.`);
           }
-          setConfigurationOperationStatus('Обновление конфигураций', 'завершено', false);
+          setConfigurationProgress(services, 'Обновление конфигураций', 'завершено', false);
           return true;
         });
       } catch (error) {
-        setConfigurationOperationStatus('Обновление конфигураций', 'ошибка', false);
+        setConfigurationProgress(services, 'Обновление конфигураций', 'ошибка', false);
         showConfigurationCommandError('Ошибка обновления конфигураций.', error, services);
         return false;
       } finally {
         isUpdatingConfigurations = false;
         await vscode.commands.executeCommand('setContext', 'v8vscedit.isUpdatingConfigurations', false);
         services.markConfigurationsClean(completedRootPaths);
+        clearConfigurationProgress(services);
       }
     }),
 
@@ -275,6 +279,7 @@ export function registerExtensionCommands(
           title: `Импорт ${target.name}`,
           startMessage: 'подготовка',
           cleanRootPath: target.rootPath,
+          reloadEntriesAfterSuccess: true,
           services,
         },
         async () => {
@@ -432,7 +437,7 @@ async function runWithStandaloneServerStopped(
   }
 
   services.outputChannel.appendLine(`[standalone] Перед операцией "${operationTitle}" автономный сервер будет остановлен.`);
-  setConfigurationOperationStatus(operationTitle, 'остановка автономного сервера', true);
+  setConfigurationProgress(services, operationTitle, 'остановка автономного сервера', true);
   await services.standaloneServerService.stop();
   services.refreshActionsView();
 
@@ -445,7 +450,7 @@ async function runWithStandaloneServerStopped(
   } finally {
     if (ok) {
       services.outputChannel.appendLine(`[standalone] Операция "${operationTitle}" завершена успешно, запускаю автономный сервер.`);
-      setConfigurationOperationStatus(operationTitle, 'запуск автономного сервера', true);
+      setConfigurationProgress(services, operationTitle, 'запуск автономного сервера', true);
       try {
         const restartedStatus = await services.standaloneServerService.start();
         services.outputChannel.appendLine(
@@ -463,7 +468,7 @@ async function runWithStandaloneServerStopped(
           `Операция "${operationTitle}" выполнена, но автономный сервер не запустился.\n${message}`
         );
       } finally {
-        setConfigurationOperationStatus(operationTitle, 'завершено', false);
+        setConfigurationProgress(services, operationTitle, 'завершено', false);
         services.refreshActionsView();
       }
     } else {
@@ -577,6 +582,25 @@ function showConfigurationCommandError(
       services.outputChannel.show(true);
     }
   });
+}
+
+function setConfigurationProgress(
+  services: CommandServices,
+  title: string,
+  message: string,
+  running: boolean
+): void {
+  setConfigurationOperationStatus(title, message, running);
+  if (running || isUpdatingConfigurations) {
+    services.setTreeProcessingState({ active: true, title, message });
+    return;
+  }
+
+  services.setTreeProcessingState({ active: false });
+}
+
+function clearConfigurationProgress(services: CommandServices): void {
+  services.setTreeProcessingState({ active: false });
 }
 
 interface ImportTargetPickItem extends vscode.QuickPickItem {
@@ -797,6 +821,7 @@ async function runExclusiveConfigurationOperation(
     title: string;
     startMessage: string;
     cleanRootPath: string;
+    reloadEntriesAfterSuccess?: boolean;
     services: CommandServices;
   },
   operation: () => Promise<boolean>
@@ -808,24 +833,29 @@ async function runExclusiveConfigurationOperation(
 
   isUpdatingConfigurations = true;
   await vscode.commands.executeCommand('setContext', 'v8vscedit.isUpdatingConfigurations', true);
-  setConfigurationOperationStatus(options.title, options.startMessage, true);
+  setConfigurationProgress(options.services, options.title, options.startMessage, true);
   await yieldToUi();
   try {
     const ok = await runWithStandaloneServerStopped(options.services, options.title, operation);
     if (ok) {
+      if (options.reloadEntriesAfterSuccess) {
+        setConfigurationProgress(options.services, options.title, 'обновление дерева метаданных', true);
+        await options.services.reloadEntries();
+      }
       options.services.markConfigurationsClean([options.cleanRootPath]);
-      setConfigurationOperationStatus(options.title, 'завершено', false);
+      setConfigurationProgress(options.services, options.title, 'завершено', false);
     } else {
-      setConfigurationOperationStatus(options.title, 'остановлено', false);
+      setConfigurationProgress(options.services, options.title, 'остановлено', false);
     }
     return ok;
   } catch (error) {
-    setConfigurationOperationStatus(options.title, 'ошибка', false);
+    setConfigurationProgress(options.services, options.title, 'ошибка', false);
     showConfigurationCommandError(`Ошибка операции "${options.title}".`, error, options.services);
     return false;
   } finally {
     isUpdatingConfigurations = false;
     await vscode.commands.executeCommand('setContext', 'v8vscedit.isUpdatingConfigurations', false);
+    clearConfigurationProgress(options.services);
   }
 }
 

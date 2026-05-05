@@ -29,6 +29,10 @@ import { updateMetadataCacheAfterRename } from './infra/cache/MetadataCache';
 import { BslAnalyzerConfigService, ProjectEnvironmentService } from './infra/environment';
 import { ProjectEnvironmentViewProvider } from './ui/views/environment/ProjectEnvironmentViewProvider';
 import { StandaloneServerViewProvider } from './ui/views/standalone/StandaloneServerViewProvider';
+import {
+  type UniversalPanelProcessingState,
+  UniversalPanelViewProvider,
+} from './ui/views/universal/UniversalPanelViewProvider';
 
 /**
  * Композиционный корень расширения. Собирает зависимости в одном месте,
@@ -62,6 +66,7 @@ export class Container {
   readonly metadataXmlRemover: MetadataXmlRemover;
   readonly subsystemXmlService: SubsystemXmlService;
   readonly treeSearchViewProvider: TreeSearchViewProvider;
+  readonly universalPanelViewProvider: UniversalPanelViewProvider;
   readonly lspManager: LspManager;
   readonly changeDetector: ConfigurationChangeDetector;
 
@@ -71,6 +76,7 @@ export class Container {
   private decorationRefreshTimer: NodeJS.Timeout | undefined;
   private readonly pendingTreeCacheFiles = new Set<string>();
   private changedConfigurations: ChangedConfiguration[] = [];
+  private treeProcessingState: UniversalPanelProcessingState = { active: false };
   private readonly suppressedConfigurationReloads = new Map<string, number>();
 
   private constructor(
@@ -155,6 +161,21 @@ export class Container {
       isProjectInitialized: () => this.isProjectInitialized(),
       getStandaloneServerStatus: () => this.standaloneServerService.getStatus(),
     });
+    this.universalPanelViewProvider = new UniversalPanelViewProvider(context.extensionUri, {
+      state: context.workspaceState,
+      treeProvider: this.treeProvider,
+      setTreeMessage: (message) => {
+        if (this.treeView) {
+          this.treeView.message = message;
+        }
+      },
+      isProjectInitialized: () => this.isProjectInitialized(),
+      getStandaloneServerStatus: () => this.standaloneServerService.getStatus(),
+      getProcessingState: () => this.treeProcessingState,
+      gitMetadataStatusService: this.gitMetadataStatusService,
+      refreshActionsView: () => this.treeSearchViewProvider.refresh(),
+    });
+    context.subscriptions.push(this.universalPanelViewProvider);
     this.changeDetector = new ConfigurationChangeDetector(workspaceFolder.uri.fsPath);
 
     this.lspManager = new LspManager(context, this.outputChannel);
@@ -163,8 +184,7 @@ export class Container {
   /** Создаёт контейнер и выполняет регистрацию всех подсистем */
   static bootstrap(context: vscode.ExtensionContext, folder: vscode.WorkspaceFolder): Container {
     const c = new Container(context, folder);
-    c.wireTreeView();
-    c.wireTreeSearchView();
+    c.wireUniversalPanelView();
     c.wireSupportWatcher();
     c.wireConfigurationWatcher();
     c.wireConfigurationSourceWatcher();
@@ -191,29 +211,14 @@ export class Container {
     this.outputChannel.appendLine(`[init] Найдено конфигураций: ${String(entries.length)}`);
   }
 
-  private wireTreeView(): void {
-    const view = vscode.window.createTreeView('v8vsceditTree', {
-      treeDataProvider: this.treeProvider,
-      showCollapseAll: true,
-    });
-    this.treeView = view;
-    this.context.subscriptions.push(view);
-  }
-
-  private wireTreeSearchView(): void {
+  private wireUniversalPanelView(): void {
     this.context.subscriptions.push(
       vscode.window.registerWebviewViewProvider(
-        TreeSearchViewProvider.viewType,
-        this.treeSearchViewProvider,
+        UniversalPanelViewProvider.viewType,
+        this.universalPanelViewProvider,
         { webviewOptions: { retainContextWhenHidden: true } }
       )
     );
-    const statusTimer = setInterval(() => {
-      void this.standaloneServerService.refreshHealth().finally(() => this.treeSearchViewProvider.refresh());
-    }, 5_000);
-    this.context.subscriptions.push({
-      dispose: () => clearInterval(statusTimer),
-    });
   }
 
   private wireSupportWatcher(): void {
@@ -256,6 +261,7 @@ export class Container {
           this.treeView.message = message;
         }
       },
+      setTreeProcessingState: (state) => this.setTreeProcessingState(state),
       refreshActionsView: () => this.treeSearchViewProvider.refresh(),
     });
     registerSupportIndicatorCommands(this.context);
@@ -281,6 +287,11 @@ export class Container {
     watcher.onDidDelete(onConfigChange, null, this.context.subscriptions);
     watcher.onDidChange(onConfigChange, null, this.context.subscriptions);
     this.context.subscriptions.push(watcher);
+  }
+
+  private setTreeProcessingState(state: UniversalPanelProcessingState): void {
+    this.treeProcessingState = state;
+    this.universalPanelViewProvider.refresh();
   }
 
   private wireConfigurationSourceWatcher(): void {

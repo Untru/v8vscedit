@@ -14,6 +14,7 @@ import type { RepositoryConnectionViewProvider } from '../views/RepositoryConnec
 import type { ProjectEnvironmentViewProvider } from '../views/environment/ProjectEnvironmentViewProvider';
 import type { StandaloneServerViewProvider } from '../views/standalone/StandaloneServerViewProvider';
 import type { SubsystemEditorViewProvider } from '../views/subsystem/SubsystemEditorViewProvider';
+import type { UniversalPanelProcessingState } from '../views/universal/UniversalPanelViewProvider';
 
 export type NodeArg = MetadataNode | { xmlPath?: string; nodeKind?: string; label?: string };
 
@@ -42,5 +43,6 @@ export interface CommandServices {
   suppressConfigurationReloadForFiles: (filePaths: string[]) => void;
   revealTreeNode: (predicate: (node: MetadataNode) => boolean, rootPath?: string) => Promise<boolean>;
   setTreeMessage: (message: string | undefined) => void;
+  setTreeProcessingState: (state: UniversalPanelProcessingState) => void;
   refreshActionsView: () => void;
 }
