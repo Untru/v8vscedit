@@ -60,6 +60,8 @@ const MODULE_SLOT_ACTIONS: Partial<Record<ModuleSlot, { command: string; title: 
   ChildCommand: { command: 'v8vscedit.openCommandModule',   title: 'Открыть модуль команды'   },
 };
 
+const CHILDREN_RENDER_CHUNK_SIZE = 250;
+
 /**
  * Универсальная панель объединяет быстрые операции и HTML-представление
  * текущего дерева метаданных. Это ОСНОВНОЙ навигатор — нативный TreeView
@@ -72,6 +74,7 @@ export class UniversalPanelViewProvider implements vscode.WebviewViewProvider, v
   private view: vscode.WebviewView | undefined;
   private readonly nodeById = new Map<string, MetadataNode>();
   private readonly nodeKeyById = new Map<string, string>();
+  private nodeIdByNode = new WeakMap<MetadataNode, string>();
   private readonly openNodeKeys = new Set<string>();
   private readonly treeListener: vscode.Disposable;
   private selectedNodeKey: string | undefined;
@@ -81,7 +84,9 @@ export class UniversalPanelViewProvider implements vscode.WebviewViewProvider, v
     private readonly services: UniversalPanelServices
   ) {
     this.selectedNodeKey = services.state.get<string>(UniversalPanelViewProvider.selectedNodeStateKey);
-    this.treeListener = this.services.treeProvider.onDidChangeTreeData(() => this.refresh());
+    this.treeListener = this.services.treeProvider.onDidChangeTreeData((node) => {
+      void this.refreshChangedNode(node);
+    });
   }
 
   resolveWebviewView(webviewView: vscode.WebviewView): void {
@@ -177,30 +182,6 @@ export class UniversalPanelViewProvider implements vscode.WebviewViewProvider, v
     }
   }
 
-  private async postNodeChildren(nodeId: string, node: MetadataNode | undefined): Promise<void> {
-    if (!node || !this.view) {
-      return;
-    }
-
-    this.rememberNodeState(nodeId, true);
-    const parentKey = this.nodeKeyById.get(nodeId) ?? '';
-    const children = this.services.treeProvider.getChildren(node);
-    const html = children
-      .map((child, index) => this.renderTreeNode(
-        this.view?.webview,
-        child,
-        this.getNodeDepth(nodeId) + 1,
-        `${nodeId}_${String(index)}`,
-        parentKey
-      ))
-      .join('');
-    await this.view.webview.postMessage({
-      type: 'childrenLoaded',
-      nodeId,
-      html,
-    });
-  }
-
   private rememberNodeState(nodeId: string, open: boolean): void {
     const nodeKey = this.nodeKeyById.get(nodeId);
     if (!nodeKey) {
@@ -218,6 +199,46 @@ export class UniversalPanelViewProvider implements vscode.WebviewViewProvider, v
         this.openNodeKeys.delete(key);
       }
     }
+  }
+
+  private async postNodeChildren(nodeId: string, node: MetadataNode | undefined): Promise<void> {
+    if (!node || !this.view) {
+      return;
+    }
+
+    this.rememberNodeState(nodeId, true);
+    const parentKey = this.nodeKeyById.get(nodeId) ?? '';
+    const children = this.services.treeProvider.getChildren(node);
+    await this.view.webview.postMessage({
+      type: 'childrenLoading',
+      nodeId,
+      total: children.length,
+    });
+
+    for (let start = 0; start < children.length; start += CHILDREN_RENDER_CHUNK_SIZE) {
+      const chunk = children.slice(start, start + CHILDREN_RENDER_CHUNK_SIZE);
+      const html = chunk
+        .map((child, index) => this.renderTreeNode(
+          this.view?.webview,
+          child,
+          this.getNodeDepth(nodeId) + 1,
+          `${nodeId}_${String(start + index)}`,
+          parentKey
+        ))
+        .join('');
+      await this.view.webview.postMessage({
+        type: 'childrenChunk',
+        nodeId,
+        html,
+        append: start > 0,
+      });
+      await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    }
+
+    await this.view.webview.postMessage({
+      type: 'childrenLoaded',
+      nodeId,
+    });
   }
 
   private async selectNode(nodeId: string, node: MetadataNode | undefined): Promise<void> {
@@ -257,6 +278,36 @@ export class UniversalPanelViewProvider implements vscode.WebviewViewProvider, v
     }
   }
 
+  private async refreshChangedNode(node: MetadataNode | undefined | null): Promise<void> {
+    if (!this.view) {
+      return;
+    }
+
+    if (!node || this.services.treeProvider.getSearchQuery()) {
+      this.refresh();
+      return;
+    }
+
+    const nodeId = this.nodeIdByNode.get(node);
+    if (!nodeId) {
+      return;
+    }
+
+    const parentKey = this.getParentNodeKey(nodeId);
+    const html = this.renderTreeNode(
+      this.view.webview,
+      node,
+      this.getNodeDepth(nodeId),
+      nodeId,
+      parentKey
+    );
+    await this.view.webview.postMessage({
+      type: 'nodeReplaced',
+      nodeId,
+      html,
+    });
+  }
+
   private getHtml(webview: vscode.Webview): string {
     const nonce = getNonce();
     const initialized = this.services.isProjectInitialized();
@@ -269,6 +320,7 @@ export class UniversalPanelViewProvider implements vscode.WebviewViewProvider, v
     ].filter(Boolean).join(' ');
     this.nodeById.clear();
     this.nodeKeyById.clear();
+    this.nodeIdByNode = new WeakMap<MetadataNode, string>();
 
     return `<!DOCTYPE html>
 <html lang="ru">
@@ -554,12 +606,50 @@ export class UniversalPanelViewProvider implements vscode.WebviewViewProvider, v
     }
 
     .tree-summary {
+      position: relative;
       list-style: none;
       cursor: default;
+      overflow: hidden;
     }
 
     .tree-summary::-webkit-details-marker {
       display: none;
+    }
+
+    details[data-loading="true"] > .tree-summary::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      background:
+        linear-gradient(
+          100deg,
+          transparent 0%,
+          color-mix(in srgb, var(--vscode-list-highlightForeground, var(--vscode-focusBorder)) 0%, transparent) 28%,
+          color-mix(in srgb, var(--vscode-list-highlightForeground, var(--vscode-focusBorder)) 26%, transparent) 46%,
+          color-mix(in srgb, var(--vscode-list-highlightForeground, var(--vscode-focusBorder)) 0%, transparent) 64%,
+          transparent 100%
+        );
+      transform: translateX(-100%);
+      animation: tree-loading-shimmer 980ms ease-in-out infinite;
+    }
+
+    details[data-loading="true"] > .tree-summary .tree-label {
+      color: color-mix(in srgb, var(--vscode-foreground) 72%, var(--vscode-descriptionForeground));
+    }
+
+    @keyframes tree-loading-shimmer {
+      to {
+        transform: translateX(100%);
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      details[data-loading="true"] > .tree-summary::after {
+        animation: none;
+        transform: none;
+        background: color-mix(in srgb, var(--vscode-list-highlightForeground, var(--vscode-focusBorder)) 12%, transparent);
+      }
     }
 
     .tree-toggle {
@@ -895,6 +985,7 @@ export class UniversalPanelViewProvider implements vscode.WebviewViewProvider, v
           vscode.postMessage({ type: 'toggleNode', nodeId: details.dataset.nodeId, open: details.open });
           if (!details.open || details.dataset.loaded === 'true' || details.dataset.loading === 'true') return;
           details.dataset.loading = 'true';
+          details.setAttribute('aria-busy', 'true');
           vscode.postMessage({ type: 'loadChildren', nodeId: details.dataset.nodeId });
         });
       });
@@ -966,14 +1057,45 @@ export class UniversalPanelViewProvider implements vscode.WebviewViewProvider, v
         search.value = message.value;
         return;
       }
-      if (message?.type !== 'childrenLoaded') return;
-      const details = document.querySelector('details[data-node-id="' + CSS.escape(String(message.nodeId)) + '"]');
-      const container = details?.querySelector(':scope > .tree-children');
-      if (!details || !container) return;
-      container.innerHTML = String(message.html ?? '');
-      details.dataset.loaded = 'true';
-      details.dataset.loading = 'false';
-      bindTree(container);
+      if (message?.type === 'childrenLoading') {
+        const details = document.querySelector('details[data-node-id="' + CSS.escape(String(message.nodeId)) + '"]');
+        const container = details?.querySelector(':scope > .tree-children');
+        if (details) {
+          details.dataset.loading = 'true';
+          details.setAttribute('aria-busy', 'true');
+        }
+        if (container) container.replaceChildren();
+        return;
+      }
+      if (message?.type === 'childrenChunk') {
+        const details = document.querySelector('details[data-node-id="' + CSS.escape(String(message.nodeId)) + '"]');
+        const container = details?.querySelector(':scope > .tree-children');
+        if (!details || !container) return;
+        if (!message.append) container.replaceChildren();
+        const template = document.createElement('template');
+        template.innerHTML = String(message.html ?? '').trim();
+        container.append(template.content);
+        bindTree(container);
+        return;
+      }
+      if (message?.type === 'childrenLoaded') {
+        const details = document.querySelector('details[data-node-id="' + CSS.escape(String(message.nodeId)) + '"]');
+        if (!details) return;
+        details.dataset.loaded = 'true';
+        delete details.dataset.loading;
+        details.removeAttribute('aria-busy');
+        scrollSelectedIntoView();
+        return;
+      }
+      if (message?.type !== 'nodeReplaced') return;
+      const current = document.querySelector('.tree-node[data-node-id="' + CSS.escape(String(message.nodeId)) + '"]');
+      if (!current) return;
+      const template = document.createElement('template');
+      template.innerHTML = String(message.html ?? '').trim();
+      const next = template.content.firstElementChild;
+      if (!next) return;
+      current.replaceWith(next);
+      bindTree(next);
       scrollSelectedIntoView();
     });
 
@@ -1072,6 +1194,7 @@ export class UniversalPanelViewProvider implements vscode.WebviewViewProvider, v
     const nodeKey = this.buildNodeKey(node, parentKey);
     this.nodeById.set(id, node);
     this.nodeKeyById.set(id, nodeKey);
+    this.nodeIdByNode.set(node, id);
     const hasChildren = Boolean(node.childrenLoader);
     const padding = 4 + depth * 14;
     const label = escapeHtml(node.textLabel);
@@ -1098,7 +1221,7 @@ export class UniversalPanelViewProvider implements vscode.WebviewViewProvider, v
 
     if (!hasChildren) {
       return `
-        <div class="tree-node">
+        <div class="tree-node" data-node-id="${escapeHtml(id)}">
           <div class="tree-row${gitClass}${selectedClass}" data-node-row="true" data-node-id="${escapeHtml(id)}" data-actions="${actionsJson}" aria-selected="${ariaSelected}" style="padding-left:${String(padding)}px">
             <span class="tree-spacer" aria-hidden="true"></span>
             ${icon}
@@ -1372,6 +1495,16 @@ export class UniversalPanelViewProvider implements vscode.WebviewViewProvider, v
 
   private getNodeDepth(nodeId: string): number {
     return nodeId.split('_').length - 1;
+  }
+
+  private getParentNodeKey(nodeId: string): string {
+    const separatorIndex = nodeId.lastIndexOf('_');
+    if (separatorIndex < 0) {
+      return '';
+    }
+
+    const parentId = nodeId.slice(0, separatorIndex);
+    return this.nodeKeyById.get(parentId) ?? '';
   }
 }
 

@@ -161,16 +161,19 @@ export class PropertiesViewProvider implements vscode.Disposable {
       grid-template-columns: repeat(2, minmax(0, 1fr));
       gap: 16px;
       align-items: start;
+      min-width: 0;
     }
     .section-column {
       display: grid;
       gap: 16px;
       align-content: start;
+      min-width: 0;
     }
     .property-section {
       display: inline-block;
       position: relative;
       width: 100%;
+      min-width: 0;
       box-sizing: border-box;
       margin: 10px 0 0;
       padding: 22px 16px 16px;
@@ -322,14 +325,17 @@ export class PropertiesViewProvider implements vscode.Disposable {
       justify-content: space-between;
       align-items: center;
       gap: 12px;
-      margin-bottom: 12px;
+      margin-bottom: 8px;
       color: var(--vscode-descriptionForeground);
       font-size: 12px;
     }
     .tree-box {
-      height: 430px;
+      box-sizing: border-box;
+      width: 100%;
+      min-width: 0;
+      height: 280px;
       overflow: auto;
-      padding: 4px;
+      padding: 3px;
       border: 1px solid var(--vscode-input-border, var(--vscode-panel-border, transparent));
       border-radius: 6px;
       background: var(--vscode-input-background);
@@ -340,9 +346,10 @@ export class PropertiesViewProvider implements vscode.Disposable {
       flex-direction: column;
     }
     .subsystem-node {
-      margin-left: 8px;
+      min-width: 0;
     }
     .subsystem-node summary {
+      display: block;
       list-style: none;
     }
     .subsystem-node summary::-webkit-details-marker {
@@ -352,8 +359,9 @@ export class PropertiesViewProvider implements vscode.Disposable {
       display: flex;
       align-items: center;
       gap: 4px;
-      min-height: 24px;
-      padding: 0 4px 0 0;
+      min-width: 0;
+      min-height: 21px;
+      padding: 0 2px;
       border-radius: 6px;
       user-select: none;
     }
@@ -362,11 +370,12 @@ export class PropertiesViewProvider implements vscode.Disposable {
     }
     .subsystem-children {
       display: grid;
+      margin-left: 18px;
     }
     .tree-toggle {
-      width: 16px;
-      height: 16px;
-      flex: 0 0 16px;
+      width: 12px;
+      height: 14px;
+      flex: 0 0 12px;
       display: inline-flex;
       align-items: center;
       justify-content: center;
@@ -383,14 +392,14 @@ export class PropertiesViewProvider implements vscode.Disposable {
     details[open] > summary .tree-toggle::before {
       transform: rotate(45deg);
     }
-    .tree-toggle.empty::before {
+    .tree-toggle.tree-toggle-empty::before {
       content: "";
       border: 0;
     }
     .tree-icon {
-      width: 16px;
-      height: 16px;
-      flex: 0 0 16px;
+      width: 14px;
+      height: 14px;
+      flex: 0 0 14px;
     }
     .subsystem-label {
       min-width: 0;
@@ -399,7 +408,7 @@ export class PropertiesViewProvider implements vscode.Disposable {
       white-space: nowrap;
     }
     .subsystem-save-row {
-      margin-top: 12px;
+      margin-top: 8px;
       display: flex;
       justify-content: flex-end;
       gap: 8px;
@@ -428,7 +437,7 @@ export class PropertiesViewProvider implements vscode.Disposable {
         display: contents;
       }
       .tree-box {
-        height: 360px;
+        height: 240px;
       }
     }
   </style>
@@ -635,7 +644,7 @@ export class PropertiesViewProvider implements vscode.Disposable {
     const checkbox = `<input class="checkbox subsystem-checkbox" type="checkbox" data-subsystem-path="${escapeHtml(node.xmlPath)}" ${checkedAttr} ${disabledAttr}>`;
     const line = `
       <span class="subsystem-line">
-        <span class="tree-toggle ${node.children.length === 0 ? 'empty' : ''}" aria-hidden="true"></span>
+        <span class="tree-toggle ${node.children.length === 0 ? 'tree-toggle-empty' : ''}" aria-hidden="true"></span>
         ${checkbox}
         ${this.renderSubsystemIcon(webview)}
         <span class="subsystem-label" title="${escapeHtml(node.name)}">${escapeHtml(node.label)}</span>

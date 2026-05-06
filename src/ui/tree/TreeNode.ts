@@ -14,22 +14,35 @@ export class MetadataNode extends vscode.TreeItem {
     collapsibleState: vscode.TreeItemCollapsibleState
   ) {
     super(model.label, collapsibleState);
+    this.applyModelPresentation();
+  }
 
-    const baseContextValue = model.xmlPath ? `${model.nodeKind}-hasXml` : model.nodeKind;
-    this.contextValue = model.hidePropertiesCommand
+  refreshFromModel(collapsibleState?: vscode.TreeItemCollapsibleState): void {
+    this.label = this.model.label;
+    if (collapsibleState !== undefined) {
+      this.collapsibleState = collapsibleState;
+    }
+    this.applyModelPresentation();
+  }
+
+  private applyModelPresentation(): void {
+    const baseContextValue = this.model.xmlPath ? `${this.model.nodeKind}-hasXml` : this.model.nodeKind;
+    this.contextValue = this.model.hidePropertiesCommand
       ? `${baseContextValue}-propertiesHidden`
       : baseContextValue;
-    if (model.addMetadataTarget) {
+    if (this.model.addMetadataTarget) {
       this.contextValue = `${this.contextValue}-canAdd`;
     }
-    if (model.canRemoveMetadata) {
+    if (this.model.canRemoveMetadata) {
       this.contextValue = `${this.contextValue}-canRemove`;
     }
 
-    if (model.ownershipTag) {
-      this.description = model.ownershipTag === 'OWN' ? '[свой]' : '[заим.]';
+    if (this.model.ownershipTag) {
+      this.description = this.model.ownershipTag === 'OWN' ? '[свой]' : '[заим.]';
       // Суффикс для фильтрации команд, работающих только с объектами CF
       this.contextValue = `${this.contextValue}-fromCfe`;
+    } else {
+      this.description = undefined;
     }
   }
 

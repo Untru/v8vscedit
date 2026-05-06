@@ -3,6 +3,7 @@ import * as vscode from 'vscode';
 import type { ConfigEntry } from '../../infra/fs/ConfigLocator';
 import type { RepositoryService } from '../../infra/repository/RepositoryService';
 import { parseConfigXml } from '../../infra/xml';
+import { getObjectLocationFromXml } from '../../infra/fs/MetaPathResolver';
 import type { SupportInfoService } from '../../infra/support/SupportInfoService';
 import {
   buildMetadataCacheScopeKey,
@@ -47,16 +48,43 @@ export class MetadataTreeProvider implements vscode.TreeDataProvider<MetadataNod
   /** Обновляет только JSON-кэш дерева для изменённых XML-файлов и перечитывает дерево при успехе. */
   refreshCacheForFiles(filePaths: string[]): boolean {
     let updated = false;
+    let needsFullRefresh = false;
+    const changedNodes: MetadataNode[] = [];
     for (const entry of this.entries) {
       const result = updateMetadataCacheForChangedFiles(this.projectRoot, entry, filePaths);
-      updated = updated || Boolean(result);
+      if (!result) {
+        continue;
+      }
+
+      updated = true;
+      if (!result.updatedPartially) {
+        needsFullRefresh = true;
+        continue;
+      }
+
+      const refreshedNodes = this.refreshChangedObjectNodesFromCache(result.snapshot, filePaths);
+      if (refreshedNodes.length === 0) {
+        needsFullRefresh = true;
+        continue;
+      }
+
+      changedNodes.push(...refreshedNodes);
     }
 
-    if (updated) {
+    if (!updated) {
+      return false;
+    }
+
+    if (needsFullRefresh) {
       this.refresh();
+      return true;
     }
 
-    return updated;
+    for (const node of new Set(changedNodes)) {
+      this.onDidChangeTreeDataEmitter.fire(node);
+    }
+
+    return true;
   }
 
   /**
@@ -629,5 +657,114 @@ export class MetadataTreeProvider implements vscode.TreeDataProvider<MetadataNod
 
   private normalizePath(filePath: string): string {
     return path.resolve(filePath).toLowerCase();
+  }
+
+  private refreshChangedObjectNodesFromCache(
+    snapshot: MetadataCacheSnapshot,
+    filePaths: string[]
+  ): MetadataNode[] {
+    const result: MetadataNode[] = [];
+    const seenXmlPaths = new Set<string>();
+
+    for (const filePath of filePaths) {
+      if (!this.isPathInside(filePath, snapshot.rootPath) || path.extname(filePath).toLowerCase() !== '.xml') {
+        continue;
+      }
+
+      const cachedNode = this.findCacheObjectNodeByChangedPath(snapshot.root, filePath);
+      if (!cachedNode?.xmlPath) {
+        return [];
+      }
+
+      if (seenXmlPaths.has(this.normalizePath(cachedNode.xmlPath))) {
+        continue;
+      }
+
+      const currentNode = this.findNode((node) => {
+        if (node.metaContext || node.nodeKind !== cachedNode.type || !node.xmlPath || !cachedNode.xmlPath) {
+          return false;
+        }
+
+        return this.samePath(node.xmlPath, cachedNode.xmlPath);
+      }, snapshot.rootPath);
+      if (!currentNode) {
+        return [];
+      }
+
+      this.refreshNodeDataFromCache(currentNode, cachedNode);
+      result.push(currentNode);
+      seenXmlPaths.add(this.normalizePath(cachedNode.xmlPath));
+    }
+
+    return result;
+  }
+
+  private refreshNodeDataFromCache(targetNode: MetadataNode, cached: MetadataCacheNode): void {
+    targetNode.model.label = cached.label;
+    targetNode.model.xmlPath = cached.xmlPath;
+    targetNode.model.decorationPath = cached.decorationPath;
+    targetNode.model.gitDecorationTarget = cached.gitDecorationTarget;
+    targetNode.model.ownershipTag = cached.ownershipTag;
+    targetNode.model.hidePropertiesCommand = cached.hidePropertiesCommand &&
+      cached.type !== 'configuration' &&
+      cached.type !== 'extension';
+    targetNode.model.metaContext = cached.metaContext;
+    targetNode.model.addMetadataTarget = cached.addMetadataTarget;
+    targetNode.model.canRemoveMetadata = cached.canRemoveMetadata;
+    targetNode.tooltip = cached.tooltip;
+
+    const children = cached.children.map((child) => this.buildNodeFromCache(child, targetNode));
+    targetNode.replaceChildren(
+      children,
+      children.length > 0 ? vscode.TreeItemCollapsibleState.Collapsed : vscode.TreeItemCollapsibleState.None
+    );
+    targetNode.refreshFromModel(targetNode.collapsibleState);
+  }
+
+  private findCacheObjectNodeByChangedPath(
+    node: MetadataCacheNode,
+    changedPath: string
+  ): MetadataCacheNode | undefined {
+    const normalizedChangedPath = this.normalizePath(changedPath);
+    return this.findCacheObjectNodeByChangedPathInner(node, normalizedChangedPath);
+  }
+
+  private findCacheObjectNodeByChangedPathInner(
+    node: MetadataCacheNode,
+    normalizedChangedPath: string
+  ): MetadataCacheNode | undefined {
+    for (const child of node.children) {
+      if (this.isRootObjectCacheNode(child) && child.xmlPath && this.isPathOwnedByObject(normalizedChangedPath, child.xmlPath)) {
+        return child;
+      }
+
+      const found = this.findCacheObjectNodeByChangedPathInner(child, normalizedChangedPath);
+      if (found) {
+        return found;
+      }
+    }
+
+    return undefined;
+  }
+
+  private isRootObjectCacheNode(node: MetadataCacheNode): boolean {
+    return Boolean(node.xmlPath && node.canRemoveMetadata && !node.metaContext);
+  }
+
+  private isPathOwnedByObject(normalizedChangedPath: string, objectXmlPath: string): boolean {
+    const normalizedXmlPath = this.normalizePath(objectXmlPath);
+    if (normalizedChangedPath === normalizedXmlPath) {
+      return true;
+    }
+
+    const loc = getObjectLocationFromXml(objectXmlPath);
+    const normalizedObjectDir = this.normalizePath(loc.objectDir);
+    return normalizedChangedPath.startsWith(`${normalizedObjectDir}${path.sep}`);
+  }
+
+  private isPathInside(filePath: string, rootPath: string): boolean {
+    const normalizedFilePath = this.normalizePath(filePath);
+    const normalizedRootPath = this.normalizePath(rootPath);
+    return normalizedFilePath === normalizedRootPath || normalizedFilePath.startsWith(`${normalizedRootPath}${path.sep}`);
   }
 }
