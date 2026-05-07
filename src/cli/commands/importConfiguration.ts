@@ -104,9 +104,11 @@ function refreshHashCacheAfterImport(
 ): void {
   const normalizedTarget = target === 'cfe' ? 'cfe' : 'cf';
   const scopeKey = buildScopeKey(normalizedTarget, configDir, extension);
+  console.log('Формирование хеш-кэша');
   if (mode === 'Full') {
     const snapshot = buildHashSnapshot(scopeKey, configDir);
     saveHashCache(projectRoot, snapshot);
+    console.log('Формирование кэша метаданных');
     saveMetadataCacheForEntry(projectRoot, scopeKey, { kind: normalizedTarget, rootPath: configDir });
     return;
   }
@@ -115,6 +117,7 @@ function refreshHashCacheAfterImport(
   const deletedFiles = partialFiles.filter((file) => !changedHashes[file]);
   const patched = patchHashSnapshot(previous, changedHashes, deletedFiles);
   saveHashCache(projectRoot, patched);
+  console.log('Формирование кэша метаданных');
   saveMetadataCacheForEntry(projectRoot, scopeKey, { kind: normalizedTarget, rootPath: configDir });
 }
 

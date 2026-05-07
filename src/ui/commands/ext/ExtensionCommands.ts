@@ -6,6 +6,7 @@ import type { ConfigEntry } from '../../../domain/Configuration';
 import { parseConfigXml } from '../../../infra/xml';
 import type { CommandServices, NodeArg } from '../_shared';
 import {
+  type ConfigurationImportHooks,
   extractExtensionTarget,
   runCompileExtension,
   runDecompileExtension,
@@ -73,18 +74,22 @@ export function registerExtensionCommands(
               `${String(index + 1)}/${String(ordered.length)}: ${target.name}`,
               true
             );
+            const progressPrefix = `${String(index + 1)}/${String(ordered.length)}: ${target.name}`;
+            const hooks = createImportHooks(services, 'Импорт конфигураций', progressPrefix);
             const imported = target.kind === 'cf'
               ? await runDecompileMainConfiguration(
                   target.name,
                   target.rootPath,
                   services.workspaceFolder,
-                  services.outputChannel
+                  services.outputChannel,
+                  hooks
                 )
               : await runDecompileExtension(
                   target.name,
                   target.rootPath,
                   services.workspaceFolder,
-                  services.outputChannel
+                  services.outputChannel,
+                  hooks
                 );
 
             if (!imported) {
@@ -97,8 +102,10 @@ export function registerExtensionCommands(
           if (ordered.length > 1) {
             void vscode.window.showInformationMessage(`Импортировано конфигураций: ${String(ordered.length)}.`);
           }
-          setConfigurationProgress(services, 'Импорт конфигураций', 'завершено', false);
+          setConfigurationProgress(services, 'Импорт конфигураций', 'обновление дерева метаданных', true);
+          await yieldToUi();
           await services.reloadEntries();
+          setConfigurationProgress(services, 'Импорт конфигураций', 'завершено', false);
           return true;
         });
         if (!ok) {
@@ -284,8 +291,20 @@ export function registerExtensionCommands(
         },
         async () => {
           const ok = target.kind === 'cf'
-            ? await runDecompileMainConfiguration(target.name, target.rootPath, services.workspaceFolder, services.outputChannel)
-            : await runDecompileExtension(target.name, target.rootPath, services.workspaceFolder, services.outputChannel);
+            ? await runDecompileMainConfiguration(
+                target.name,
+                target.rootPath,
+                services.workspaceFolder,
+                services.outputChannel,
+                createImportHooks(services, `Импорт ${target.name}`)
+              )
+            : await runDecompileExtension(
+                target.name,
+                target.rootPath,
+                services.workspaceFolder,
+                services.outputChannel,
+                createImportHooks(services, `Импорт ${target.name}`)
+              );
           return ok;
         }
       );
@@ -591,7 +610,7 @@ function setConfigurationProgress(
   running: boolean
 ): void {
   setConfigurationOperationStatus(title, message, running);
-  if (running || isUpdatingConfigurations) {
+  if (running) {
     services.setTreeProcessingState({ active: true, title, message });
     return;
   }
@@ -601,6 +620,22 @@ function setConfigurationProgress(
 
 function clearConfigurationProgress(services: CommandServices): void {
   services.setTreeProcessingState({ active: false });
+}
+
+function createImportHooks(
+  services: CommandServices,
+  title: string,
+  messagePrefix?: string
+): ConfigurationImportHooks {
+  return {
+    onProgressMessage: (message) => {
+      const fullMessage = messagePrefix ? `${messagePrefix}: ${message}` : message;
+      setConfigurationProgress(services, title, fullMessage, true);
+    },
+    beforeProjectFilesChanged: (filePaths) => {
+      services.suppressConfigurationReloadForFiles(filePaths);
+    },
+  };
 }
 
 interface ImportTargetPickItem extends vscode.QuickPickItem {
@@ -840,6 +875,7 @@ async function runExclusiveConfigurationOperation(
     if (ok) {
       if (options.reloadEntriesAfterSuccess) {
         setConfigurationProgress(options.services, options.title, 'обновление дерева метаданных', true);
+        await yieldToUi();
         await options.services.reloadEntries();
       }
       options.services.markConfigurationsClean([options.cleanRootPath]);

@@ -275,6 +275,9 @@ export class Container {
     );
 
     const onConfigChange = (uri: vscode.Uri) => {
+      if (isServicePath(uri.fsPath, this.workspaceFolder.uri.fsPath)) {
+        return;
+      }
       if (this.consumeSuppressedConfigurationReload(uri.fsPath)) {
         return;
       }
@@ -326,6 +329,9 @@ export class Container {
     );
 
     const onSourceChange = (uri: vscode.Uri) => {
+      if (isServicePath(uri.fsPath, this.workspaceFolder.uri.fsPath)) {
+        return;
+      }
       this.scheduleChangedConfigurationStateRefresh(uri);
       if (path.extname(uri.fsPath).toLowerCase() === '.xml') {
         this.scheduleTreeCacheRefresh(uri.fsPath);
@@ -619,6 +625,15 @@ function isPathInside(filePath: string, rootPath: string): boolean {
   const normalizedRootPath = path.resolve(rootPath).toLowerCase();
   const relative = path.relative(normalizedRootPath, normalizedFilePath);
   return Boolean(relative) && !relative.startsWith('..') && !path.isAbsolute(relative);
+}
+
+function isServicePath(filePath: string, workspaceRoot: string): boolean {
+  const relative = path.relative(workspaceRoot, filePath).replace(/\\/g, '/');
+  if (relative === '.v8vscedit' || relative.startsWith('.v8vscedit/')) {
+    return true;
+  }
+
+  return relative.split('/').some((part) => /^\..+\.v8vscedit-backup-\d+-\d+$/.test(part));
 }
 
 function getExtensionRootPaths(entries: ConfigEntry[]): string[] {

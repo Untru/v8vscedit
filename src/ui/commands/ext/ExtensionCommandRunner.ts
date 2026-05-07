@@ -1,5 +1,4 @@
 import * as fs from 'fs';
-import * as os from 'os';
 import * as path from 'path';
 import * as vscode from 'vscode';
 import type { MetadataNode } from '../../tree/TreeNode';
@@ -23,6 +22,12 @@ interface RunCliOptions {
   logPrefix: string;
   showSuccessMessage?: boolean;
   afterSuccess?: () => Promise<void>;
+  onProgressMessage?: (message: string) => void;
+}
+
+export interface ConfigurationImportHooks {
+  readonly onProgressMessage?: (message: string) => void;
+  readonly beforeProjectFilesChanged?: (filePaths: string[]) => void;
 }
 
 interface ConnectionParams {
@@ -55,11 +60,12 @@ export async function runDecompileExtension(
   extensionName: string,
   extensionRoot: string,
   workspaceFolder: vscode.WorkspaceFolder,
-  outputChannel: vscode.OutputChannel
+  outputChannel: vscode.OutputChannel,
+  hooks?: ConfigurationImportHooks
 ): Promise<boolean> {
   const settingsPath = resolveSettingsPath(workspaceFolder.uri.fsPath, extensionRoot);
   const connection = resolveConnectionFromSettings(settingsPath);
-  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'v8vscedit-import-ext-'));
+  const tempRoot = createWorkspaceTempDir(workspaceFolder.uri.fsPath, 'import-ext-');
   const tempConfigDir = path.join(tempRoot, 'cfe', extensionName);
   fs.mkdirSync(tempConfigDir, { recursive: true });
   const cliArgs = [
@@ -86,9 +92,16 @@ export async function runDecompileExtension(
         errorTitle: `Ошибка импорта расширения "${extensionName}".`,
         failureOperation: 'импорте расширения',
         logPrefix: 'export-configuration',
+        onProgressMessage: hooks?.onProgressMessage,
         afterSuccess: async () => {
+          const changedProjectFiles = collectSnapshotProjectFiles(tempConfigDir, extensionRoot);
+          hooks?.onProgressMessage?.(`замена файлов выгрузки: ${String(changedProjectFiles.length)}`);
+          hooks?.beforeProjectFilesChanged?.(changedProjectFiles);
+          await yieldToUi();
           syncDirectorySnapshot(tempConfigDir, extensionRoot);
-          await refreshConfigurationHashCache('cfe', extensionName, extensionRoot, workspaceFolder, outputChannel);
+          hooks?.beforeProjectFilesChanged?.(changedProjectFiles);
+          hooks?.onProgressMessage?.('обновление кэша метаданных');
+          await refreshConfigurationHashCache('cfe', extensionName, extensionRoot, workspaceFolder, outputChannel, hooks?.onProgressMessage);
         },
       },
       workspaceFolder,
@@ -103,11 +116,12 @@ export async function runDecompileMainConfiguration(
   configName: string,
   configRoot: string,
   workspaceFolder: vscode.WorkspaceFolder,
-  outputChannel: vscode.OutputChannel
+  outputChannel: vscode.OutputChannel,
+  hooks?: ConfigurationImportHooks
 ): Promise<boolean> {
   const settingsPath = resolveSettingsPath(workspaceFolder.uri.fsPath, configRoot);
   const connection = resolveConnectionFromSettings(settingsPath);
-  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'v8vscedit-import-cf-'));
+  const tempRoot = createWorkspaceTempDir(workspaceFolder.uri.fsPath, 'import-cf-');
   const tempConfigDir = path.join(tempRoot, 'cf');
   fs.mkdirSync(tempConfigDir, { recursive: true });
   const cliArgs = [
@@ -132,9 +146,16 @@ export async function runDecompileMainConfiguration(
         errorTitle: `Ошибка импорта основной конфигурации "${configName}".`,
         failureOperation: 'импорте основной конфигурации',
         logPrefix: 'export-configuration',
+        onProgressMessage: hooks?.onProgressMessage,
         afterSuccess: async () => {
+          const changedProjectFiles = collectSnapshotProjectFiles(tempConfigDir, configRoot);
+          hooks?.onProgressMessage?.(`замена файлов выгрузки: ${String(changedProjectFiles.length)}`);
+          hooks?.beforeProjectFilesChanged?.(changedProjectFiles);
+          await yieldToUi();
           syncDirectorySnapshot(tempConfigDir, configRoot);
-          await refreshConfigurationHashCache('cf', '', configRoot, workspaceFolder, outputChannel);
+          hooks?.beforeProjectFilesChanged?.(changedProjectFiles);
+          hooks?.onProgressMessage?.('обновление кэша метаданных');
+          await refreshConfigurationHashCache('cf', '', configRoot, workspaceFolder, outputChannel, hooks?.onProgressMessage);
         },
       },
       workspaceFolder,
@@ -182,6 +203,12 @@ export async function runApplyDatabaseConfiguration(
     workspaceFolder,
     outputChannel
   );
+}
+
+function createWorkspaceTempDir(workspaceRoot: string, prefix: string): string {
+  const tempParent = path.join(workspaceRoot, '.v8vscedit', 'import-temp');
+  fs.mkdirSync(tempParent, { recursive: true });
+  return fs.mkdtempSync(path.join(tempParent, prefix));
 }
 
 export async function runCompileExtension(
@@ -403,6 +430,7 @@ async function runInternalCliCommand(
   const commandAsText = `node ${processArgs.join(' ')}`;
   outputChannel.appendLine(`[actions] Старт: ${commandAsText}`);
   setOperationStatus(options.progressTitle, options.progressStartMessage, true);
+  options.onProgressMessage?.(options.progressStartMessage);
 
   try {
     let lastStdout = '';
@@ -420,7 +448,9 @@ async function runInternalCliCommand(
           lastStdout = text;
           appendOutputTail(outputTail, text);
           outputChannel.appendLine(`[${options.logPrefix}] ${text}`);
-          setOperationStatus(options.progressTitle, trimStatusMessage(text), true);
+          const statusMessage = trimStatusMessage(text);
+          setOperationStatus(options.progressTitle, statusMessage, true);
+          options.onProgressMessage?.(statusMessage);
         }
       },
       onStderr: (chunk) => {
@@ -429,7 +459,9 @@ async function runInternalCliCommand(
           lastStderr = text;
           appendOutputTail(outputTail, text);
           outputChannel.appendLine(`[${options.logPrefix}][stderr] ${text}`);
-          setOperationStatus(options.progressTitle, trimStatusMessage(`stderr: ${text}`), true);
+          const statusMessage = trimStatusMessage(`stderr: ${text}`);
+          setOperationStatus(options.progressTitle, statusMessage, true);
+          options.onProgressMessage?.(statusMessage);
         }
       },
     });
@@ -501,9 +533,131 @@ function syncDirectorySnapshot(sourceDir: string, targetDir: string): void {
   if (!fs.existsSync(sourceDir)) {
     throw new Error(`Временный каталог выгрузки не найден: ${sourceDir}`);
   }
+
+  if (replaceDirectorySnapshot(sourceDir, targetDir)) {
+    return;
+  }
+
   fs.mkdirSync(targetDir, { recursive: true });
   deleteMissingEntries(sourceDir, targetDir);
   copyAllEntries(sourceDir, targetDir);
+}
+
+function replaceDirectorySnapshot(sourceDir: string, targetDir: string): boolean {
+  const targetParent = path.dirname(targetDir);
+  fs.mkdirSync(targetParent, { recursive: true });
+
+  const backupDir = path.join(
+    targetParent,
+    `.${path.basename(targetDir)}.v8vscedit-backup-${String(process.pid)}-${String(Date.now())}`
+  );
+  let targetMoved = false;
+
+  try {
+    if (fs.existsSync(targetDir)) {
+      fs.renameSync(targetDir, backupDir);
+      targetMoved = true;
+    }
+
+    fs.renameSync(sourceDir, targetDir);
+    if (targetMoved) {
+      removeDirectoryInBackground(backupDir);
+    }
+    return true;
+  } catch (error) {
+    if (targetMoved && !fs.existsSync(targetDir) && fs.existsSync(backupDir)) {
+      fs.renameSync(backupDir, targetDir);
+    }
+
+    if (isCrossDeviceRenameError(error)) {
+      return false;
+    }
+
+    throw error;
+  }
+}
+
+function removeDirectoryInBackground(directoryPath: string): void {
+  fs.rm(directoryPath, { recursive: true, force: true }, () => undefined);
+}
+
+function isCrossDeviceRenameError(error: unknown): boolean {
+  return typeof error === 'object' &&
+    error !== null &&
+    'code' in error &&
+    (error as { code?: unknown }).code === 'EXDEV';
+}
+
+function collectSnapshotProjectFiles(sourceDir: string, targetDir: string): string[] {
+  const result = new Set<string>();
+  collectSourceProjectFiles(sourceDir, targetDir, result);
+  collectDeletedProjectFiles(sourceDir, targetDir, result);
+  return [...result];
+}
+
+function collectSourceProjectFiles(sourceDir: string, targetDir: string, result: Set<string>): void {
+  if (!fs.existsSync(sourceDir)) {
+    return;
+  }
+
+  for (const entry of fs.readdirSync(sourceDir, { withFileTypes: true })) {
+    const sourcePath = path.join(sourceDir, entry.name);
+    const targetPath = path.join(targetDir, entry.name);
+    if (entry.isDirectory()) {
+      collectSourceProjectFiles(sourcePath, targetPath, result);
+      continue;
+    }
+
+    addSuppressedProjectFile(targetPath, result);
+  }
+}
+
+function collectDeletedProjectFiles(sourceDir: string, targetDir: string, result: Set<string>): void {
+  if (!fs.existsSync(targetDir)) {
+    return;
+  }
+
+  for (const entry of fs.readdirSync(targetDir, { withFileTypes: true })) {
+    const targetPath = path.join(targetDir, entry.name);
+    const sourcePath = path.join(sourceDir, entry.name);
+    if (!fs.existsSync(sourcePath)) {
+      collectExistingFilePaths(targetPath, result);
+      continue;
+    }
+
+    if (entry.isDirectory()) {
+      collectDeletedProjectFiles(sourcePath, targetPath, result);
+    }
+  }
+}
+
+function collectExistingFilePaths(filePath: string, result: Set<string>): void {
+  if (!fs.existsSync(filePath)) {
+    return;
+  }
+
+  const stat = fs.statSync(filePath);
+  if (!stat.isDirectory()) {
+    addSuppressedProjectFile(filePath, result);
+    return;
+  }
+
+  for (const entry of fs.readdirSync(filePath, { withFileTypes: true })) {
+    collectExistingFilePaths(path.join(filePath, entry.name), result);
+  }
+}
+
+function addSuppressedProjectFile(filePath: string, result: Set<string>): void {
+  const normalized = filePath.replace(/\\/g, '/').toLowerCase();
+  if (
+    normalized.endsWith('.xml') ||
+    normalized.endsWith('.bsl') ||
+    normalized.endsWith('/ext/template.txt') ||
+    normalized.endsWith('/ext/template.bin') ||
+    /\/ext\/template\/.+\.html$/.test(normalized)
+  ) {
+    result.add(filePath);
+  }
 }
 
 function deleteMissingEntries(sourceDir: string, targetDir: string): void {
@@ -768,7 +922,8 @@ async function refreshConfigurationHashCache(
   extensionName: string,
   configRoot: string,
   workspaceFolder: vscode.WorkspaceFolder,
-  outputChannel: vscode.OutputChannel
+  outputChannel: vscode.OutputChannel,
+  onProgressMessage?: (message: string) => void
 ): Promise<void> {
   const isExtension = target === 'cfe';
   const name = isExtension ? extensionName : 'основная конфигурация';
@@ -791,6 +946,7 @@ async function refreshConfigurationHashCache(
       failureOperation: 'актуализации хеш-кэша',
       logPrefix: 'refresh-hash-cache',
       showSuccessMessage: false,
+      onProgressMessage,
     },
     workspaceFolder,
     outputChannel
@@ -798,4 +954,8 @@ async function refreshConfigurationHashCache(
   if (!refreshed) {
     outputChannel.appendLine(`[refresh-hash-cache] Не удалось обновить кэш после импорта: ${name}.`);
   }
+}
+
+function yieldToUi(): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, 0));
 }

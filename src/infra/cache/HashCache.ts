@@ -62,13 +62,9 @@ export function loadHashCache(projectRoot: string, scopeKey: string): HashCacheS
  */
 export function buildHashSnapshot(scopeKey: string, configDir: string): HashCacheSnapshot {
   const files: Record<string, string> = {};
-  for (const fullPath of walkFiles(configDir)) {
-    const relativePath = path.relative(configDir, fullPath).replace(/\\/g, '/');
-    if (!isSupportedConfigFile(relativePath)) {
-      continue;
-    }
+  walkSupportedFiles(configDir, (fullPath, relativePath) => {
     files[relativePath] = computeFileHash(fullPath);
-  }
+  });
   return {
     schemaVersion: CACHE_SCHEMA_VERSION,
     scopeKey,
@@ -83,7 +79,7 @@ export function buildHashSnapshot(scopeKey: string, configDir: string): HashCach
 export function saveHashCache(projectRoot: string, snapshot: HashCacheSnapshot): void {
   const filePath = getCacheFilePath(projectRoot, snapshot.scopeKey);
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
-  fs.writeFileSync(filePath, JSON.stringify(snapshot, null, 2), 'utf-8');
+  fs.writeFileSync(filePath, JSON.stringify(snapshot), 'utf-8');
 }
 
 /**
@@ -174,23 +170,41 @@ function getCacheFilePath(projectRoot: string, scopeKey: string): string {
 
 function computeFileHash(filePath: string): string {
   const content = fs.readFileSync(filePath);
+  const oneShotHash = Reflect.get(crypto, 'hash');
+  if (typeof oneShotHash === 'function') {
+    return oneShotHash('sha1', content, 'hex');
+  }
   return crypto.createHash('sha1').update(content).digest('hex');
 }
 
-function walkFiles(rootDir: string): string[] {
-  const out: string[] = [];
+function walkSupportedFiles(
+  rootDir: string,
+  visitor: (fullPath: string, relativePath: string) => void
+): void {
   if (!fs.existsSync(rootDir)) {
-    return out;
+    return;
   }
-  for (const entry of fs.readdirSync(rootDir, { withFileTypes: true })) {
-    const fullPath = path.join(rootDir, entry.name);
-    if (entry.isDirectory()) {
-      out.push(...walkFiles(fullPath));
+
+  const pending = [rootDir];
+  while (pending.length > 0) {
+    const currentDir = pending.pop();
+    if (!currentDir) {
       continue;
     }
-    out.push(fullPath);
+
+    for (const entry of fs.readdirSync(currentDir, { withFileTypes: true })) {
+      const fullPath = path.join(currentDir, entry.name);
+      if (entry.isDirectory()) {
+        pending.push(fullPath);
+        continue;
+      }
+
+      const relativePath = path.relative(rootDir, fullPath).replace(/\\/g, '/');
+      if (isSupportedConfigFile(relativePath)) {
+        visitor(fullPath, relativePath);
+      }
+    }
   }
-  return out;
 }
 
 function sortUnique(items: string[]): string[] {
