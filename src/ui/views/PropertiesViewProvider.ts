@@ -26,6 +26,7 @@ import {
   type BasedOnReferenceItem,
   ConfigurationXmlEditor,
   parseConfigXml,
+  parseObjectXml,
 } from '../../infra/xml';
 import { extractChildMetaElementXml, extractColumnXmlFromTabularSection } from '../../infra/xml';
 import type { RepositoryService } from '../../infra/repository/RepositoryService';
@@ -289,6 +290,44 @@ export class PropertiesViewProvider implements vscode.Disposable {
       margin-top: 4px;
       font-size: 12px;
     }
+    .tabbar {
+      display: inline-flex;
+      gap: 4px;
+      margin-bottom: 12px;
+      padding: 2px;
+      border: 1px solid var(--vscode-input-border, var(--vscode-panel-border, transparent));
+      border-radius: 6px;
+      background: var(--vscode-input-background);
+    }
+    .tab-button {
+      min-height: 28px;
+      padding: 0 10px;
+      border-color: transparent;
+      color: var(--vscode-descriptionForeground);
+      background: transparent;
+    }
+    .tab-button.active {
+      color: var(--vscode-button-foreground);
+      background: var(--vscode-button-background);
+    }
+    .tab-panel.hidden {
+      display: none;
+    }
+    .form-picker-control {
+      position: relative;
+      min-width: 0;
+    }
+    .form-picker-control .input {
+      padding-right: 72px;
+    }
+    .form-picker-actions {
+      position: absolute;
+      top: 50%;
+      right: 6px;
+      display: inline-flex;
+      gap: 4px;
+      transform: translateY(-50%);
+    }
     .localized-item {
       margin-top: 4px;
       padding-left: 8px;
@@ -394,6 +433,12 @@ export class PropertiesViewProvider implements vscode.Disposable {
       .row,
       .qual-row {
         grid-template-columns: 1fr;
+      }
+      .tabbar {
+        display: flex;
+      }
+      .tab-button {
+        flex: 1;
       }
       .section-grid {
         display: flex;
@@ -580,6 +625,9 @@ export class PropertiesViewProvider implements vscode.Disposable {
     return Array.from(sections.entries())
       .sort((left, right) => this.getSectionOrder(left[1]) - this.getSectionOrder(right[1]))
       .map(([title, items]) => {
+        if (title === 'Формы') {
+          return this.renderFormsSection(items, isEditLocked);
+        }
         return {
           order: this.getSectionOrder(items),
           preferredColumn: title === 'Ввод на основании' ? 'right' : undefined,
@@ -593,6 +641,40 @@ export class PropertiesViewProvider implements vscode.Disposable {
           `,
         };
       });
+  }
+
+  private renderFormsSection(
+    items: ObjectPropertiesCollection,
+    isEditLocked: boolean
+  ): RenderedPropertySection {
+    const mainItems = items.filter((property) => property.key.startsWith('Default'));
+    const auxiliaryItems = items.filter((property) => property.key.startsWith('Auxiliary'));
+    const restItems = items.filter((property) => !property.key.startsWith('Default') && !property.key.startsWith('Auxiliary'));
+    if (restItems.length > 0) {
+      auxiliaryItems.push(...restItems);
+    }
+    return {
+      order: this.getSectionOrder(items),
+      html: `
+        <section class="property-section">
+          <h2 class="section-title">Формы</h2>
+          <div class="tabbar" role="tablist" aria-label="Формы">
+            <button class="tab-button active" type="button" role="tab" aria-selected="true" data-tab-target="forms-main">Основные</button>
+            <button class="tab-button" type="button" role="tab" aria-selected="false" data-tab-target="forms-aux">Дополнительные</button>
+          </div>
+          <div class="tab-panel" data-tab-panel="forms-main">
+            <div class="form">
+              ${mainItems.length > 0 ? mainItems.map((property) => this.renderFormReferenceProperty(property, isEditLocked)).join('') : '<div class="empty">Нет основных форм.</div>'}
+            </div>
+          </div>
+          <div class="tab-panel hidden" data-tab-panel="forms-aux">
+            <div class="form">
+              ${auxiliaryItems.length > 0 ? auxiliaryItems.map((property) => this.renderFormReferenceProperty(property, isEditLocked)).join('') : '<div class="empty">Нет дополнительных форм.</div>'}
+            </div>
+          </div>
+        </section>
+      `,
+    };
   }
 
   private getSectionOrder(properties: ObjectPropertiesCollection): number {
@@ -691,6 +773,30 @@ export class PropertiesViewProvider implements vscode.Disposable {
       <div class="row">
         <label class="label" title="${escapeHtml(property.key)}">${escapeHtml(property.title)}</label>
         <div class="control">${valueHtml}${noteHtml}</div>
+      </div>
+    `;
+  }
+
+  private renderFormReferenceProperty(property: ObjectPropertyItem, isEditLocked: boolean): string {
+    const rawValue = typeof property.value === 'string' ? property.value : '';
+    const formName = extractFormNameFromReference(rawValue);
+    const isLocked = isEditLocked || property.readonly === true;
+    const disabledAttr = isLocked ? 'disabled' : '';
+    const clearDisabledAttr = isLocked || !formName ? 'disabled' : '';
+    const noteHtml = this.renderPropertyNote(property);
+    return `
+      <div class="row">
+        <label class="label" title="${escapeHtml(property.key)}">${escapeHtml(property.title)}</label>
+        <div class="control">
+          <div class="form-picker-control">
+            <input class="input" type="text" value="${escapeHtml(formName)}" placeholder="Используется стандартная форма" readonly />
+            <div class="form-picker-actions">
+              <button class="icon-btn" type="button" title="Выбрать форму" data-form-pick="${escapeHtml(property.key)}" ${disabledAttr}>...</button>
+              <button class="icon-btn" type="button" title="Очистить форму" data-form-clear="${escapeHtml(property.key)}" ${clearDisabledAttr}>×</button>
+            </div>
+          </div>
+          ${noteHtml}
+        </div>
       </div>
     `;
   }
@@ -884,6 +990,34 @@ export class PropertiesViewProvider implements vscode.Disposable {
           vscode.postMessage({ type: 'openTypePicker', key, qualifiers: key === 'Type' ? collectQualifiers() : {} });
         });
       });
+      document.querySelectorAll('[data-tab-target]').forEach((button) => {
+        button.addEventListener('click', () => {
+          const target = button.getAttribute('data-tab-target') || '';
+          if (!target) return;
+          document.querySelectorAll('[data-tab-target]').forEach((item) => {
+            const active = item === button;
+            item.classList.toggle('active', active);
+            item.setAttribute('aria-selected', active ? 'true' : 'false');
+          });
+          document.querySelectorAll('[data-tab-panel]').forEach((panel) => {
+            panel.classList.toggle('hidden', panel.getAttribute('data-tab-panel') !== target);
+          });
+        });
+      });
+      document.querySelectorAll('[data-form-pick]').forEach((button) => {
+        button.addEventListener('click', () => {
+          if (isEditLocked || button.disabled) return;
+          const key = button.getAttribute('data-form-pick') || '';
+          if (key) vscode.postMessage({ type: 'openFormPicker', key });
+        });
+      });
+      document.querySelectorAll('[data-form-clear]').forEach((button) => {
+        button.addEventListener('click', () => {
+          if (isEditLocked || button.disabled) return;
+          const key = button.getAttribute('data-form-clear') || '';
+          if (key) vscode.postMessage({ type: 'clearFormProperty', key });
+        });
+      });
       document.querySelectorAll('[data-reference-add]').forEach((button) => {
         button.addEventListener('click', () => {
           if (isEditLocked || button.disabled) return;
@@ -980,6 +1114,8 @@ export class PropertiesViewProvider implements vscode.Disposable {
         msg.type === 'openTypePicker' ||
         msg.type === 'openMetadataReferencePicker' ||
         msg.type === 'removeMetadataReference' ||
+        msg.type === 'openFormPicker' ||
+        msg.type === 'clearFormProperty' ||
         msg.type === 'openSubsystemMembershipPicker' ||
         msg.type === 'removeSubsystemMembership' ||
         msg.type === 'updateTypeQualifiers' ||
@@ -994,6 +1130,8 @@ export class PropertiesViewProvider implements vscode.Disposable {
         msg.type === 'openTypePicker' ||
         msg.type === 'openMetadataReferencePicker' ||
         msg.type === 'removeMetadataReference' ||
+        msg.type === 'openFormPicker' ||
+        msg.type === 'clearFormProperty' ||
         msg.type === 'openSubsystemMembershipPicker' ||
         msg.type === 'removeSubsystemMembership' ||
         msg.type === 'updateTypeQualifiers' ||
@@ -1018,6 +1156,14 @@ export class PropertiesViewProvider implements vscode.Disposable {
     }
     if (msg.type === 'removeMetadataReference') {
       await this.enqueuePropertyOperation(() => this.removeMetadataReference(msg.key, typeof msg.value === 'string' ? msg.value : undefined));
+      return;
+    }
+    if (msg.type === 'openFormPicker') {
+      await this.enqueuePropertyOperation(() => this.handleOpenFormPicker(msg.key));
+      return;
+    }
+    if (msg.type === 'clearFormProperty') {
+      await this.enqueuePropertyOperation(() => this.setFormProperty(msg.key, null));
       return;
     }
     if (msg.type === 'openSubsystemMembershipPicker') {
@@ -1165,6 +1311,84 @@ export class PropertiesViewProvider implements vscode.Disposable {
       return;
     }
     this.setMetadataReferenceList(key, next);
+  }
+
+  private async handleOpenFormPicker(key?: string): Promise<void> {
+    if (!this.activeNode || !key) {
+      return;
+    }
+    const currentProperty = this.activeProperties.find((item) => item.key === key);
+    if (currentProperty?.readonly) {
+      this.showReadonlyPropertyWarning(currentProperty);
+      return;
+    }
+    const forms = this.getCurrentObjectForms();
+    if (forms.length === 0) {
+      void vscode.window.showInformationMessage('У текущего объекта нет форм для выбора.');
+      return;
+    }
+    const currentFormName = typeof currentProperty?.value === 'string'
+      ? extractFormNameFromReference(currentProperty.value)
+      : '';
+    const picked = await vscode.window.showQuickPick(
+      forms.map((formName) => ({
+        label: formName,
+        picked: formName === currentFormName,
+      })),
+      { title: 'Выбор формы', matchOnDescription: true }
+    );
+    if (!picked?.label) {
+      return;
+    }
+    this.setFormProperty(key, picked.label);
+  }
+
+  private getCurrentObjectForms(): string[] {
+    if (!this.activeNode?.xmlPath) {
+      return [];
+    }
+    try {
+      const objectInfo = parseObjectXml(this.activeNode.xmlPath);
+      return (objectInfo?.children ?? [])
+        .filter((child) => child.tag === 'Form')
+        .map((child) => child.name)
+        .filter((name) => name.length > 0)
+        .sort((left, right) => left.localeCompare(right, 'ru'));
+    } catch {
+      return [];
+    }
+  }
+
+  private setFormProperty(key: string | undefined, formName: string | null): void {
+    if (!this.activeNode || !key) {
+      return;
+    }
+    const currentProperty = this.activeProperties.find((item) => item.key === key);
+    if (currentProperty?.readonly) {
+      this.showReadonlyPropertyWarning(currentProperty);
+      return;
+    }
+    const propertyTarget = resolvePropertyTarget(this.activeNode);
+    if (!propertyTarget || !isRootObjectNode(this.activeNode, propertyTarget)) {
+      void vscode.window.showWarningMessage('Выбор формы доступен только для корневого объекта метаданных.');
+      return;
+    }
+    const nextValue = formName ? `${this.activeNode.nodeKind}.${this.activeNode.textLabel}.Form.${formName}` : '';
+    const saved = this.xmlEditor.modifyObjectProperty(propertyTarget.xmlPath, {
+      targetKind: propertyTarget.targetKind,
+      targetName: propertyTarget.targetName,
+      tabularSectionName: propertyTarget.tabularSectionName,
+      propertyKey: key,
+      valueKind: 'string',
+      value: nextValue,
+    });
+    if (!saved.success) {
+      void vscode.window.showErrorMessage(saved.errors[0] ?? `Не удалось изменить свойство "${key}".`);
+      return;
+    }
+    if (saved.changed && this.panel) {
+      this.panel.webview.html = this.renderHtml(this.activeNode);
+    }
   }
 
   private getMetadataReferenceOptions(key: string): { canonical: string; display: string }[] {
@@ -1759,6 +1983,19 @@ function toMetadataReferenceDisplay(ref: string): string {
     return `Документы.${name}`;
   }
   return ref;
+}
+
+function extractFormNameFromReference(value: string): string {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return '';
+  }
+  const marker = '.Form.';
+  const markerIndex = trimmed.lastIndexOf(marker);
+  if (markerIndex >= 0) {
+    return trimmed.slice(markerIndex + marker.length);
+  }
+  return trimmed;
 }
 
 /** Экранирует строку для безопасной вставки в HTML */
