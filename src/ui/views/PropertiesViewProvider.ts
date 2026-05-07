@@ -20,7 +20,13 @@ import {
 } from './properties/MetadataTypeService';
 import { buildEventSourceInnerXml } from './properties/EventSubscriptionPropertyService';
 import { toCanonicalPropertyInput } from './properties/PropertyPresentationRegistry';
-import { ConfigurationXmlEditor, parseConfigXml } from '../../infra/xml';
+import {
+  BasedOnXmlService,
+  type BasedOnMetaKind,
+  type BasedOnReferenceItem,
+  ConfigurationXmlEditor,
+  parseConfigXml,
+} from '../../infra/xml';
 import { extractChildMetaElementXml, extractColumnXmlFromTabularSection } from '../../infra/xml';
 import type { RepositoryService } from '../../infra/repository/RepositoryService';
 import { type SupportInfoService, SupportMode } from '../../infra/support/SupportInfoService';
@@ -35,6 +41,7 @@ import type {
 interface RenderedPropertySection {
   order: number;
   html: string;
+  preferredColumn?: 'left' | 'right';
 }
 
 /** Управляет вкладкой свойств объекта метаданных (singleton WebviewPanel) */
@@ -45,6 +52,7 @@ export class PropertiesViewProvider implements vscode.Disposable {
   private propertyUpdateQueue: Promise<void> = Promise.resolve();
   private readonly typeRegistry = new TypeRegistryService();
   private readonly xmlEditor = new ConfigurationXmlEditor();
+  private readonly basedOnService = new BasedOnXmlService();
   constructor(
     private readonly subsystemXmlService: SubsystemXmlService,
     private readonly supportService?: SupportInfoService,
@@ -416,7 +424,7 @@ export class PropertiesViewProvider implements vscode.Disposable {
       );
     }
 
-    const properties = handler.getProperties(node);
+    const properties = this.enrichBasedOnProperties(node, handler.getProperties(node));
     this.activeProperties = properties;
     const subsystemSnapshot = this.resolveSubsystemMembershipSnapshot(node);
     const editLockReason = this.resolveEditLockReason(node);
@@ -492,13 +500,55 @@ export class PropertiesViewProvider implements vscode.Disposable {
     return this.renderSectionColumns(sections);
   }
 
+  private enrichBasedOnProperties(node: MetadataNode, properties: ObjectPropertiesCollection): ObjectPropertiesCollection {
+    const objectKind = this.resolveBasedOnKind(node);
+    if (!objectKind || !node.xmlPath) {
+      return properties;
+    }
+    const location = getObjectLocationFromXml(node.xmlPath);
+    const snapshot = this.basedOnService.readSnapshot(location.configRoot, objectKind, node.textLabel);
+    const basedOn = properties.find((item) => item.key === 'BasedOn');
+    const baseSection = basedOn?.section ?? 'Ввод на основании';
+    const baseSectionOrder = basedOn?.sectionOrder ?? 120;
+    const normalizedBasedOn: ObjectPropertyItem = {
+      key: 'BasedOn',
+      title: 'Вводится на основании',
+      kind: 'metadataReferenceList',
+      value: { items: snapshot.basedOn.map(toMetadataReferenceListItem) },
+      section: baseSection,
+      sectionOrder: baseSectionOrder,
+      readonly: basedOn?.readonly === true,
+      inherited: basedOn?.inherited,
+      source: basedOn?.source,
+    };
+    const basedFor: ObjectPropertyItem = {
+      key: 'BasedFor',
+      title: 'Является основанием для',
+      kind: 'metadataReferenceList',
+      value: { items: snapshot.basedFor.map(toMetadataReferenceListItem) },
+      section: baseSection,
+      sectionOrder: baseSectionOrder,
+    };
+    const result = properties.filter((item) => item.key !== 'BasedOn' && item.key !== 'BasedFor');
+    const insertAfter = result.findIndex((item) => (item.sectionOrder ?? 0) > baseSectionOrder);
+    const basedItems = [normalizedBasedOn, basedFor];
+    if (insertAfter < 0) {
+      result.push(...basedItems);
+    } else {
+      result.splice(insertAfter, 0, ...basedItems);
+    }
+    return result;
+  }
+
   private renderSectionColumns(sections: RenderedPropertySection[]): string {
     const sortedSections = [...sections].sort((left, right) => left.order - right.order);
     const left: string[] = [];
     const right: string[] = [];
     sortedSections.forEach((section, index) => {
       const html = `<div style="order: ${String(index)}">${section.html}</div>`;
-      if (index % 2 === 0) {
+      if (section.preferredColumn === 'right') {
+        right.push(html);
+      } else if (section.preferredColumn === 'left' || index % 2 === 0) {
         left.push(html);
       } else {
         right.push(html);
@@ -532,6 +582,7 @@ export class PropertiesViewProvider implements vscode.Disposable {
       .map(([title, items]) => {
         return {
           order: this.getSectionOrder(items),
+          preferredColumn: title === 'Ввод на основании' ? 'right' : undefined,
           html: `
             <section class="property-section">
               <h2 class="section-title">${escapeHtml(title)}</h2>
@@ -619,7 +670,7 @@ export class PropertiesViewProvider implements vscode.Disposable {
         <div class="row">
           <div class="property-label-row">
             <label class="label" title="${escapeHtml(property.key)}">${escapeHtml(property.title)}</label>
-            <button class="icon-btn" type="button" title="Добавить владельца" data-reference-add="${escapeHtml(property.key)}" ${disabledAttr}>+</button>
+            <button class="icon-btn" type="button" title="${escapeHtml(this.getReferencePickerTitle(property.key))}" data-reference-add="${escapeHtml(property.key)}" ${disabledAttr}>+</button>
           </div>
           <div class="control">${valueHtml}${noteHtml}</div>
         </div>
@@ -1073,13 +1124,9 @@ export class PropertiesViewProvider implements vscode.Disposable {
       void vscode.window.showWarningMessage('Для выбранного свойства список ссылок не поддерживается.');
       return;
     }
-    if (key !== 'Owners') {
-      void vscode.window.showWarningMessage('Выбор объектов сейчас поддержан только для владельцев справочника.');
-      return;
-    }
     const current = currentProperty.value as MetadataReferenceListValue;
     const selected = new Set(current.items.map((item) => item.canonical));
-    const options = this.getCatalogReferenceOptions()
+    const options = this.getMetadataReferenceOptions(key)
       .filter((item) => !selected.has(item.canonical))
       .map((item) => ({
         label: item.display,
@@ -1087,11 +1134,11 @@ export class PropertiesViewProvider implements vscode.Disposable {
         canonical: item.canonical,
       }));
     if (options.length === 0) {
-      void vscode.window.showInformationMessage('Все доступные справочники уже добавлены во владельцы.');
+      void vscode.window.showInformationMessage(this.getEmptyReferencePickerMessage(key));
       return;
     }
     const picked = await vscode.window.showQuickPick(options, {
-      title: 'Добавить владельца',
+      title: this.getReferencePickerTitle(key),
       matchOnDescription: true,
     });
     if (!picked?.canonical) {
@@ -1120,6 +1167,16 @@ export class PropertiesViewProvider implements vscode.Disposable {
     this.setMetadataReferenceList(key, next);
   }
 
+  private getMetadataReferenceOptions(key: string): { canonical: string; display: string }[] {
+    if (key === 'Owners') {
+      return this.getCatalogReferenceOptions();
+    }
+    if (key === 'BasedOn' || key === 'BasedFor') {
+      return this.getBasedOnReferenceOptions();
+    }
+    return [];
+  }
+
   private getCatalogReferenceOptions(): { canonical: string; display: string }[] {
     if (!this.activeNode?.xmlPath) {
       return [];
@@ -1138,8 +1195,51 @@ export class PropertiesViewProvider implements vscode.Disposable {
     }
   }
 
+  private getBasedOnReferenceOptions(): { canonical: string; display: string }[] {
+    if (!this.activeNode?.xmlPath) {
+      return [];
+    }
+    const objectKind = this.resolveBasedOnKind(this.activeNode);
+    if (!objectKind) {
+      return [];
+    }
+    try {
+      const location = getObjectLocationFromXml(this.activeNode.xmlPath);
+      const currentRef = `${objectKind}.${this.activeNode.textLabel}`;
+      return this.basedOnService.readAvailableObjects(location.configRoot)
+        .filter((item) => item.ref !== currentRef)
+        .map((item) => ({
+          canonical: item.ref,
+          display: toMetadataReferenceDisplay(item.ref),
+        }));
+    } catch {
+      return [];
+    }
+  }
+
+  private getReferencePickerTitle(key: string): string {
+    if (key === 'BasedOn') {
+      return 'Добавить основание';
+    }
+    if (key === 'BasedFor') {
+      return 'Добавить объект, вводимый на основании текущего';
+    }
+    return 'Добавить владельца';
+  }
+
+  private getEmptyReferencePickerMessage(key: string): string {
+    if (key === 'BasedOn' || key === 'BasedFor') {
+      return 'Все доступные справочники и документы уже добавлены.';
+    }
+    return 'Все доступные справочники уже добавлены во владельцы.';
+  }
+
   private setMetadataReferenceList(key: string, values: string[]): void {
     if (!this.activeNode) {
+      return;
+    }
+    if (key === 'BasedOn' || key === 'BasedFor') {
+      this.setBasedOnReferenceList(key, values);
       return;
     }
     const propertyTarget = resolvePropertyTarget(this.activeNode);
@@ -1160,6 +1260,24 @@ export class PropertiesViewProvider implements vscode.Disposable {
       return;
     }
     if (saved.changed && this.panel) {
+      this.panel.webview.html = this.renderHtml(this.activeNode);
+    }
+  }
+
+  private setBasedOnReferenceList(key: 'BasedOn' | 'BasedFor', values: string[]): void {
+    if (!this.activeNode?.xmlPath) {
+      return;
+    }
+    const objectKind = this.resolveBasedOnKind(this.activeNode);
+    if (!objectKind) {
+      void vscode.window.showWarningMessage('Ввод на основании доступен только для справочников и документов.');
+      return;
+    }
+    const location = getObjectLocationFromXml(this.activeNode.xmlPath);
+    const result = key === 'BasedOn'
+      ? this.basedOnService.setBasedOn(location.configRoot, objectKind, this.activeNode.textLabel, values)
+      : this.basedOnService.setBasedFor(location.configRoot, objectKind, this.activeNode.textLabel, values);
+    if (result.changed && this.panel) {
       this.panel.webview.html = this.renderHtml(this.activeNode);
     }
   }
@@ -1460,6 +1578,14 @@ export class PropertiesViewProvider implements vscode.Disposable {
     return Boolean(META_TYPES[node.nodeKind].folder);
   }
 
+  private resolveBasedOnKind(node: MetadataNode): BasedOnMetaKind | null {
+    const target = resolvePropertyTarget(node);
+    if (!target || !isRootObjectNode(node, target)) {
+      return null;
+    }
+    return node.nodeKind === 'Catalog' || node.nodeKind === 'Document' ? node.nodeKind : null;
+  }
+
   private getRenderTypeValue(property: ObjectPropertyItem): MetadataTypeValue {
     return this.normalizeTypeValueForProperty(property.key, property.value as MetadataTypeValue);
   }
@@ -1610,6 +1736,29 @@ export class PropertiesViewProvider implements vscode.Disposable {
     }
     return this.supportService.getSupportMode(xmlPath);
   }
+}
+
+function toMetadataReferenceListItem(item: BasedOnReferenceItem): { canonical: string; display: string } {
+  return {
+    canonical: item.ref,
+    display: toMetadataReferenceDisplay(item.ref),
+  };
+}
+
+function toMetadataReferenceDisplay(ref: string): string {
+  const dotIndex = ref.indexOf('.');
+  if (dotIndex <= 0) {
+    return ref;
+  }
+  const kind = ref.slice(0, dotIndex);
+  const name = ref.slice(dotIndex + 1);
+  if (kind === 'Catalog') {
+    return `Справочники.${name}`;
+  }
+  if (kind === 'Document') {
+    return `Документы.${name}`;
+  }
+  return ref;
 }
 
 /** Экранирует строку для безопасной вставки в HTML */

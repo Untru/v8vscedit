@@ -50,7 +50,8 @@ suite('Properties — справочник', () => {
     const basedOn = props.find((item) => item.key === 'BasedOn');
     assert.ok(basedOn, 'BasedOn не найден');
     assert.strictEqual(basedOn.section, 'Ввод на основании');
-    assert.strictEqual(basedOn.readonly, true);
+    assert.strictEqual(basedOn.readonly, false);
+    assert.strictEqual(basedOn.kind, 'metadataReferenceList');
 
     const objectPresentation = props.find((item) => item.key === 'ObjectPresentation');
     assert.ok(objectPresentation, 'ObjectPresentation не найден');

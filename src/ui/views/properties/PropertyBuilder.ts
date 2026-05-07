@@ -534,6 +534,7 @@ const PROPERTY_TITLE_RU: Record<string, string> = {
   ChoiceDataGetModeOnInputByString: 'Режим получения данных при вводе по строке',
   Characteristics: 'Характеристики',
   BasedOn: 'Вводится на основании',
+  BasedFor: 'Является основанием для',
   StandardTabularSections: 'Стандартные табличные части',
   DistributedInfoBase: 'Распределённая информационная база',
   ThisNodeBelongsToExchangePlan: 'Узел принадлежит плану обмена',
@@ -721,7 +722,6 @@ const CATALOG_ROOT_META_PROPERTY_KEYS: string[] = [
 
 const CATALOG_READONLY_COMPLEX_PROPERTIES = new Set([
   'InputByString',
-  'BasedOn',
   'DataLockFields',
   'Characteristics',
 ]);
@@ -770,6 +770,7 @@ const CATALOG_PROPERTY_SECTIONS: Readonly<Record<string, { title: string; order:
   ChoiceHistoryOnInput: { title: 'Поле ввода', order: 90 },
   UseStandardCommands: { title: 'Команды', order: 100 },
   BasedOn: { title: 'Ввод на основании', order: 120 },
+  BasedFor: { title: 'Ввод на основании', order: 120 },
   DataLockFields: { title: 'Обмен данными', order: 140 },
   DataLockControlMode: { title: 'Обмен данными', order: 140 },
   FullTextSearch: { title: 'Обмен данными', order: 140 },
@@ -1221,6 +1222,19 @@ export function buildPropertyItemsForKeys(
     const rawSimpleValue = extractSimpleTag(propsInner, key);
 
     if (key === 'Owners') {
+      items.push({
+        key,
+        title: propertyTitle(key),
+        kind: 'metadataReferenceList',
+        value: buildMetadataReferenceListValue(childrenByTag.get(key) ?? ''),
+      });
+      continue;
+    }
+
+    if (key === 'BasedOn') {
+      if (!propsInner.includes('<BasedOn')) {
+        continue;
+      }
       items.push({
         key,
         title: propertyTitle(key),

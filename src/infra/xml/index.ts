@@ -15,6 +15,7 @@ export * from './XmlUtils';
 export * from './ConfigXmlReader';
 export * from './ObjectXmlReader';
 export * from './ConfigurationXmlEditor';
+export * from './BasedOnXmlService';
 export * from './MetadataXmlCreator';
 export * from './MetadataXmlRemover';
 export * from './PropertySchema';
