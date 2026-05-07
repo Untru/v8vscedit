@@ -55,7 +55,14 @@ export interface MetadataTypeValue {
 }
 
 /** Допустимые виды значений свойства объекта метаданных */
-export type PropertyValueKind = 'string' | 'boolean' | 'enum' | 'multiEnum' | 'localizedString' | 'metadataType';
+export type PropertyValueKind =
+  | 'string'
+  | 'boolean'
+  | 'enum'
+  | 'multiEnum'
+  | 'localizedString'
+  | 'metadataType'
+  | 'metadataReferenceList';
 
 /** Значение перечислимого свойства */
 export interface EnumPropertyOption {
@@ -85,6 +92,19 @@ export interface LocalizedStringValue {
   }[];
 }
 
+/** Элемент списка ссылок на объекты метаданных */
+export interface MetadataReferenceListItem {
+  /** Каноническая XML-ссылка (`Catalog.Контрагенты`) */
+  canonical: string;
+  /** Представление для панели (`Справочники.Контрагенты`) */
+  display: string;
+}
+
+/** Список ссылок на объекты метаданных */
+export interface MetadataReferenceListValue {
+  items: MetadataReferenceListItem[];
+}
+
 /** Значение свойства объекта метаданных */
 export type PropertyValue =
   | string
@@ -92,7 +112,8 @@ export type PropertyValue =
   | EnumPropertyValue
   | MultiEnumPropertyValue
   | LocalizedStringValue
-  | MetadataTypeValue;
+  | MetadataTypeValue
+  | MetadataReferenceListValue;
 
 /** Описание одного свойства объекта метаданных */
 export interface ObjectPropertyItem {

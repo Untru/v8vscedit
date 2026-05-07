@@ -3,6 +3,7 @@ import type {
   EnumPropertyOption,
   EnumPropertyValue,
   LocalizedStringValue,
+  MetadataReferenceListValue,
   MetadataTypeValue,
   MultiEnumPropertyValue,
   ObjectPropertyItem,
@@ -719,7 +720,6 @@ const CATALOG_ROOT_META_PROPERTY_KEYS: string[] = [
 ];
 
 const CATALOG_READONLY_COMPLEX_PROPERTIES = new Set([
-  'Owners',
   'InputByString',
   'BasedOn',
   'DataLockFields',
@@ -1220,6 +1220,16 @@ export function buildPropertyItemsForKeys(
 
     const rawSimpleValue = extractSimpleTag(propsInner, key);
 
+    if (key === 'Owners') {
+      items.push({
+        key,
+        title: propertyTitle(key),
+        kind: 'metadataReferenceList',
+        value: buildMetadataReferenceListValue(childrenByTag.get(key) ?? ''),
+      });
+      continue;
+    }
+
     const isKnownBoolean = BOOLEAN_PROPERTY_TAGS.has(key);
     if (isKnownBoolean || isBooleanScalar(rawSimpleValue)) {
       if (!isKnownBoolean && !propsInner.includes(`<${key}>`)) {
@@ -1527,6 +1537,18 @@ function buildRoleOptions(fullConfigXml: string): EnumPropertyOption[] {
 
 function formatReadonlyXmlProperty(key: string, innerXml: string): string {
   return formatXmlPropertyDisplay(key, innerXml);
+}
+
+function buildMetadataReferenceListValue(innerXml: string): MetadataReferenceListValue {
+  return {
+    items: Array.from(innerXml.matchAll(/<xr:Item\b[^>]*>([^<]+)<\/xr:Item>/g))
+      .map((match) => match[1].trim())
+      .filter((value) => value.length > 0)
+      .map((canonical) => ({
+        canonical,
+        display: formatPropertyDisplayValue(canonical),
+      })),
+  };
 }
 
 function getTypedFieldPropertyKeyOrder(elementFullXml: string): string[] {

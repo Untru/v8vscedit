@@ -234,8 +234,8 @@ export class ObjectXmlReader {
       targetName: string;
       tabularSectionName?: string;
       propertyKey: string;
-      valueKind: 'string' | 'boolean' | 'localizedString';
-      value: string | boolean;
+      valueKind: 'string' | 'boolean' | 'localizedString' | 'metadataReferenceList';
+      value: string | boolean | string[];
     }
   ): boolean {
     let xml: string;
@@ -376,8 +376,8 @@ function indentTypeInner(typeInnerXml: string): string {
 function updatePropertyInElement(
   elementXml: string,
   propertyKey: string,
-  valueKind: 'string' | 'boolean' | 'localizedString',
-  value: string | boolean
+  valueKind: 'string' | 'boolean' | 'localizedString' | 'metadataReferenceList',
+  value: string | boolean | string[]
 ): string {
   const propertiesMatch = /<Properties>([\s\S]*?)<\/Properties>/.exec(elementXml);
   if (!propertiesMatch) {
@@ -388,7 +388,7 @@ function updatePropertyInElement(
   const selfClosingRe = new RegExp(`<${propertyKey}(?:\\s[^>]*)?\\/>`);
   const propertyMatch = propertyRe.exec(propsInner);
   const nextValueBlock = propertyMatch && valueKind === 'localizedString'
-    ? updateLocalizedPropertyContent(propertyMatch[0], value)
+    ? updateLocalizedPropertyContent(propertyMatch[0], Array.isArray(value) ? '' : value)
     : buildPropertyValueBlock(propertyKey, valueKind, value);
 
   const nextPropsInner = propertyMatch
@@ -409,11 +409,22 @@ function updatePropertyInElement(
 
 function buildPropertyValueBlock(
   propertyKey: string,
-  valueKind: 'string' | 'boolean' | 'localizedString',
-  value: string | boolean
+  valueKind: 'string' | 'boolean' | 'localizedString' | 'metadataReferenceList',
+  value: string | boolean | string[]
 ): string {
   if (valueKind === 'boolean') {
     return `<${propertyKey}>${value === true ? 'true' : 'false'}</${propertyKey}>`;
+  }
+  if (valueKind === 'metadataReferenceList') {
+    const items = Array.isArray(value) ? value : [];
+    if (items.length === 0) {
+      return `<${propertyKey}/>`;
+    }
+    return [
+      `<${propertyKey}>`,
+      ...items.map((item) => `\t\t\t\t<xr:Item xsi:type="xr:MDObjectRef">${escapeXmlText(item)}</xr:Item>`),
+      `\t\t\t</${propertyKey}>`,
+    ].join('\n');
   }
   if (valueKind === 'localizedString') {
     const content = escapeXmlText(typeof value === 'string' ? value : String(value));

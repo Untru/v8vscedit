@@ -5,6 +5,7 @@ import { getNodeKindLabel, MetadataNode } from '../tree/TreeNode';
 import type {
   EnumPropertyValue,
   LocalizedStringValue,
+  MetadataReferenceListValue,
   MetadataTypeValue,
   MultiEnumPropertyValue,
   ObjectPropertyItem,
@@ -19,7 +20,7 @@ import {
 } from './properties/MetadataTypeService';
 import { buildEventSourceInnerXml } from './properties/EventSubscriptionPropertyService';
 import { toCanonicalPropertyInput } from './properties/PropertyPresentationRegistry';
-import { ConfigurationXmlEditor } from '../../infra/xml';
+import { ConfigurationXmlEditor, parseConfigXml } from '../../infra/xml';
 import { extractChildMetaElementXml, extractColumnXmlFromTabularSection } from '../../infra/xml';
 import type { RepositoryService } from '../../infra/repository/RepositoryService';
 import { type SupportInfoService, SupportMode } from '../../infra/support/SupportInfoService';
@@ -215,6 +216,13 @@ export class PropertiesViewProvider implements vscode.Disposable {
       font-weight: 600;
       padding-top: 0;
     }
+    .property-label-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      min-width: 0;
+    }
     .control {
       min-width: 0;
     }
@@ -306,6 +314,44 @@ export class PropertiesViewProvider implements vscode.Disposable {
     .secondary {
       color: var(--vscode-button-secondaryForeground);
       background: var(--vscode-button-secondaryBackground);
+    }
+    .icon-btn {
+      width: 28px;
+      min-width: 28px;
+      min-height: 28px;
+      padding: 0;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 6px;
+      color: var(--vscode-button-secondaryForeground);
+      background: var(--vscode-button-secondaryBackground);
+    }
+    .reference-list {
+      display: grid;
+      gap: 6px;
+    }
+    .reference-row {
+      position: relative;
+      min-width: 0;
+    }
+    .reference-value {
+      min-height: 34px;
+      box-sizing: border-box;
+      padding: 7px 42px 7px 10px;
+      border: 1px solid var(--vscode-input-border, transparent);
+      border-radius: 6px;
+      color: var(--vscode-input-foreground);
+      background: var(--vscode-input-background);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .reference-remove {
+      position: absolute;
+      top: 50%;
+      right: 4px;
+      transform: translateY(-50%);
     }
     .type-row {
       display: grid;
@@ -699,6 +745,18 @@ export class PropertiesViewProvider implements vscode.Disposable {
   private renderProperty(property: ObjectPropertyItem, isEditLocked: boolean): string {
     const valueHtml = this.renderPropertyValue(property, isEditLocked);
     const noteHtml = this.renderPropertyNote(property);
+    if (property.kind === 'metadataReferenceList') {
+      const disabledAttr = isEditLocked || property.readonly === true ? 'disabled' : '';
+      return `
+        <div class="row">
+          <div class="property-label-row">
+            <label class="label" title="${escapeHtml(property.key)}">${escapeHtml(property.title)}</label>
+            <button class="icon-btn" type="button" title="Добавить владельца" data-reference-add="${escapeHtml(property.key)}" ${disabledAttr}>+</button>
+          </div>
+          <div class="control">${valueHtml}${noteHtml}</div>
+        </div>
+      `;
+    }
     if (property.kind === 'boolean') {
       return `
         <div class="row boolean-row">
@@ -760,6 +818,8 @@ export class PropertiesViewProvider implements vscode.Disposable {
       }
       case 'metadataType':
         return this.renderMetadataTypeControl(property, isEditLocked || property.readonly === true);
+      case 'metadataReferenceList':
+        return this.renderMetadataReferenceList(property, isEditLocked || property.readonly === true);
       case 'string': {
         if (typeof property.value !== 'string') {
           return `<input class="input" data-prop-key="${escapeHtml(property.key)}" data-prop-kind="string" type="text" value="" ${readonlyAttr} />`;
@@ -771,6 +831,24 @@ export class PropertiesViewProvider implements vscode.Disposable {
         return `<input class="input" data-prop-key="${escapeHtml(property.key)}" data-prop-kind="string" type="text" value="${escapeHtml(strVal)}" ${readonlyAttr} />`;
       }
     }
+  }
+
+  private renderMetadataReferenceList(property: ObjectPropertyItem, isLocked: boolean): string {
+    const value = property.value as MetadataReferenceListValue;
+    const disabledAttr = isLocked ? 'disabled' : '';
+    if (value.items.length === 0) {
+      return '<div class="empty">Список пуст.</div>';
+    }
+    return `
+      <div class="reference-list">
+        ${value.items.map((item) => `
+          <div class="reference-row">
+            <div class="reference-value" title="${escapeHtml(item.canonical)}">${escapeHtml(item.display)}</div>
+            <button class="icon-btn reference-remove" type="button" title="Удалить владельца" data-reference-remove="${escapeHtml(property.key)}" data-reference-value="${escapeHtml(item.canonical)}" ${disabledAttr}>x</button>
+          </div>
+        `).join('')}
+      </div>
+    `;
   }
 
   private renderMetadataTypeControl(property: ObjectPropertyItem, isLocked: boolean): string {
@@ -888,6 +966,21 @@ export class PropertiesViewProvider implements vscode.Disposable {
           vscode.postMessage({ type: 'openTypePicker', key, qualifiers: key === 'Type' ? collectQualifiers() : {} });
         });
       });
+      document.querySelectorAll('[data-reference-add]').forEach((button) => {
+        button.addEventListener('click', () => {
+          if (isEditLocked || button.disabled) return;
+          const key = button.getAttribute('data-reference-add') || '';
+          if (key) vscode.postMessage({ type: 'openMetadataReferencePicker', key });
+        });
+      });
+      document.querySelectorAll('[data-reference-remove]').forEach((button) => {
+        button.addEventListener('click', () => {
+          if (isEditLocked || button.disabled) return;
+          const key = button.getAttribute('data-reference-remove') || '';
+          const value = button.getAttribute('data-reference-value') || '';
+          if (key && value) vscode.postMessage({ type: 'removeMetadataReference', key, value });
+        });
+      });
       for (const id of ['qStringLength','qStringAllowedLength','qNumberDigits','qNumberFractionDigits','qNumberAllowedSign','qDateFractions']) {
         const el = document.getElementById(id);
         if (!el) continue;
@@ -986,6 +1079,8 @@ export class PropertiesViewProvider implements vscode.Disposable {
     if (this.isEditLockedByRepository(this.activeNode)) {
       if (
         msg.type === 'openTypePicker' ||
+        msg.type === 'openMetadataReferencePicker' ||
+        msg.type === 'removeMetadataReference' ||
         msg.type === 'updateTypeQualifiers' ||
         msg.type === 'propertyChanged' ||
         msg.type === 'saveSubsystemMembership'
@@ -997,6 +1092,8 @@ export class PropertiesViewProvider implements vscode.Disposable {
     if (this.isEditLockedBySupport(this.activeNode)) {
       if (
         msg.type === 'openTypePicker' ||
+        msg.type === 'openMetadataReferencePicker' ||
+        msg.type === 'removeMetadataReference' ||
         msg.type === 'updateTypeQualifiers' ||
         msg.type === 'propertyChanged' ||
         msg.type === 'saveSubsystemMembership'
@@ -1012,6 +1109,14 @@ export class PropertiesViewProvider implements vscode.Disposable {
         return;
       }
       await this.enqueuePropertyOperation(() => this.handleOpenTypePicker(key));
+      return;
+    }
+    if (msg.type === 'openMetadataReferencePicker') {
+      await this.enqueuePropertyOperation(() => this.handleOpenMetadataReferencePicker(msg.key));
+      return;
+    }
+    if (msg.type === 'removeMetadataReference') {
+      await this.enqueuePropertyOperation(() => this.removeMetadataReference(msg.key, typeof msg.value === 'string' ? msg.value : undefined));
       return;
     }
     if (msg.type === 'invalidName') {
@@ -1098,6 +1203,110 @@ export class PropertiesViewProvider implements vscode.Disposable {
       presentation: nextItems.map((item) => item.display).join(', '),
     });
     this.applyTypeValue(key, nextType);
+  }
+
+  private async handleOpenMetadataReferencePicker(key?: string): Promise<void> {
+    if (!this.activeNode || !key) {
+      return;
+    }
+    const currentProperty = this.activeProperties.find((item) => item.key === key);
+    if (currentProperty?.readonly) {
+      this.showReadonlyPropertyWarning(currentProperty);
+      return;
+    }
+    if (currentProperty?.kind !== 'metadataReferenceList') {
+      void vscode.window.showWarningMessage('Для выбранного свойства список ссылок не поддерживается.');
+      return;
+    }
+    if (key !== 'Owners') {
+      void vscode.window.showWarningMessage('Выбор объектов сейчас поддержан только для владельцев справочника.');
+      return;
+    }
+    const current = currentProperty.value as MetadataReferenceListValue;
+    const selected = new Set(current.items.map((item) => item.canonical));
+    const options = this.getCatalogReferenceOptions()
+      .filter((item) => !selected.has(item.canonical))
+      .map((item) => ({
+        label: item.display,
+        description: item.canonical,
+        canonical: item.canonical,
+      }));
+    if (options.length === 0) {
+      void vscode.window.showInformationMessage('Все доступные справочники уже добавлены во владельцы.');
+      return;
+    }
+    const picked = await vscode.window.showQuickPick(options, {
+      title: 'Добавить владельца',
+      matchOnDescription: true,
+    });
+    if (!picked?.canonical) {
+      return;
+    }
+    this.setMetadataReferenceList(key, [...current.items.map((item) => item.canonical), picked.canonical]);
+  }
+
+  private removeMetadataReference(key?: string, value?: string): void {
+    if (!key || !value) {
+      return;
+    }
+    const currentProperty = this.activeProperties.find((item) => item.key === key);
+    if (currentProperty?.readonly) {
+      this.showReadonlyPropertyWarning(currentProperty);
+      return;
+    }
+    if (currentProperty?.kind !== 'metadataReferenceList') {
+      return;
+    }
+    const current = currentProperty.value as MetadataReferenceListValue;
+    const next = current.items.map((item) => item.canonical).filter((item) => item !== value);
+    if (next.length === current.items.length) {
+      return;
+    }
+    this.setMetadataReferenceList(key, next);
+  }
+
+  private getCatalogReferenceOptions(): { canonical: string; display: string }[] {
+    if (!this.activeNode?.xmlPath) {
+      return [];
+    }
+    try {
+      const location = getObjectLocationFromXml(this.activeNode.xmlPath);
+      const config = parseConfigXml(path.join(location.configRoot, 'Configuration.xml'));
+      return [...(config.childObjects.get('Catalog') ?? [])]
+        .sort((left, right) => left.localeCompare(right, 'ru'))
+        .map((name) => ({
+          canonical: `Catalog.${name}`,
+          display: `Справочники.${name}`,
+        }));
+    } catch {
+      return [];
+    }
+  }
+
+  private setMetadataReferenceList(key: string, values: string[]): void {
+    if (!this.activeNode) {
+      return;
+    }
+    const propertyTarget = resolvePropertyTarget(this.activeNode);
+    if (!propertyTarget) {
+      void vscode.window.showWarningMessage('Для выбранного узла изменение свойств пока не поддерживается.');
+      return;
+    }
+    const saved = this.xmlEditor.modifyObjectProperty(propertyTarget.xmlPath, {
+      targetKind: propertyTarget.targetKind,
+      targetName: propertyTarget.targetName,
+      tabularSectionName: propertyTarget.tabularSectionName,
+      propertyKey: key,
+      valueKind: 'metadataReferenceList',
+      value: values,
+    });
+    if (!saved.success) {
+      void vscode.window.showErrorMessage(saved.errors[0] ?? `Не удалось изменить свойство "${key}".`);
+      return;
+    }
+    if (saved.changed && this.panel) {
+      this.panel.webview.html = this.renderHtml(this.activeNode, this.panel.webview);
+    }
   }
 
   private applyQualifierChanges(qualifiers: Record<string, string>): void {

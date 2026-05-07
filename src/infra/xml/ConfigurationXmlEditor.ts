@@ -5,7 +5,7 @@ import { getObjectLocationFromXml } from '../fs/ObjectLocation';
 import { ObjectXmlReader } from './ObjectXmlReader';
 import { writeTextFilePreservingBomAndEol } from './XmlUtils';
 
-type PropertyValueKind = 'string' | 'boolean' | 'localizedString';
+type PropertyValueKind = 'string' | 'boolean' | 'localizedString' | 'metadataReferenceList';
 type RootPropertyKind = 'scalar' | 'localized' | 'reference' | 'boolean' | 'multiEnum';
 
 export interface EditResult {
@@ -27,7 +27,7 @@ export class ConfigurationXmlEditor {
       tabularSectionName?: string;
       propertyKey: string;
       valueKind: PropertyValueKind;
-      value: string | boolean;
+      value: string | boolean | string[];
     }
   ): EditResult {
     const changed = this.objectReader.updatePropertyInObject(xmlPath, options);
@@ -123,7 +123,7 @@ export class ConfigurationXmlEditor {
     current.sort((a, b) => this.sortChildObjects(a, b));
     const nextInner = this.buildChildObjectsBlock(current, this.detectIndent(childObjects, '\t\t\t'));
     const updatedXml = childObjectsMatch
-      ? xml.replace(childObjects, nextInner)
+      ? xml.replace(childObjectsMatch[0], `<ChildObjects>${nextInner}</ChildObjects>`)
       : selfClosingChildObjectsMatch
         ? xml.replace(selfClosingChildObjectsMatch[0], `<ChildObjects>${nextInner}</ChildObjects>`)
         : xml;

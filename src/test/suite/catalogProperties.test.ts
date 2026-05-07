@@ -2,7 +2,7 @@ import * as assert from 'assert';
 import * as fs from 'fs';
 import * as path from 'path';
 import { buildRootMetaObjectProperties } from '../../ui/views/properties/PropertyBuilder';
-import type { EnumPropertyValue, LocalizedStringValue } from '../../ui/views/properties/_types';
+import type { EnumPropertyValue, LocalizedStringValue, MetadataReferenceListValue } from '../../ui/views/properties/_types';
 
 const EXAMPLE_CFE = path.resolve(process.cwd(), 'example/src/cfe/EVOLC');
 
@@ -23,9 +23,12 @@ suite('Properties — справочник', () => {
 
     const owners = props.find((item) => item.key === 'Owners');
     assert.ok(owners, 'Owners не найден');
-    assert.strictEqual(owners.readonly, true);
+    assert.strictEqual(owners.readonly, false);
     assert.strictEqual(owners.section, 'Владельцы');
-    assert.strictEqual(owners.value, 'Справочники.Контрагенты');
+    assert.strictEqual(owners.kind, 'metadataReferenceList');
+    assert.deepStrictEqual((owners.value as MetadataReferenceListValue).items, [
+      { canonical: 'Catalog.Контрагенты', display: 'Справочники.Контрагенты' },
+    ]);
 
     const codeType = props.find((item) => item.key === 'CodeType');
     assert.ok(codeType, 'CodeType не найден');

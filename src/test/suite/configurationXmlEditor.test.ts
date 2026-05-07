@@ -67,6 +67,48 @@ suite('configurationXmlEditor', () => {
     assert.ok(!saved.includes('<Catalog>Клиенты</Catalog>'));
   });
 
+  test('Изменяет список владельцев справочника', () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'v8vscedit-catalog-'));
+    const catalogPath = path.join(dir, 'Клиенты.xml');
+    fs.writeFileSync(
+      catalogPath,
+      `<?xml version="1.0" encoding="utf-8"?>
+<MetaDataObject>
+  <Catalog>
+    <Properties>
+      <Name>Клиенты</Name>
+      <Owners/>
+      <SubordinationUse>ToItems</SubordinationUse>
+    </Properties>
+  </Catalog>
+</MetaDataObject>`,
+      'utf-8'
+    );
+    const editor = new ConfigurationXmlEditor();
+    const addRes = editor.modifyObjectProperty(catalogPath, {
+      targetKind: 'Self',
+      targetName: 'Клиенты',
+      propertyKey: 'Owners',
+      valueKind: 'metadataReferenceList',
+      value: ['Catalog.Контрагенты', 'Catalog.Партнеры'],
+    });
+    assert.strictEqual(addRes.success, true);
+    let saved = fs.readFileSync(catalogPath, 'utf-8');
+    assert.ok(saved.includes('<xr:Item xsi:type="xr:MDObjectRef">Catalog.Контрагенты</xr:Item>'));
+    assert.ok(saved.includes('<xr:Item xsi:type="xr:MDObjectRef">Catalog.Партнеры</xr:Item>'));
+
+    const removeRes = editor.modifyObjectProperty(catalogPath, {
+      targetKind: 'Self',
+      targetName: 'Клиенты',
+      propertyKey: 'Owners',
+      valueKind: 'metadataReferenceList',
+      value: [],
+    });
+    assert.strictEqual(removeRes.success, true);
+    saved = fs.readFileSync(catalogPath, 'utf-8');
+    assert.ok(saved.includes('<Owners/>'));
+  });
+
   test('Переименовывает корневой объект и обновляет Configuration.xml', () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'v8vscedit-cfg-'));
     const catalogs = path.join(dir, 'Catalogs');

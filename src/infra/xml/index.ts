@@ -74,8 +74,8 @@ export function updateObjectProperty(
     targetName: string;
     tabularSectionName?: string;
     propertyKey: string;
-    valueKind: 'string' | 'boolean' | 'localizedString';
-    value: string | boolean;
+    valueKind: 'string' | 'boolean' | 'localizedString' | 'metadataReferenceList';
+    value: string | boolean | string[];
   }
 ): boolean {
   return objectReader.updatePropertyInObject(xmlPath, options);

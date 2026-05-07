@@ -9,6 +9,8 @@ export type {
   PropertyValueKind,
   MetadataTypeValue,
   MetadataTypeItem,
+  MetadataReferenceListItem,
+  MetadataReferenceListValue,
   MetadataStringQualifiers,
   MetadataNumberQualifiers,
   MetadataDateQualifiers,
