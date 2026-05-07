@@ -117,7 +117,6 @@ export class Container {
     );
     this.subsystemXmlService = new SubsystemXmlService();
     this.propertiesProvider = new PropertiesViewProvider(
-      context.extensionUri,
       this.subsystemXmlService,
       this.supportService,
       this.repositoryService,

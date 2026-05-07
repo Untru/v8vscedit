@@ -46,7 +46,6 @@ export class PropertiesViewProvider implements vscode.Disposable {
   private readonly typeRegistry = new TypeRegistryService();
   private readonly xmlEditor = new ConfigurationXmlEditor();
   constructor(
-    private readonly extensionUri: vscode.Uri,
     private readonly subsystemXmlService: SubsystemXmlService,
     private readonly supportService?: SupportInfoService,
     private readonly repositoryService?: RepositoryService,
@@ -64,7 +63,7 @@ export class PropertiesViewProvider implements vscode.Disposable {
     this.activeNode = node;
     if (this.panel) {
       this.panel.title = this.buildTitle(node);
-      this.panel.webview.html = this.renderHtml(node, this.panel.webview);
+      this.panel.webview.html = this.renderHtml(node);
       this.panel.reveal(this.panel.viewColumn ?? vscode.ViewColumn.Active, false);
     } else {
       this.panel = vscode.window.createWebviewPanel(
@@ -73,7 +72,7 @@ export class PropertiesViewProvider implements vscode.Disposable {
         { viewColumn: vscode.ViewColumn.Active, preserveFocus: false },
         { enableScripts: true, retainContextWhenHidden: true }
       );
-      this.panel.webview.html = this.renderHtml(node, this.panel.webview);
+      this.panel.webview.html = this.renderHtml(node);
       this.panel.webview.onDidReceiveMessage((msg) => this.handleWebviewMessage(msg));
       this.panel.onDidDispose(() => {
         this.panel = undefined;
@@ -93,8 +92,8 @@ export class PropertiesViewProvider implements vscode.Disposable {
   }
 
   /** Формирует HTML страницы */
-  private renderHtml(node: MetadataNode, webview: vscode.Webview): string {
-    const content = this.renderBody(node, webview);
+  private renderHtml(node: MetadataNode): string {
+    const content = this.renderBody(node);
 
     return `<!DOCTYPE html>
 <html lang="ru">
@@ -141,8 +140,7 @@ export class PropertiesViewProvider implements vscode.Disposable {
     .subtitle,
     .message,
     .property-note,
-    .counter,
-    .save-status {
+    .counter {
       color: var(--vscode-descriptionForeground);
       line-height: 1.45;
     }
@@ -204,6 +202,13 @@ export class PropertiesViewProvider implements vscode.Disposable {
       background: var(--vscode-sideBar-background);
       transform: translateY(-50%);
       z-index: -1;
+    }
+    .section-header-action {
+      position: absolute;
+      top: -12px;
+      right: 22px;
+      z-index: 2;
+      box-shadow: 0 0 0 4px var(--vscode-sideBar-background);
     }
     .form-row,
     .row {
@@ -316,16 +321,20 @@ export class PropertiesViewProvider implements vscode.Disposable {
       background: var(--vscode-button-secondaryBackground);
     }
     .icon-btn {
-      width: 28px;
-      min-width: 28px;
-      min-height: 28px;
+      width: 24px;
+      height: 24px;
+      min-width: 24px;
+      min-height: 24px;
       padding: 0;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
+      display: inline-grid;
+      place-items: center;
+      border: 1px solid var(--vscode-input-border, var(--vscode-panel-border, transparent));
       border-radius: 6px;
-      color: var(--vscode-button-secondaryForeground);
-      background: var(--vscode-button-secondaryBackground);
+      color: var(--vscode-input-foreground);
+      background: var(--vscode-input-background);
+      font-size: 15px;
+      font-weight: 600;
+      line-height: 1;
     }
     .reference-list {
       display: grid;
@@ -338,7 +347,7 @@ export class PropertiesViewProvider implements vscode.Disposable {
     .reference-value {
       min-height: 34px;
       box-sizing: border-box;
-      padding: 7px 42px 7px 10px;
+      padding: 7px 36px 7px 10px;
       border: 1px solid var(--vscode-input-border, transparent);
       border-radius: 6px;
       color: var(--vscode-input-foreground);
@@ -350,7 +359,7 @@ export class PropertiesViewProvider implements vscode.Disposable {
     .reference-remove {
       position: absolute;
       top: 50%;
-      right: 4px;
+      right: 6px;
       transform: translateY(-50%);
     }
     .type-row {
@@ -365,103 +374,6 @@ export class PropertiesViewProvider implements vscode.Disposable {
       grid-template-columns: repeat(4, minmax(0, 1fr));
       gap: 8px;
       align-items: center;
-    }
-    .subsystem-toolbar {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: 12px;
-      margin-bottom: 8px;
-      color: var(--vscode-descriptionForeground);
-      font-size: 12px;
-    }
-    .tree-box {
-      box-sizing: border-box;
-      width: 100%;
-      min-width: 0;
-      height: 280px;
-      overflow: auto;
-      padding: 3px;
-      border: 1px solid var(--vscode-input-border, var(--vscode-panel-border, transparent));
-      border-radius: 6px;
-      background: var(--vscode-input-background);
-    }
-    .subsystem-tree,
-    .tree-box {
-      display: flex;
-      flex-direction: column;
-    }
-    .subsystem-node {
-      min-width: 0;
-    }
-    .subsystem-node summary {
-      display: block;
-      list-style: none;
-    }
-    .subsystem-node summary::-webkit-details-marker {
-      display: none;
-    }
-    .subsystem-line {
-      display: flex;
-      align-items: center;
-      gap: 4px;
-      min-width: 0;
-      min-height: 21px;
-      padding: 0 2px;
-      border-radius: 6px;
-      user-select: none;
-    }
-    .subsystem-line:hover {
-      background: var(--vscode-list-hoverBackground);
-    }
-    .subsystem-children {
-      display: grid;
-      margin-left: 18px;
-    }
-    .tree-toggle {
-      width: 12px;
-      height: 14px;
-      flex: 0 0 12px;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-    }
-    .tree-toggle::before {
-      content: "";
-      width: 5px;
-      height: 5px;
-      border: solid var(--vscode-descriptionForeground);
-      border-width: 0 1.5px 1.5px 0;
-      transform: rotate(-45deg);
-      transition: transform 80ms ease;
-    }
-    details[open] > summary .tree-toggle::before {
-      transform: rotate(45deg);
-    }
-    .tree-toggle.tree-toggle-empty::before {
-      content: "";
-      border: 0;
-    }
-    .tree-icon {
-      width: 14px;
-      height: 14px;
-      flex: 0 0 14px;
-    }
-    .subsystem-label {
-      min-width: 0;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }
-    .subsystem-save-row {
-      margin-top: 8px;
-      display: flex;
-      justify-content: flex-end;
-      gap: 8px;
-      align-items: center;
-    }
-    .save-status {
-      font-size: 12px;
     }
     .empty {
       padding: 12px;
@@ -482,9 +394,6 @@ export class PropertiesViewProvider implements vscode.Disposable {
       .section-column {
         display: contents;
       }
-      .tree-box {
-        height: 240px;
-      }
     }
   </style>
 </head>
@@ -495,7 +404,7 @@ export class PropertiesViewProvider implements vscode.Disposable {
   }
 
   /** Формирует содержимое страницы */
-  private renderBody(node: MetadataNode, webview: vscode.Webview): string {
+  private renderBody(node: MetadataNode): string {
     const handler = getHandlerForNode(node);
     const canShowProperties = handler?.canShowProperties?.(node) ?? false;
 
@@ -524,7 +433,7 @@ export class PropertiesViewProvider implements vscode.Disposable {
 
     const header = this.renderHeaderCard(node, isEditLockedBySupport, isEditLockedByRepository);
     const subsystemSection = subsystemSnapshot
-      ? [this.renderSubsystemMembershipSection(subsystemSnapshot, webview, isEditLocked)]
+      ? [this.renderSubsystemMembershipSection(subsystemSnapshot, isEditLocked)]
       : [];
     return `
       <div class="layout">
@@ -535,7 +444,7 @@ export class PropertiesViewProvider implements vscode.Disposable {
           </section>
         </main>
       </div>
-      <script>${this.renderScript(isEditLocked, Boolean(subsystemSnapshot))}</script>
+      <script>${this.renderScript(isEditLocked)}</script>
     `;
   }
 
@@ -641,17 +550,17 @@ export class PropertiesViewProvider implements vscode.Disposable {
 
   private renderSubsystemMembershipSection(
     snapshot: SubsystemMembershipSnapshot,
-    webview: vscode.Webview,
     isEditLocked: boolean
   ): RenderedPropertySection {
+    const disabledAttr = isEditLocked || snapshot.tree.length === 0 ? 'disabled' : '';
     return {
       order: 20,
       html: `
         <section class="property-section">
           <h2 class="section-title">Подсистемы</h2>
-          <p class="subtitle">Связь объекта с разделами командного интерфейса</p>
+          <button class="icon-btn section-header-action" type="button" title="Добавить подсистему" data-subsystem-add ${disabledAttr}>+</button>
           ${isEditLocked ? '<p class="subtitle">Редактирование запрещено текущим состоянием поддержки или хранилища.</p>' : ''}
-          ${this.renderSubsystemMembershipComponent(snapshot, webview, isEditLocked)}
+          ${this.renderSubsystemMembershipComponent(snapshot, isEditLocked)}
         </section>
       `,
     };
@@ -659,66 +568,25 @@ export class PropertiesViewProvider implements vscode.Disposable {
 
   private renderSubsystemMembershipComponent(
     snapshot: SubsystemMembershipSnapshot,
-    webview: vscode.Webview,
-    isEditLocked: boolean
-  ): string {
-    const selectedCount = snapshot.selectedXmlPaths.length;
-    const treeHtml = snapshot.tree.length === 0
-      ? '<div class="empty">В конфигурации нет подсистем.</div>'
-      : `<div class="tree-box subsystem-tree">${snapshot.tree.map((node) => this.renderSubsystemMembershipNode(node, webview, isEditLocked)).join('')}</div>`;
-    const disabledAttr = isEditLocked || snapshot.tree.length === 0 ? 'disabled' : '';
-
-    return `
-      <div class="subsystem-toolbar">
-        <span>Выбрано подсистем: <span id="selectedSubsystemCount">${String(selectedCount)}</span></span>
-      </div>
-      ${treeHtml}
-      <div class="subsystem-save-row">
-        <span class="save-status" id="subsystemSaveStatus"></span>
-        <button class="primary" id="saveSubsystemsBtn" type="button" ${disabledAttr}>Сохранить</button>
-      </div>
-    `;
-  }
-
-  private renderSubsystemMembershipNode(
-    node: SubsystemMembershipTreeNode,
-    webview: vscode.Webview,
     isEditLocked: boolean
   ): string {
     const disabledAttr = isEditLocked ? 'disabled' : '';
-    const checkedAttr = node.checked ? 'checked' : '';
-    const checkbox = `<input class="checkbox subsystem-checkbox" type="checkbox" data-subsystem-path="${escapeHtml(node.xmlPath)}" ${checkedAttr} ${disabledAttr}>`;
-    const line = `
-      <span class="subsystem-line">
-        <span class="tree-toggle ${node.children.length === 0 ? 'tree-toggle-empty' : ''}" aria-hidden="true"></span>
-        ${checkbox}
-        ${this.renderSubsystemIcon(webview)}
-        <span class="subsystem-label" title="${escapeHtml(node.name)}">${escapeHtml(node.label)}</span>
-      </span>
-    `;
-
-    if (node.children.length === 0) {
-      return `<div class="subsystem-node">${line}</div>`;
+    if (snapshot.tree.length === 0) {
+      return '<div class="empty">В конфигурации нет подсистем.</div>';
     }
-
+    const selected = this.flattenSubsystemMembershipTree(snapshot.tree).filter((node) => node.checked);
+    if (selected.length === 0) {
+      return '<div class="empty">Объект не входит ни в одну подсистему.</div>';
+    }
     return `
-      <details class="subsystem-node" open>
-        <summary>${line}</summary>
-        <div class="subsystem-children">
-          ${node.children.map((child) => this.renderSubsystemMembershipNode(child, webview, isEditLocked)).join('')}
-        </div>
-      </details>
-    `;
-  }
-
-  private renderSubsystemIcon(webview: vscode.Webview): string {
-    const lightUri = webview.asWebviewUri(vscode.Uri.joinPath(this.extensionUri, 'src', 'icons', 'light', 'subsystem.svg'));
-    const darkUri = webview.asWebviewUri(vscode.Uri.joinPath(this.extensionUri, 'src', 'icons', 'dark', 'subsystem.svg'));
-    return `
-      <picture>
-        <source srcset="${String(lightUri)}" media="(prefers-color-scheme: light)">
-        <img class="tree-icon" src="${String(darkUri)}" alt="">
-      </picture>
+      <div class="reference-list">
+        ${selected.map((node) => `
+          <div class="reference-row">
+            <div class="reference-value" title="${escapeHtml(node.name)}">${escapeHtml(node.label)}</div>
+            <button class="icon-btn reference-remove" type="button" title="Убрать из подсистемы" data-subsystem-remove="${escapeHtml(node.xmlPath)}" ${disabledAttr}>×</button>
+          </div>
+        `).join('')}
+      </div>
     `;
   }
 
@@ -844,7 +712,7 @@ export class PropertiesViewProvider implements vscode.Disposable {
         ${value.items.map((item) => `
           <div class="reference-row">
             <div class="reference-value" title="${escapeHtml(item.canonical)}">${escapeHtml(item.display)}</div>
-            <button class="icon-btn reference-remove" type="button" title="Удалить владельца" data-reference-remove="${escapeHtml(property.key)}" data-reference-value="${escapeHtml(item.canonical)}" ${disabledAttr}>x</button>
+            <button class="icon-btn reference-remove" type="button" title="Удалить владельца" data-reference-remove="${escapeHtml(property.key)}" data-reference-value="${escapeHtml(item.canonical)}" ${disabledAttr}>×</button>
           </div>
         `).join('')}
       </div>
@@ -920,11 +788,10 @@ export class PropertiesViewProvider implements vscode.Disposable {
     return '';
   }
 
-  private renderScript(isEditLocked: boolean, hasSubsystemMembership: boolean): string {
+  private renderScript(isEditLocked: boolean): string {
     return `
       const vscode = acquireVsCodeApi();
       const isEditLocked = ${isEditLocked ? 'true' : 'false'};
-      const hasSubsystemMembership = ${hasSubsystemMembership ? 'true' : 'false'};
       const isValidMetadataName = (value) => /^[\\p{L}][\\p{L}\\p{Nd}_]*$/u.test(value);
       const lastValidByKey = new Map();
       const submitOnEnter = (el, key, kind) => {
@@ -981,6 +848,19 @@ export class PropertiesViewProvider implements vscode.Disposable {
           if (key && value) vscode.postMessage({ type: 'removeMetadataReference', key, value });
         });
       });
+      document.querySelectorAll('[data-subsystem-add]').forEach((button) => {
+        button.addEventListener('click', () => {
+          if (isEditLocked || button.disabled) return;
+          vscode.postMessage({ type: 'openSubsystemMembershipPicker' });
+        });
+      });
+      document.querySelectorAll('[data-subsystem-remove]').forEach((button) => {
+        button.addEventListener('click', () => {
+          if (isEditLocked || button.disabled) return;
+          const value = button.getAttribute('data-subsystem-remove') || '';
+          if (value) vscode.postMessage({ type: 'removeSubsystemMembership', value });
+        });
+      });
       for (const id of ['qStringLength','qStringAllowedLength','qNumberDigits','qNumberFractionDigits','qNumberAllowedSign','qDateFractions']) {
         const el = document.getElementById(id);
         if (!el) continue;
@@ -1028,38 +908,6 @@ export class PropertiesViewProvider implements vscode.Disposable {
           postPropertyChange(el, key, kind);
         });
       });
-      if (hasSubsystemMembership) {
-        const saveSubsystemsBtn = document.getElementById('saveSubsystemsBtn');
-        const selectedSubsystemCount = document.getElementById('selectedSubsystemCount');
-        const subsystemSaveStatus = document.getElementById('subsystemSaveStatus');
-        const subsystemCheckboxes = Array.from(document.querySelectorAll('.subsystem-checkbox'));
-        let subsystemDirty = false;
-        const updateSubsystemState = () => {
-          const selected = subsystemCheckboxes.filter((item) => Boolean(item.checked)).length;
-          if (selectedSubsystemCount) selectedSubsystemCount.textContent = String(selected);
-          if (saveSubsystemsBtn && !isEditLocked) saveSubsystemsBtn.disabled = subsystemCheckboxes.length === 0 || !subsystemDirty;
-          if (subsystemSaveStatus) subsystemSaveStatus.textContent = subsystemDirty ? 'Есть несохраненные изменения' : '';
-        };
-        subsystemCheckboxes.forEach((checkbox) => {
-          checkbox.addEventListener('click', (event) => event.stopPropagation());
-          checkbox.addEventListener('change', () => {
-            if (isEditLocked) return;
-            subsystemDirty = true;
-            updateSubsystemState();
-          });
-        });
-        updateSubsystemState();
-        saveSubsystemsBtn?.addEventListener('click', () => {
-          if (isEditLocked || !subsystemDirty) return;
-          const selectedXmlPaths = subsystemCheckboxes
-            .filter((item) => Boolean(item.checked))
-            .map((item) => String(item.getAttribute('data-subsystem-path') ?? ''))
-            .filter(Boolean);
-          saveSubsystemsBtn.disabled = true;
-          if (subsystemSaveStatus) subsystemSaveStatus.textContent = 'Сохраняю...';
-          vscode.postMessage({ type: 'saveSubsystemMembership', selectedXmlPaths });
-        });
-      }
     `;
   }
 
@@ -1081,9 +929,10 @@ export class PropertiesViewProvider implements vscode.Disposable {
         msg.type === 'openTypePicker' ||
         msg.type === 'openMetadataReferencePicker' ||
         msg.type === 'removeMetadataReference' ||
+        msg.type === 'openSubsystemMembershipPicker' ||
+        msg.type === 'removeSubsystemMembership' ||
         msg.type === 'updateTypeQualifiers' ||
-        msg.type === 'propertyChanged' ||
-        msg.type === 'saveSubsystemMembership'
+        msg.type === 'propertyChanged'
       ) {
         void vscode.window.showWarningMessage('Редактирование свойств запрещено: объект не захвачен в хранилище.');
       }
@@ -1094,9 +943,10 @@ export class PropertiesViewProvider implements vscode.Disposable {
         msg.type === 'openTypePicker' ||
         msg.type === 'openMetadataReferencePicker' ||
         msg.type === 'removeMetadataReference' ||
+        msg.type === 'openSubsystemMembershipPicker' ||
+        msg.type === 'removeSubsystemMembership' ||
         msg.type === 'updateTypeQualifiers' ||
-        msg.type === 'propertyChanged' ||
-        msg.type === 'saveSubsystemMembership'
+        msg.type === 'propertyChanged'
       ) {
         void vscode.window.showWarningMessage('Редактирование свойств запрещено поддержкой для этого объекта.');
       }
@@ -1119,6 +969,14 @@ export class PropertiesViewProvider implements vscode.Disposable {
       await this.enqueuePropertyOperation(() => this.removeMetadataReference(msg.key, typeof msg.value === 'string' ? msg.value : undefined));
       return;
     }
+    if (msg.type === 'openSubsystemMembershipPicker') {
+      await this.enqueuePropertyOperation(() => this.handleOpenSubsystemMembershipPicker());
+      return;
+    }
+    if (msg.type === 'removeSubsystemMembership') {
+      await this.enqueuePropertyOperation(() => this.removeSubsystemMembership(typeof msg.value === 'string' ? msg.value : undefined));
+      return;
+    }
     if (msg.type === 'invalidName') {
       void vscode.window.showErrorMessage('Имя должно начинаться с буквы и содержать только буквы, цифры и "_".');
       return;
@@ -1139,9 +997,6 @@ export class PropertiesViewProvider implements vscode.Disposable {
       }
       await this.enqueuePropertyOperation(() => this.applyPropertyChange(msg.key, msg.value));
       return;
-    }
-    if (msg.type === 'saveSubsystemMembership') {
-      await this.enqueuePropertyOperation(() => this.applySubsystemMembershipChange(msg.selectedXmlPaths ?? []));
     }
   }
 
@@ -1305,8 +1160,50 @@ export class PropertiesViewProvider implements vscode.Disposable {
       return;
     }
     if (saved.changed && this.panel) {
-      this.panel.webview.html = this.renderHtml(this.activeNode, this.panel.webview);
+      this.panel.webview.html = this.renderHtml(this.activeNode);
     }
+  }
+
+  private async handleOpenSubsystemMembershipPicker(): Promise<void> {
+    if (!this.activeNode) {
+      return;
+    }
+    const snapshot = this.resolveSubsystemMembershipSnapshot(this.activeNode);
+    if (!snapshot) {
+      void vscode.window.showWarningMessage('Связь с подсистемами доступна только для корневых объектов метаданных.');
+      return;
+    }
+    const selected = new Set(snapshot.selectedXmlPaths);
+    const options = this.flattenSubsystemMembershipTree(snapshot.tree)
+      .filter((node) => !selected.has(node.xmlPath))
+      .map((node) => ({
+        label: node.label,
+        description: node.name,
+        xmlPath: node.xmlPath,
+      }));
+    if (options.length === 0) {
+      void vscode.window.showInformationMessage('Объект уже включен во все доступные подсистемы.');
+      return;
+    }
+    const picked = await vscode.window.showQuickPick(options, {
+      title: 'Добавить подсистему',
+      matchOnDescription: true,
+    });
+    if (!picked?.xmlPath) {
+      return;
+    }
+    this.applySubsystemMembershipChange([...snapshot.selectedXmlPaths, picked.xmlPath]);
+  }
+
+  private removeSubsystemMembership(xmlPath: string | undefined): void {
+    if (!this.activeNode || !xmlPath) {
+      return;
+    }
+    const snapshot = this.resolveSubsystemMembershipSnapshot(this.activeNode);
+    if (!snapshot) {
+      return;
+    }
+    this.applySubsystemMembershipChange(snapshot.selectedXmlPaths.filter((item) => item !== xmlPath));
   }
 
   private applyQualifierChanges(qualifiers: Record<string, string>): void {
@@ -1372,7 +1269,7 @@ export class PropertiesViewProvider implements vscode.Disposable {
       return;
     }
     if (this.panel) {
-      this.panel.webview.html = this.renderHtml(this.activeNode, this.panel.webview);
+      this.panel.webview.html = this.renderHtml(this.activeNode);
     }
   }
 
@@ -1458,7 +1355,7 @@ export class PropertiesViewProvider implements vscode.Disposable {
       return;
     }
     if (saved.changed && this.panel) {
-      this.panel.webview.html = this.renderHtml(this.activeNode, this.panel.webview);
+      this.panel.webview.html = this.renderHtml(this.activeNode);
     }
   }
 
@@ -1492,11 +1389,11 @@ export class PropertiesViewProvider implements vscode.Disposable {
       return;
     }
     if (saved.changed && this.panel) {
-      this.panel.webview.html = this.renderHtml(this.activeNode, this.panel.webview);
+      this.panel.webview.html = this.renderHtml(this.activeNode);
     }
   }
 
-  private applySubsystemMembershipChange(selectedXmlPaths: string[]): void {
+  private applySubsystemMembershipChange(selectedXmlPaths: string[], showMessage = false): void {
     if (!this.activeNode?.xmlPath) {
       return;
     }
@@ -1512,11 +1409,25 @@ export class PropertiesViewProvider implements vscode.Disposable {
       this.onAfterSubsystemMembershipSave?.();
     }
     if (this.panel) {
-      this.panel.webview.html = this.renderHtml(this.activeNode, this.panel.webview);
+      this.panel.webview.html = this.renderHtml(this.activeNode);
     }
-    void vscode.window.showInformationMessage(changed
-      ? 'Состав подсистем для объекта сохранен.'
-      : 'Состав подсистем не изменился.');
+    if (showMessage) {
+      void vscode.window.showInformationMessage(changed
+        ? 'Состав подсистем для объекта сохранен.'
+        : 'Состав подсистем не изменился.');
+    }
+  }
+
+  private flattenSubsystemMembershipTree(tree: SubsystemMembershipTreeNode[]): SubsystemMembershipTreeNode[] {
+    const result: SubsystemMembershipTreeNode[] = [];
+    const walk = (nodes: SubsystemMembershipTreeNode[]): void => {
+      for (const node of nodes) {
+        result.push(node);
+        walk(node.children);
+      }
+    };
+    walk(tree);
+    return result;
   }
 
   private isConfigurationRootNode(node: MetadataNode): boolean {
@@ -1619,7 +1530,7 @@ export class PropertiesViewProvider implements vscode.Disposable {
     this.activeProperties = [];
     if (this.panel) {
       this.panel.title = this.buildTitle(this.activeNode);
-      this.panel.webview.html = this.renderHtml(this.activeNode, this.panel.webview);
+      this.panel.webview.html = this.renderHtml(this.activeNode);
     }
     void vscode.window.showInformationMessage('Объект успешно переименован.');
 
