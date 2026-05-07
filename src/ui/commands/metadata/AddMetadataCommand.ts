@@ -4,6 +4,7 @@ import type { ChildTag } from '../../../domain/ChildTag';
 import { getMetaLabel } from '../../../domain/MetaTypes';
 import { updateMetadataCacheAfterAdd } from '../../../infra/cache/MetadataCache';
 import { getObjectLocationFromXml } from '../../../infra/fs/MetaPathResolver';
+import type { TemplateType } from '../../../infra/xml';
 import type { AddMetadataTarget, MetadataNode } from '../../tree/TreeNode';
 import type { CommandServices } from '../_shared';
 
@@ -42,18 +43,24 @@ async function addMetadata(node: MetadataNode | undefined, services: CommandServ
   if (!name) {
     return;
   }
+  const templateType = await promptTemplateType(target);
+  if (templateType === undefined && isTemplateTarget(target)) {
+    return;
+  }
 
   const result = target.kind === 'root'
     ? services.metadataXmlCreator.addRootObject({
       configRoot: target.configRoot,
       kind: target.targetKind,
       name,
+      templateType,
     })
     : services.metadataXmlCreator.addChildElement({
       ownerObjectXmlPath: target.ownerObjectXmlPath,
       childTag: target.childTag,
       name,
       tabularSectionName: target.tabularSectionName,
+      templateType,
     });
 
   if (!result.success) {
@@ -92,6 +99,37 @@ async function addMetadata(node: MetadataNode | undefined, services: CommandServ
   services.markChangedConfigurationByFiles(result.changedFiles);
   services.refreshActionsView();
   void vscode.window.showInformationMessage(`Метаданные "${name}" добавлены.`);
+}
+
+interface TemplateTypePick extends vscode.QuickPickItem {
+  readonly value: TemplateType;
+}
+
+const TEMPLATE_TYPE_PICKS: readonly TemplateTypePick[] = [
+  { value: 'SpreadsheetDocument', label: 'Табличный документ', description: 'Template.xml' },
+  { value: 'DataCompositionSchema', label: 'Схема компоновки данных', description: 'Template.xml' },
+  { value: 'TextDocument', label: 'Текстовый документ', description: 'Template.txt' },
+  { value: 'HTMLDocument', label: 'HTML-документ', description: 'Template.xml + ru.html' },
+  { value: 'BinaryData', label: 'Двоичные данные', description: 'Template.bin' },
+  { value: 'DataCompositionAppearanceTemplate', label: 'Шаблон оформления компоновки данных', description: 'Template.xml' },
+  { value: 'GraphicalSchema', label: 'Графическая схема', description: 'Template.xml' },
+  { value: 'AddIn', label: 'Внешняя компонента', description: 'Template.bin' },
+];
+
+async function promptTemplateType(target: AddMetadataTarget): Promise<TemplateType | undefined> {
+  if (!isTemplateTarget(target)) {
+    return undefined;
+  }
+  const picked = await vscode.window.showQuickPick(TEMPLATE_TYPE_PICKS, {
+    title: 'Тип макета',
+    placeHolder: 'Выберите тип создаваемого макета',
+  });
+  return picked?.value;
+}
+
+function isTemplateTarget(target: AddMetadataTarget): boolean {
+  return (target.kind === 'child' && target.childTag === 'Template')
+    || (target.kind === 'root' && target.targetKind === 'CommonTemplate');
 }
 
 async function promptName(target: AddMetadataTarget): Promise<string | undefined> {

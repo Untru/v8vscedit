@@ -6,6 +6,7 @@ import { registerExtensionCommands } from './ext/ExtensionCommands';
 import { registerAddMetadataCommand } from './metadata/AddMetadataCommand';
 import { registerRemoveMetadataCommand } from './metadata/RemoveMetadataCommand';
 import { registerOpenModuleCommands } from './open/OpenModuleCommand';
+import { registerOpenTemplateContentCommand } from './open/OpenTemplateContentCommand';
 import { registerOpenXmlCommand } from './open/OpenXmlCommand';
 import { registerShowPropertiesCommand } from './properties/ShowPropertiesCommand';
 import { registerInitializeProjectCommand } from './project/InitializeProjectCommand';
@@ -28,6 +29,7 @@ export function registerCommands(
   );
 
   registerOpenXmlCommand(context, services);
+  registerOpenTemplateContentCommand(context, services);
   registerBorrowToExtensionCommand(context, services);
   registerOpenModuleCommands(context, services);
   registerShowPropertiesCommand(context, services);

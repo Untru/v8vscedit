@@ -306,6 +306,24 @@ export class Container {
       false,
       false
     );
+    const textTemplateWatcher = vscode.workspace.createFileSystemWatcher(
+      new vscode.RelativePattern(this.workspaceFolder, '**/Ext/Template.txt'),
+      false,
+      false,
+      false
+    );
+    const binaryTemplateWatcher = vscode.workspace.createFileSystemWatcher(
+      new vscode.RelativePattern(this.workspaceFolder, '**/Ext/Template.bin'),
+      false,
+      false,
+      false
+    );
+    const htmlTemplateWatcher = vscode.workspace.createFileSystemWatcher(
+      new vscode.RelativePattern(this.workspaceFolder, '**/Ext/Template/*.html'),
+      false,
+      false,
+      false
+    );
 
     const onSourceChange = (uri: vscode.Uri) => {
       this.scheduleChangedConfigurationStateRefresh(uri);
@@ -315,7 +333,7 @@ export class Container {
         this.scheduleDecorationRefresh();
       }
     };
-    for (const watcher of [xmlWatcher, bslWatcher]) {
+    for (const watcher of [xmlWatcher, bslWatcher, textTemplateWatcher, binaryTemplateWatcher, htmlTemplateWatcher]) {
       watcher.onDidCreate((uri) => onSourceChange(uri), null, this.context.subscriptions);
       watcher.onDidDelete((uri) => onSourceChange(uri), null, this.context.subscriptions);
       watcher.onDidChange((uri) => onSourceChange(uri), null, this.context.subscriptions);

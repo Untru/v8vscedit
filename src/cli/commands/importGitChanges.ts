@@ -9,6 +9,7 @@ import {
   collectCurrentHashes,
   diffHashSnapshots,
   isSupportedConfigFile,
+  isTemplateContentConfigFile,
   loadHashCache,
   patchHashSnapshot,
   saveHashCache,
@@ -131,15 +132,24 @@ export function collectConfigFiles(configDir: string, changedFiles: string[], in
       continue;
     }
 
-    const fullPath = path.join(configDir, normalized);
     if (normalized.endsWith('.xml')) {
+      const fullPath = path.join(configDir, normalized);
       if ((includeMissingFiles || fs.existsSync(fullPath)) && !configFiles.includes(normalized)) {
         configFiles.push(normalized);
       }
       continue;
     }
 
-    const objectXml = getObjectXmlFromBsl(normalized);
+    if (isTemplateContentConfigFile(normalized)) {
+      addTemplateContentLoadFiles(configDir, normalized, includeMissingFiles, configFiles);
+      continue;
+    }
+
+    if (!normalized.endsWith('.bsl')) {
+      continue;
+    }
+
+    const objectXml = resolveObjectXmlFromBsl(configDir, normalized, includeMissingFiles);
     if (!objectXml) {
       continue;
     }
@@ -173,12 +183,82 @@ export function collectConfigFiles(configDir: string, changedFiles: string[], in
   return configFiles;
 }
 
-function getObjectXmlFromBsl(relativePath: string): string | null {
-  const parts = relativePath.split(/[\\/]/);
-  if (parts.length >= 2) {
-    return `${parts[0]}/${parts[1]}.xml`;
+function addTemplateContentLoadFiles(
+  configDir: string,
+  relativePath: string,
+  includeMissingFiles: boolean,
+  configFiles: string[]
+): void {
+  const templateXml = resolveTemplateXmlFromContent(configDir, relativePath, includeMissingFiles);
+  if (templateXml && !configFiles.includes(templateXml)) {
+    configFiles.push(templateXml);
   }
-  return null;
+
+  const ownerXml = resolveOwnerXmlFromNestedTemplate(relativePath);
+  if (ownerXml) {
+    const ownerXmlFullPath = path.join(configDir, ownerXml);
+    if ((includeMissingFiles || fs.existsSync(ownerXmlFullPath)) && !configFiles.includes(ownerXml)) {
+      configFiles.push(ownerXml);
+    }
+  }
+
+  const contentFullPath = path.join(configDir, relativePath);
+  if ((includeMissingFiles || fs.existsSync(contentFullPath)) && !configFiles.includes(relativePath)) {
+    configFiles.push(relativePath);
+  }
+}
+
+function resolveTemplateXmlFromContent(
+  configDir: string,
+  relativePath: string,
+  includeMissingFiles: boolean
+): string | null {
+  const parts = relativePath.split('/');
+  const extIndex = parts.indexOf('Ext');
+  if (extIndex <= 1) {
+    return null;
+  }
+
+  const templateName = parts[extIndex - 1];
+  const templateDir = parts.slice(0, extIndex - 1).join('/');
+  const candidates = [
+    `${templateDir}/${templateName}.xml`,
+    `${templateDir}/${templateName}/${templateName}.xml`,
+  ];
+
+  return candidates.find((candidate) => includeMissingFiles || fs.existsSync(path.join(configDir, candidate))) ?? null;
+}
+
+function resolveOwnerXmlFromNestedTemplate(relativePath: string): string | null {
+  const parts = relativePath.split('/');
+  const templatesIndex = parts.indexOf('Templates');
+  if (templatesIndex <= 1) {
+    return null;
+  }
+
+  const section = parts[0];
+  const objectName = parts[1];
+  if (!section || !objectName) {
+    return null;
+  }
+
+  return `${section}/${objectName}.xml`;
+}
+
+function resolveObjectXmlFromBsl(configDir: string, relativePath: string, includeMissingFiles: boolean): string | null {
+  const parts = relativePath.split(/[\\/]/);
+  if (parts.length < 2) {
+    return null;
+  }
+
+  const section = parts[0];
+  const objectName = parts[1];
+  const candidates = [
+    `${section}/${objectName}.xml`,
+    `${section}/${objectName}/${objectName}.xml`,
+  ];
+
+  return candidates.find((candidate) => includeMissingFiles || fs.existsSync(path.join(configDir, candidate))) ?? null;
 }
 
 function walkFiles(rootDir: string): string[] {

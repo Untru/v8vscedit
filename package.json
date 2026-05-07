@@ -139,6 +139,10 @@
         "title": "Открыть XML"
       },
       {
+        "command": "v8vscedit.openTemplateContent",
+        "title": "Открыть содержимое макета"
+      },
+      {
         "command": "v8vscedit.openObjectModule",
         "title": "Открыть модуль объекта"
       },

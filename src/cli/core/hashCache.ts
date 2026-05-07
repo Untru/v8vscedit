@@ -4,6 +4,7 @@ export {
   collectCurrentHashes,
   diffHashSnapshots,
   isSupportedConfigFile,
+  isTemplateContentConfigFile,
   loadHashCache,
   patchHashSnapshot,
   saveHashCache,

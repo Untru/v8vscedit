@@ -42,6 +42,7 @@ suite('metadataXmlCreator', () => {
     assert.strictEqual(creator.addRootObject({ configRoot, kind: 'Catalog', name: 'Товары' }).success, true);
     assert.strictEqual(creator.addRootObject({ configRoot, kind: 'BusinessProcess', name: 'Процесс' }).success, true);
     assert.strictEqual(creator.addRootObject({ configRoot, kind: 'CommonForm', name: 'ФормаНастроек' }).success, true);
+    assert.strictEqual(creator.addRootObject({ configRoot, kind: 'CommonTemplate', name: 'ОбщийМакет', templateType: 'TextDocument' }).success, true);
 
     const catalogXmlPath = path.join(configRoot, 'Catalogs', 'Товары.xml');
     assert.strictEqual(creator.addChildElement({ ownerObjectXmlPath: catalogXmlPath, childTag: 'Form', name: 'ФормаЭлемента' }).success, true);
@@ -55,6 +56,7 @@ suite('metadataXmlCreator', () => {
       path.join(configRoot, 'CommonForms', 'ФормаНастроек', 'Ext', 'Form.xml'),
       path.join(configRoot, 'Catalogs', 'Товары', 'Forms', 'ФормаЭлемента', 'Ext', 'Form.xml'),
       path.join(configRoot, 'Catalogs', 'Товары', 'Templates', 'Печать.xml'),
+      path.join(configRoot, 'CommonTemplates', 'ОбщийМакет.xml'),
     ];
 
     for (const xmlPath of generatedXmlPaths) {
@@ -62,6 +64,94 @@ suite('metadataXmlCreator', () => {
       assert.ok(xml.includes('version="2.21"'), `${xmlPath} не содержит version="2.21"`);
       assert.ok(!xml.includes('version="2.18"'), `${xmlPath} содержит устаревшую версию 2.18`);
     }
+  });
+
+  test('создаёт дочерний макет с выбранным типом и правильным файлом содержимого', () => {
+    const configRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'v8vscedit-template-types-'));
+    fs.writeFileSync(path.join(configRoot, 'Configuration.xml'), buildConfigXml('2.21'), 'utf-8');
+
+    const creator = new MetadataXmlCreator();
+    assert.strictEqual(creator.addRootObject({ configRoot, kind: 'DataProcessor', name: 'Обработка' }).success, true);
+    const ownerXmlPath = path.join(configRoot, 'DataProcessors', 'Обработка.xml');
+
+    const spreadsheet = creator.addChildElement({
+      ownerObjectXmlPath: ownerXmlPath,
+      childTag: 'Template',
+      name: 'ПечатнаяФорма',
+      templateType: 'SpreadsheetDocument',
+    });
+    const html = creator.addChildElement({
+      ownerObjectXmlPath: ownerXmlPath,
+      childTag: 'Template',
+      name: 'Описание',
+      templateType: 'HTMLDocument',
+    });
+    const binary = creator.addChildElement({
+      ownerObjectXmlPath: ownerXmlPath,
+      childTag: 'Template',
+      name: 'Файл',
+      templateType: 'BinaryData',
+    });
+
+    assert.strictEqual(spreadsheet.success, true);
+    assert.strictEqual(html.success, true);
+    assert.strictEqual(binary.success, true);
+
+    const templatesDir = path.join(configRoot, 'DataProcessors', 'Обработка', 'Templates');
+    const ownerXml = fs.readFileSync(ownerXmlPath, 'utf-8');
+    assert.ok(ownerXml.includes('<Template>ПечатнаяФорма</Template>'));
+    assert.ok(!ownerXml.includes('<Template uuid='));
+    assert.ok(fs.existsSync(path.join(templatesDir, 'ПечатнаяФорма.xml')));
+    assert.ok(fs.existsSync(path.join(templatesDir, 'ПечатнаяФорма', 'Ext', 'Template.xml')));
+    assert.ok(!fs.existsSync(path.join(templatesDir, 'ПечатнаяФорма', 'Ext', 'Template.bin')));
+    assert.ok(fs.readFileSync(path.join(templatesDir, 'ПечатнаяФорма.xml'), 'utf-8').includes('<TemplateType>SpreadsheetDocument</TemplateType>'));
+    assert.ok(fs.readFileSync(path.join(templatesDir, 'ПечатнаяФорма', 'Ext', 'Template.xml'), 'utf-8').includes('<document xmlns="http://v8.1c.ru/8.2/data/spreadsheet"'));
+    assert.ok(fs.existsSync(path.join(templatesDir, 'Описание', 'Ext', 'Template.xml')));
+    assert.ok(fs.existsSync(path.join(templatesDir, 'Описание', 'Ext', 'Template', 'ru.html')));
+    assert.ok(fs.existsSync(path.join(templatesDir, 'Файл', 'Ext', 'Template.bin')));
+  });
+
+  test('создаёт общий макет с выбранным типом', () => {
+    const configRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'v8vscedit-common-template-'));
+    fs.writeFileSync(path.join(configRoot, 'Configuration.xml'), buildConfigXml('2.21'), 'utf-8');
+
+    const creator = new MetadataXmlCreator();
+    const result = creator.addRootObject({
+      configRoot,
+      kind: 'CommonTemplate',
+      name: 'ФорматОбмена',
+      templateType: 'TextDocument',
+    });
+
+    assert.strictEqual(result.success, true);
+    const xmlPath = path.join(configRoot, 'CommonTemplates', 'ФорматОбмена.xml');
+    assert.ok(fs.readFileSync(xmlPath, 'utf-8').includes('<CommonTemplate'));
+    assert.ok(fs.readFileSync(xmlPath, 'utf-8').includes('<TemplateType>TextDocument</TemplateType>'));
+    assert.ok(fs.existsSync(path.join(configRoot, 'CommonTemplates', 'ФорматОбмена', 'Ext', 'Template.txt')));
+  });
+
+  test('заполняет основной макет СКД отчёта при создании схемы компоновки', () => {
+    const configRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'v8vscedit-report-dcs-'));
+    fs.writeFileSync(path.join(configRoot, 'Configuration.xml'), buildConfigXml('2.21'), 'utf-8');
+
+    const creator = new MetadataXmlCreator();
+    assert.strictEqual(creator.addRootObject({ configRoot, kind: 'Report', name: 'Продажи' }).success, true);
+    const reportXmlPath = path.join(configRoot, 'Reports', 'Продажи.xml');
+    const reportXml = fs.readFileSync(reportXmlPath, 'utf-8')
+      .replace('<Comment/>', '<Comment/>\n\t\t\t<MainDataCompositionSchema/>');
+    fs.writeFileSync(reportXmlPath, reportXml, 'utf-8');
+
+    const result = creator.addChildElement({
+      ownerObjectXmlPath: reportXmlPath,
+      childTag: 'Template',
+      name: 'ОсновнаяСхемаКомпоновкиДанных',
+      templateType: 'DataCompositionSchema',
+    });
+
+    assert.strictEqual(result.success, true);
+    const updatedReportXml = fs.readFileSync(reportXmlPath, 'utf-8');
+    assert.ok(updatedReportXml.includes('<MainDataCompositionSchema>Report.Продажи.Template.ОсновнаяСхемаКомпоновкиДанных</MainDataCompositionSchema>'));
+    assert.ok(fs.existsSync(path.join(configRoot, 'Reports', 'Продажи', 'Templates', 'ОсновнаяСхемаКомпоновкиДанных', 'Ext', 'Template.xml')));
   });
 
   test('объявляет namespace xs для стандартных типов XDTO', () => {

@@ -75,6 +75,28 @@ suite('HashCache', () => {
       fs.rmSync(tempRoot, { recursive: true, force: true });
     }
   });
+
+  test('buildHashSnapshot учитывает файлы содержимого макетов', () => {
+    const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'v8-hash-template-content-'));
+    try {
+      const textDir = path.join(tempRoot, 'DataProcessors', 'Обработка', 'Templates', 'Текст', 'Ext');
+      const htmlDir = path.join(tempRoot, 'CommonTemplates', 'Описание', 'Ext', 'Template');
+      fs.mkdirSync(textDir, { recursive: true });
+      fs.mkdirSync(htmlDir, { recursive: true });
+      fs.writeFileSync(path.join(textDir, 'Template.txt'), 'текст', 'utf-8');
+      fs.writeFileSync(path.join(textDir, 'Template.bin'), 'bin', 'utf-8');
+      fs.writeFileSync(path.join(htmlDir, 'ru.html'), '<html></html>', 'utf-8');
+      fs.writeFileSync(path.join(tempRoot, 'README.txt'), 'skip', 'utf-8');
+
+      const snapshot = buildHashSnapshot('cf::tmp', tempRoot);
+      assert.ok(snapshot.files['DataProcessors/Обработка/Templates/Текст/Ext/Template.txt']);
+      assert.ok(snapshot.files['DataProcessors/Обработка/Templates/Текст/Ext/Template.bin']);
+      assert.ok(snapshot.files['CommonTemplates/Описание/Ext/Template/ru.html']);
+      assert.ok(!snapshot.files['README.txt']);
+    } finally {
+      fs.rmSync(tempRoot, { recursive: true, force: true });
+    }
+  });
 });
 
 suite('PartialLoadList', () => {
@@ -88,8 +110,31 @@ suite('PartialLoadList', () => {
       fs.writeFileSync(path.join(extDir, 'ObjectModule.bsl'), 'Процедура Тест() КонецПроцедуры', 'utf-8');
 
       const list = collectConfigFiles(tempRoot, ['Documents/Заказ/Ext/ObjectModule.bsl'], false);
-      assert.ok(list.includes('Documents/Заказ.xml'));
+      assert.ok(list.includes('Documents/Заказ/Заказ.xml'));
       assert.ok(list.includes('Documents/Заказ/Ext/ObjectModule.bsl'));
+    } finally {
+      fs.rmSync(tempRoot, { recursive: true, force: true });
+    }
+  });
+
+  test('collectConfigFiles добавляет XML макета и содержимое для текстового макета', () => {
+    const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'v8-load-template-list-'));
+    try {
+      const objectDir = path.join(tempRoot, 'DataProcessors', 'Обработка');
+      const templateDir = path.join(objectDir, 'Templates', 'Текст');
+      fs.mkdirSync(path.join(templateDir, 'Ext'), { recursive: true });
+      fs.writeFileSync(path.join(tempRoot, 'DataProcessors', 'Обработка.xml'), '<xml/>', 'utf-8');
+      fs.writeFileSync(path.join(objectDir, 'Templates', 'Текст.xml'), '<xml/>', 'utf-8');
+      fs.writeFileSync(path.join(templateDir, 'Ext', 'Template.txt'), 'текст', 'utf-8');
+
+      const list = collectConfigFiles(
+        tempRoot,
+        ['DataProcessors/Обработка/Templates/Текст/Ext/Template.txt'],
+        false
+      );
+      assert.ok(list.includes('DataProcessors/Обработка/Templates/Текст.xml'));
+      assert.ok(list.includes('DataProcessors/Обработка.xml'));
+      assert.ok(list.includes('DataProcessors/Обработка/Templates/Текст/Ext/Template.txt'));
     } finally {
       fs.rmSync(tempRoot, { recursive: true, force: true });
     }

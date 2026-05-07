@@ -18,11 +18,11 @@ export interface NodeDescriptor {
   /** Поддерживаемые дочерние теги XML */
   children?: readonly ChildTag[];
   /** Команда по одиночному клику по узлу, если задана */
-  singleClickCommand?: OpenModuleCommandId;
+  singleClickCommand?: CommandId;
 }
 
 /** Идентификаторы поддерживаемых команд навигатора берутся из доменного реестра слотов модулей. */
-export type CommandId = OpenModuleCommandId;
+export type CommandId = OpenModuleCommandId | 'openTemplateContent';
 
 /** Конфигурация отображения дочернего тега */
 export interface ChildTagConfig {

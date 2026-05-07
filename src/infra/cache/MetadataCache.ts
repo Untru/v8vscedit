@@ -8,7 +8,9 @@ import { type MetaKind, getMetaFolder, getMetaType, getMetaTypesByGroup } from '
 import { buildScopeKey } from './HashCache';
 import type { MetadataGitDecorationTarget } from '../git/GitMetadataStatusService';
 import { getObjectLocationFromXml, resolveObjectXmlPath } from '../fs/MetaPathResolver';
-import { parseConfigXml, parseObjectXml } from '../xml';
+import { parseConfigXml, parseObjectXml, readTemplateTypeFromXml } from '../xml';
+
+export type MetadataCacheSingleClickAction = 'openTemplateContent';
 
 export interface MetadataCacheNode {
   type: MetaKind;
@@ -27,6 +29,7 @@ export interface MetadataCacheNode {
   };
   addMetadataTarget?: MetadataCacheAddTarget;
   canRemoveMetadata?: boolean;
+  singleClickAction?: MetadataCacheSingleClickAction;
   children: MetadataCacheNode[];
 }
 
@@ -46,7 +49,7 @@ export type MetadataCacheAddTarget =
   };
 
 export interface MetadataCacheSnapshot {
-  schemaVersion: 11;
+  schemaVersion: 12;
   scopeKey: string;
   generatedAt: string;
   rootPath: string;
@@ -60,7 +63,7 @@ export interface MetadataCacheUpdateResult {
 }
 
 const METADATA_CACHE_DIR = path.join('.v8vscedit', 'meta');
-const CACHE_SCHEMA_VERSION = 11;
+const CACHE_SCHEMA_VERSION = 12;
 
 /**
  * Строит полный снимок дерева метаданных без ленивых загрузчиков, чтобы UI мог восстановить дерево из JSON.
@@ -398,8 +401,17 @@ function buildObjectNode(
     tooltip: objectInfo?.synonym ?? undefined,
     ownershipTag,
     canRemoveMetadata: true,
+    singleClickAction: resolveObjectSingleClickAction(type, xmlPath),
     children,
   });
+}
+
+function resolveObjectSingleClickAction(type: MetaKind, xmlPath: string): MetadataCacheSingleClickAction | undefined {
+  if (type !== 'CommonTemplate') {
+    return undefined;
+  }
+
+  return readTemplateTypeFromXml(xmlPath) === 'TextDocument' ? 'openTemplateContent' : undefined;
 }
 
 function buildStructuredChildren(
@@ -450,34 +462,46 @@ function buildLeavesForTag(
   }
 
   const type = CHILD_TAG_CONFIG[tag].kind as MetaKind;
-  return items.map((item) => node({
-    type,
-    name: item.name,
-    label: item.name,
-    xmlPath: resolveLeafXmlPath(objectXmlPath, tag, item.name),
-    decorationPath: undefined,
-    gitDecorationTarget: isEmbeddedChildTag(tag)
-      ? {
-        kind: 'child',
-        ownerXmlPath: objectXmlPath,
-        childKind: tag,
-        name: item.name,
-      }
-      : {
-        kind: 'paths',
-        ownerXmlPath: objectXmlPath,
-        childKind: tag,
-        name: item.name,
-        paths: resolveChildDecorationPaths(objectXmlPath, tag, item.name),
+  return items.map((item) => {
+    const xmlPath = resolveLeafXmlPath(objectXmlPath, tag, item.name);
+    return node({
+      type,
+      name: item.name,
+      label: item.name,
+      xmlPath,
+      decorationPath: undefined,
+      gitDecorationTarget: isEmbeddedChildTag(tag)
+        ? {
+          kind: 'child',
+          ownerXmlPath: objectXmlPath,
+          childKind: tag,
+          name: item.name,
+        }
+        : {
+          kind: 'paths',
+          ownerXmlPath: objectXmlPath,
+          childKind: tag,
+          name: item.name,
+          paths: resolveChildDecorationPaths(objectXmlPath, tag, item.name),
+        },
+      tooltip: item.synonym || undefined,
+      metaContext: {
+        rootMetaKind,
+        ownerObjectXmlPath: objectXmlPath,
       },
-    tooltip: item.synonym || undefined,
-    metaContext: {
-      rootMetaKind,
-      ownerObjectXmlPath: objectXmlPath,
-    },
-    canRemoveMetadata: true,
-    children: [],
-  }));
+      canRemoveMetadata: true,
+      singleClickAction: resolveLeafSingleClickAction(tag, xmlPath),
+      children: [],
+    });
+  });
+}
+
+function resolveLeafSingleClickAction(tag: ChildTag, xmlPath: string): MetadataCacheSingleClickAction | undefined {
+  if (tag !== 'Template') {
+    return undefined;
+  }
+
+  return readTemplateTypeFromXml(xmlPath) === 'TextDocument' ? 'openTemplateContent' : undefined;
 }
 
 function buildTabularSectionNode(

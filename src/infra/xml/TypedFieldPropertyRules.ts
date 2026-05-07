@@ -324,7 +324,7 @@ function collectPropertyBlocks(propertiesInner: string): {
   const ordered: { key: string; xml: string }[] = [];
   let index = 0;
   while (index < propertiesInner.length) {
-    const open = /<([A-Za-z_][\w:.-]*)(?:\s[^>]*)?>/.exec(propertiesInner.slice(index));
+    const open = /<([A-Za-z_][\w:.-]*)(?:\s[^>]*)?\/?>/.exec(propertiesInner.slice(index));
     if (!open) {
       break;
     }

@@ -18,6 +18,7 @@ export interface BuildNodeParams {
   metaContext?: MetaTreeNodeContext;
   addMetadataTarget?: AddMetadataTarget;
   canRemoveMetadata?: boolean;
+  singleClickCommand?: CommandId;
 }
 
 /**
@@ -39,8 +40,9 @@ export function buildNode(descriptor: NodeDescriptor | undefined, params: BuildN
     canRemoveMetadata: params.canRemoveMetadata,
   }, params.collapsibleState);
 
-  if (descriptor?.singleClickCommand) {
-    node.command = mapCommand(descriptor.singleClickCommand, node);
+  const singleClickCommand = params.singleClickCommand ?? descriptor?.singleClickCommand;
+  if (singleClickCommand) {
+    node.command = mapCommand(singleClickCommand, node);
   }
 
   return node;
@@ -89,6 +91,12 @@ function mapCommand(commandId: CommandId, node: MetadataNode): vscode.Command {
       return {
         command: 'v8vscedit.openCommonModuleCode',
         title: 'Открыть модуль общего модуля',
+        arguments: [node],
+      };
+    case 'openTemplateContent':
+      return {
+        command: 'v8vscedit.openTemplateContent',
+        title: 'Открыть макет',
         arguments: [node],
       };
     default: {

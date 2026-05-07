@@ -17,6 +17,7 @@ export interface HashDiffResult {
 
 const HASH_CACHE_DIR = path.join('.v8vscedit', 'cache');
 const SUPPORTED_FILE_RE = /\.(xml|bsl)$/i;
+const TEMPLATE_CONTENT_RE = /\/Ext\/(?:Template\.(?:txt|bin)|Template\/[^/]+\.html)$/i;
 const CACHE_SCHEMA_VERSION = 1;
 
 /**
@@ -57,7 +58,7 @@ export function loadHashCache(projectRoot: string, scopeKey: string): HashCacheS
 }
 
 /**
- * Полностью пересобирает снапшот по релевантным XML/BSL файлам.
+ * Полностью пересобирает снапшот по релевантным файлам выгрузки.
  */
 export function buildHashSnapshot(scopeKey: string, configDir: string): HashCacheSnapshot {
   const files: Record<string, string> = {};
@@ -154,10 +155,16 @@ export function collectCurrentHashes(configDir: string, relativePaths: string[])
 }
 
 export function isSupportedConfigFile(relativePath: string): boolean {
-  if (!SUPPORTED_FILE_RE.test(relativePath)) {
+  const normalized = relativePath.replace(/\\/g, '/');
+  if (normalized === 'ConfigDumpInfo.xml') {
     return false;
   }
-  return relativePath.replace(/\\/g, '/') !== 'ConfigDumpInfo.xml';
+
+  return SUPPORTED_FILE_RE.test(normalized) || isTemplateContentConfigFile(normalized);
+}
+
+export function isTemplateContentConfigFile(relativePath: string): boolean {
+  return TEMPLATE_CONTENT_RE.test(relativePath.replace(/\\/g, '/'));
 }
 
 function getCacheFilePath(projectRoot: string, scopeKey: string): string {

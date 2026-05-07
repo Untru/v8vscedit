@@ -8,7 +8,18 @@ import { getObjectLocationFromXml } from '../fs/MetaPathResolver';
 import { buildTypedFieldPropertyBlocks } from './TypedFieldPropertyRules';
 
 const DEFAULT_FORMAT_VERSION = '2.18';
+const DEFAULT_TEMPLATE_TYPE: TemplateType = 'SpreadsheetDocument';
 const METADATA_OBJECT_XMLNS = 'xmlns="http://v8.1c.ru/8.3/MDClasses" xmlns:v8="http://v8.1c.ru/8.1/data/core" xmlns:xr="http://v8.1c.ru/8.3/xcf/readable" xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"';
+
+export type TemplateType =
+  | 'SpreadsheetDocument'
+  | 'TextDocument'
+  | 'HTMLDocument'
+  | 'BinaryData'
+  | 'DataCompositionSchema'
+  | 'DataCompositionAppearanceTemplate'
+  | 'GraphicalSchema'
+  | 'AddIn';
 
 interface GeneratedTypeDef {
   readonly prefix: string;
@@ -149,6 +160,7 @@ export interface AddRootMetadataOptions {
   configRoot: string;
   kind: MetaKind;
   name: string;
+  templateType?: TemplateType;
 }
 
 export interface AddChildMetadataOptions {
@@ -156,6 +168,7 @@ export interface AddChildMetadataOptions {
   childTag: ChildTag | 'Column';
   name: string;
   tabularSectionName?: string;
+  templateType?: TemplateType;
 }
 
 /**
@@ -185,9 +198,13 @@ export class MetadataXmlCreator {
 
     fs.mkdirSync(typeDir, { recursive: true });
     const formatVersion = resolveConfigFormatVersion(options.configRoot);
-    fs.writeFileSync(xmlPath, buildRootObjectXml(options.kind, options.name, formatVersion), 'utf-8');
+    const templateType = options.kind === 'CommonTemplate' ? resolveTemplateType(options.templateType) : undefined;
+    fs.writeFileSync(xmlPath, buildRootObjectXml(options.kind, options.name, formatVersion, templateType), 'utf-8');
 
     const changedFiles = [xmlPath];
+    if (options.kind === 'CommonTemplate') {
+      changedFiles.push(...ensureTemplateContentFiles(objectDir, templateType ?? 'SpreadsheetDocument', formatVersion));
+    }
     for (const modulePath of getDefaultModulePaths(options.kind, objectDir)) {
       ensureEmptyFile(modulePath);
       changedFiles.push(modulePath);
@@ -253,8 +270,8 @@ function addChildToObjectXml(xml: string, options: AddChildMetadataOptions): { c
     return addColumnToTabularSectionXml(xml, options.tabularSectionName, options.name);
   }
 
-  const objectMatch = /<([A-Za-z][A-Za-z0-9]*)\b[^>]*>/.exec(xml);
-  if (!objectMatch) {
+  const ownerKind = extractMetadataObjectKind(xml);
+  if (!ownerKind) {
     return { changed: false, error: 'Не найден корневой элемент объекта метаданных.' };
   }
   const childObjects = getChildObjectsBlock(xml);
@@ -267,9 +284,13 @@ function addChildToObjectXml(xml: string, options: AddChildMetadataOptions): { c
 
   const indent = detectChildIndent(childObjects.inner, '\t\t\t');
   const ownerName = extractObjectName(xml);
-  const fragment = buildChildFragment(options.childTag, options.name, indent, objectMatch[1], ownerName);
+  const fragment = buildChildFragment(options.childTag, options.name, indent, ownerKind, ownerName);
   const replacement = buildChildObjectsReplacement(childObjects, fragment, indent);
-  return { changed: true, xml: `${xml.slice(0, childObjects.start)}${replacement}${xml.slice(childObjects.end)}` };
+  const nextXml = `${xml.slice(0, childObjects.start)}${replacement}${xml.slice(childObjects.end)}`;
+  return {
+    changed: true,
+    xml: updateMainDataCompositionSchemaIfNeeded(nextXml, ownerKind, ownerName, options),
+  };
 }
 
 function addColumnToTabularSectionXml(xml: string, tabularSectionName: string, columnName: string): { changed: true; xml: string } | { changed: false; error: string } {
@@ -296,13 +317,13 @@ function addColumnToTabularSectionXml(xml: string, tabularSectionName: string, c
   };
 }
 
-function buildRootObjectXml(kind: MetaKind, name: string, formatVersion: string): string {
+function buildRootObjectXml(kind: MetaKind, name: string, formatVersion: string, templateType?: TemplateType): string {
   const parts = [
     '<?xml version="1.0" encoding="utf-8"?>',
     `<MetaDataObject ${METADATA_OBJECT_XMLNS} version="${formatVersion}">`,
     `\t<${kind} uuid="${newUuid()}">`,
     buildInternalInfo(kind, name, '\t\t'),
-    `\t\t<Properties>${buildRootProperties(kind, name)}\n\t\t</Properties>`,
+    `\t\t<Properties>${buildRootProperties(kind, name, templateType)}\n\t\t</Properties>`,
     needsChildObjects(kind) ? '\t\t<ChildObjects/>' : '',
     `\t</${kind}>`,
     '</MetaDataObject>',
@@ -311,7 +332,7 @@ function buildRootObjectXml(kind: MetaKind, name: string, formatVersion: string)
   return parts.join('\n');
 }
 
-function buildRootProperties(kind: MetaKind, name: string): string {
+function buildRootProperties(kind: MetaKind, name: string, templateType?: TemplateType): string {
   const base = [
     `\n\t\t\t<Name>${escapeXml(name)}</Name>`,
     buildLocalizedTag('\t\t\t', 'Synonym', splitCamelCase(name)),
@@ -338,12 +359,20 @@ function buildRootProperties(kind: MetaKind, name: string): string {
       return [...base, '\t\t\t<RegisterType>Balance</RegisterType>'].join('\n');
     case 'Role':
       return [...base, '\t\t\t<SetForNewObjects>false</SetForNewObjects>', '\t\t\t<SetForAttributesByDefault>true</SetForAttributesByDefault>', '\t\t\t<IndependentRightsOfChildObjects>false</IndependentRightsOfChildObjects>'].join('\n');
+    case 'CommonTemplate':
+      return [...base, `\t\t\t<TemplateType>${escapeXml(resolveTemplateType(templateType))}</TemplateType>`].join('\n');
     default:
       return base.join('\n');
   }
 }
 
-function buildChildFragment(tag: ChildTag, name: string, indent: string, ownerKind?: string, ownerName?: string): string {
+function buildChildFragment(
+  tag: ChildTag,
+  name: string,
+  indent: string,
+  ownerKind?: string,
+  ownerName?: string
+): string {
   if (tag === 'Attribute' || tag === 'AddressingAttribute' || tag === 'Dimension' || tag === 'Resource') {
     return buildTypedFieldFragment(tag, name, indent);
   }
@@ -354,7 +383,7 @@ function buildChildFragment(tag: ChildTag, name: string, indent: string, ownerKi
     return buildSimpleChildFragment('Form', name, indent, ['FormType>Managed']);
   }
   if (tag === 'Template') {
-    return buildSimpleChildFragment('Template', name, indent, ['TemplateType>SpreadsheetDocument']);
+    return `${indent}<Template>${escapeXml(name)}</Template>`;
   }
   return buildSimpleChildFragment(tag, name, indent);
 }
@@ -487,11 +516,45 @@ function findNamedChildBlock(xml: string, tag: string, name: string): { start: n
 }
 
 function hasChildName(inner: string, tag: string, name: string): boolean {
-  return new RegExp(`<${tag}\\b[^>]*>[\\s\\S]*?<Name>${escapeRegExp(name)}<\\/Name>[\\s\\S]*?<\\/${tag}>`).test(inner);
+  const escapedName = escapeRegExp(name);
+  return new RegExp(`<${tag}>\\s*${escapedName}\\s*<\\/${tag}>`).test(inner)
+    || new RegExp(`<${tag}\\b[^>]*>[\\s\\S]*?<Name>${escapedName}<\\/Name>[\\s\\S]*?<\\/${tag}>`).test(inner);
 }
 
 function extractObjectName(xml: string): string | undefined {
   return /<Properties>[\s\S]*?<Name>([^<]+)<\/Name>/.exec(xml)?.[1];
+}
+
+function extractMetadataObjectKind(xml: string): string | undefined {
+  return /<MetaDataObject\b[^>]*>\s*<([A-Za-z][A-Za-z0-9]*)\b/.exec(xml)?.[1];
+}
+
+function updateMainDataCompositionSchemaIfNeeded(
+  xml: string,
+  ownerKind: string,
+  ownerName: string | undefined,
+  options: AddChildMetadataOptions
+): string {
+  if (options.childTag !== 'Template' || resolveTemplateType(options.templateType) !== 'DataCompositionSchema') {
+    return xml;
+  }
+  if (ownerKind !== 'Report' && ownerKind !== 'ExternalReport') {
+    return xml;
+  }
+  if (!ownerName) {
+    return xml;
+  }
+  const value = `${ownerKind}.${ownerName}.Template.${options.name}`;
+  const emptyTag = /<MainDataCompositionSchema\s*\/>/;
+  if (emptyTag.test(xml)) {
+    return xml.replace(emptyTag, `<MainDataCompositionSchema>${escapeXml(value)}</MainDataCompositionSchema>`);
+  }
+  const openClose = /<MainDataCompositionSchema>([\s\S]*?)<\/MainDataCompositionSchema>/;
+  const match = openClose.exec(xml);
+  if (!match || match[1].trim()) {
+    return xml;
+  }
+  return xml.replace(openClose, `<MainDataCompositionSchema>${escapeXml(value)}</MainDataCompositionSchema>`);
 }
 
 function ensureAuxiliaryChildFiles(options: AddChildMetadataOptions, formatVersion: string): string[] {
@@ -511,13 +574,59 @@ function ensureAuxiliaryChildFiles(options: AddChildMetadataOptions, formatVersi
   }
   if (options.childTag === 'Template') {
     const templateXml = path.join(loc.objectDir, 'Templates', `${options.name}.xml`);
-    const templateBin = path.join(loc.objectDir, 'Templates', options.name, 'Ext', 'Template.bin');
+    const templateDir = path.join(loc.objectDir, 'Templates', options.name);
+    const templateType = resolveTemplateType(options.templateType);
     fs.mkdirSync(path.dirname(templateXml), { recursive: true });
-    fs.writeFileSync(templateXml, buildTemplateXml(options.name, formatVersion), 'utf-8');
-    ensureEmptyFile(templateBin);
-    return [templateXml, templateBin];
+    fs.writeFileSync(templateXml, buildTemplateXml(options.name, formatVersion, templateType), 'utf-8');
+    return [templateXml, ...ensureTemplateContentFiles(templateDir, templateType, formatVersion)];
   }
   return [];
+}
+
+function ensureTemplateContentFiles(templateDir: string, templateType: TemplateType, formatVersion: string): string[] {
+  const extDir = path.join(templateDir, 'Ext');
+  fs.mkdirSync(extDir, { recursive: true });
+  switch (templateType) {
+    case 'TextDocument': {
+      const filePath = path.join(extDir, 'Template.txt');
+      writeTextFile(filePath, '');
+      return [filePath];
+    }
+    case 'HTMLDocument': {
+      const descriptorPath = path.join(extDir, 'Template.xml');
+      const htmlPath = path.join(extDir, 'Template', 'ru.html');
+      writeTextFile(descriptorPath, buildHtmlTemplateDescriptorXml(formatVersion));
+      writeTextFile(htmlPath, buildHtmlDocumentTemplate());
+      return [descriptorPath, htmlPath];
+    }
+    case 'BinaryData':
+    case 'AddIn': {
+      const filePath = path.join(extDir, 'Template.bin');
+      fs.writeFileSync(filePath, Buffer.alloc(0));
+      return [filePath];
+    }
+    case 'DataCompositionSchema': {
+      const filePath = path.join(extDir, 'Template.xml');
+      writeTextFile(filePath, buildDataCompositionSchemaTemplateXml());
+      return [filePath];
+    }
+    case 'DataCompositionAppearanceTemplate': {
+      const filePath = path.join(extDir, 'Template.xml');
+      writeTextFile(filePath, buildDataCompositionAppearanceTemplateXml());
+      return [filePath];
+    }
+    case 'GraphicalSchema': {
+      const filePath = path.join(extDir, 'Template.xml');
+      writeTextFile(filePath, buildGraphicalSchemaTemplateXml(formatVersion));
+      return [filePath];
+    }
+    case 'SpreadsheetDocument':
+    default: {
+      const filePath = path.join(extDir, 'Template.xml');
+      writeTextFile(filePath, buildSpreadsheetDocumentTemplateXml());
+      return [filePath];
+    }
+  }
 }
 
 function getDefaultModulePaths(kind: MetaKind, objectDir: string): string[] {
@@ -548,7 +657,7 @@ function getDefaultModulePaths(kind: MetaKind, objectDir: string): string[] {
 }
 
 function needsChildObjects(kind: MetaKind): boolean {
-  return !['Constant', 'DefinedType', 'ScheduledJob', 'EventSubscription', 'CommonModule', 'Role'].includes(kind);
+  return !['Constant', 'DefinedType', 'ScheduledJob', 'EventSubscription', 'CommonModule', 'Role', 'CommonTemplate'].includes(kind);
 }
 
 function ensureEmptyFile(filePath: string): void {
@@ -613,7 +722,7 @@ function buildManagedFormXml(formatVersion: string): string {
   ].join('\n');
 }
 
-function buildTemplateXml(name: string, formatVersion: string): string {
+function buildTemplateXml(name: string, formatVersion: string, templateType: TemplateType): string {
   return [
     '<?xml version="1.0" encoding="utf-8"?>',
     `<MetaDataObject ${METADATA_OBJECT_XMLNS} version="${formatVersion}">`,
@@ -622,12 +731,119 @@ function buildTemplateXml(name: string, formatVersion: string): string {
     `\t\t\t<Name>${escapeXml(name)}</Name>`,
     buildLocalizedTag('\t\t\t', 'Synonym', splitCamelCase(name)),
     '\t\t\t<Comment/>',
-    '\t\t\t<TemplateType>SpreadsheetDocument</TemplateType>',
+    `\t\t\t<TemplateType>${escapeXml(templateType)}</TemplateType>`,
     '\t\t</Properties>',
     '\t</Template>',
     '</MetaDataObject>',
     '',
   ].join('\n');
+}
+
+function buildSpreadsheetDocumentTemplateXml(): string {
+  return [
+    '<?xml version="1.0" encoding="utf-8"?>',
+    '<document xmlns="http://v8.1c.ru/8.2/data/spreadsheet" xmlns:style="http://v8.1c.ru/8.1/data/ui/style" xmlns:v8="http://v8.1c.ru/8.1/data/core" xmlns:v8ui="http://v8.1c.ru/8.1/data/ui" xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">',
+    '\t<languageSettings>',
+    '\t\t<currentLanguage>ru</currentLanguage>',
+    '\t\t<defaultLanguage>ru</defaultLanguage>',
+    '\t\t<languageInfo>',
+    '\t\t\t<id>ru</id>',
+    '\t\t\t<code>Русский</code>',
+    '\t\t\t<description>Русский</description>',
+    '\t\t</languageInfo>',
+    '\t</languageSettings>',
+    '\t<columns>',
+    '\t\t<size>0</size>',
+    '\t</columns>',
+    '</document>',
+    '',
+  ].join('\n');
+}
+
+function buildDataCompositionSchemaTemplateXml(): string {
+  return [
+    '<?xml version="1.0" encoding="utf-8"?>',
+    '<DataCompositionSchema xmlns="http://v8.1c.ru/8.1/data-composition-system/schema"',
+    '\t\txmlns:dcscom="http://v8.1c.ru/8.1/data-composition-system/common"',
+    '\t\txmlns:dcscor="http://v8.1c.ru/8.1/data-composition-system/core"',
+    '\t\txmlns:dcsset="http://v8.1c.ru/8.1/data-composition-system/settings"',
+    '\t\txmlns:v8="http://v8.1c.ru/8.1/data/core"',
+    '\t\txmlns:v8ui="http://v8.1c.ru/8.1/data/ui"',
+    '\t\txmlns:xs="http://www.w3.org/2001/XMLSchema"',
+    '\t\txmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">',
+    '\t<dataSource>',
+    '\t\t<name>ИсточникДанных1</name>',
+    '\t\t<dataSourceType>Local</dataSourceType>',
+    '\t</dataSource>',
+    '</DataCompositionSchema>',
+    '',
+  ].join('\n');
+}
+
+function buildHtmlTemplateDescriptorXml(formatVersion: string): string {
+  return [
+    '<?xml version="1.0" encoding="utf-8"?>',
+    `<Help xmlns="http://v8.1c.ru/8.3/xcf/extrnprops" xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" version="${formatVersion}">`,
+    '\t<Page>ru</Page>',
+    '</Help>',
+    '',
+  ].join('\n');
+}
+
+function buildHtmlDocumentTemplate(): string {
+  return [
+    '<!DOCTYPE html>',
+    '<html>',
+    '<head>',
+    '\t<meta charset="UTF-8">',
+    '\t<title></title>',
+    '</head>',
+    '<body>',
+    '</body>',
+    '</html>',
+    '',
+  ].join('\n');
+}
+
+function buildDataCompositionAppearanceTemplateXml(): string {
+  return [
+    '<?xml version="1.0" encoding="utf-8"?>',
+    '<AppearanceTemplate xmlns="http://v8.1c.ru/8.1/data-composition-system/appearance-template" xmlns:dcscor="http://v8.1c.ru/8.1/data-composition-system/core" xmlns:pal="http://v8.1c.ru/8.1/data/ui/colors/palette" xmlns:style="http://v8.1c.ru/8.1/data/ui/style" xmlns:sys="http://v8.1c.ru/8.1/data/ui/fonts/system" xmlns:v8ui="http://v8.1c.ru/8.1/data/ui" xmlns:web="http://v8.1c.ru/8.1/data/ui/colors/web" xmlns:win="http://v8.1c.ru/8.1/data/ui/colors/windows" xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">',
+    '</AppearanceTemplate>',
+    '',
+  ].join('\n');
+}
+
+function buildGraphicalSchemaTemplateXml(formatVersion: string): string {
+  return [
+    '<?xml version="1.0" encoding="utf-8"?>',
+    `<GraphicalSchema xmlns="http://v8.1c.ru/8.3/xcf/scheme" xmlns:pal="http://v8.1c.ru/8.1/data/ui/colors/palette" xmlns:sch="http://v8.1c.ru/8.2/data/graphscheme" xmlns:style="http://v8.1c.ru/8.1/data/ui/style" xmlns:v8="http://v8.1c.ru/8.1/data/core" xmlns:v8ui="http://v8.1c.ru/8.1/data/ui" xmlns:web="http://v8.1c.ru/8.1/data/ui/colors/web" xmlns:win="http://v8.1c.ru/8.1/data/ui/colors/windows" xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" version="${formatVersion}">`,
+    '\t<BackColor>style:FieldBackColor</BackColor>',
+    '\t<GridEnabled>false</GridEnabled>',
+    '\t<DrawGridMode>None</DrawGridMode>',
+    '\t<GridHorizontalStep>20</GridHorizontalStep>',
+    '\t<GridVerticalStep>20</GridVerticalStep>',
+    '\t<PrintParameters>',
+    '\t\t<TopMargin>10</TopMargin>',
+    '\t\t<LeftMargin>10</LeftMargin>',
+    '\t\t<BottomMargin>10</BottomMargin>',
+    '\t\t<RightMargin>10</RightMargin>',
+    '\t\t<BlackAndWhite>false</BlackAndWhite>',
+    '\t\t<FitPageMode>Auto</FitPageMode>',
+    '\t</PrintParameters>',
+    '\t<Items/>',
+    '</GraphicalSchema>',
+    '',
+  ].join('\n');
+}
+
+function writeTextFile(filePath: string, content: string): void {
+  fs.mkdirSync(path.dirname(filePath), { recursive: true });
+  fs.writeFileSync(filePath, content, 'utf-8');
+}
+
+function resolveTemplateType(templateType: TemplateType | undefined): TemplateType {
+  return templateType ?? DEFAULT_TEMPLATE_TYPE;
 }
 
 function resolveObjectFormatVersion(xmlPath: string): string {

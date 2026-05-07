@@ -288,24 +288,44 @@ export class UniversalPanelViewProvider implements vscode.WebviewViewProvider, v
       return;
     }
 
-    const nodeId = this.nodeIdByNode.get(node);
-    if (!nodeId) {
+    const rendered = this.findRenderedNodeOrAncestor(node);
+    if (!rendered) {
       return;
     }
 
-    const parentKey = this.getParentNodeKey(nodeId);
+    const parentKey = this.getParentNodeKey(rendered.nodeId);
     const html = this.renderTreeNode(
       this.view.webview,
-      node,
-      this.getNodeDepth(nodeId),
-      nodeId,
+      rendered.node,
+      this.getNodeDepth(rendered.nodeId),
+      rendered.nodeId,
       parentKey
     );
     await this.view.webview.postMessage({
       type: 'nodeReplaced',
-      nodeId,
+      nodeId: rendered.nodeId,
       html,
     });
+  }
+
+  private findRenderedNodeOrAncestor(node: MetadataNode): { node: MetadataNode; nodeId: string } | undefined {
+    let current = node;
+    for (;;) {
+      const nodeId = this.nodeIdByNode.get(current);
+      if (nodeId) {
+        return { node: current, nodeId };
+      }
+
+      const parent = this.services.treeProvider.getParent(current);
+      if (!this.isImmediateMetadataNode(parent)) {
+        return undefined;
+      }
+      current = parent;
+    }
+  }
+
+  private isImmediateMetadataNode(value: vscode.ProviderResult<MetadataNode>): value is MetadataNode {
+    return Boolean(value) && typeof (value as { then?: unknown }).then !== 'function';
   }
 
   private getHtml(webview: vscode.Webview): string {

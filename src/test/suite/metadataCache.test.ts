@@ -1,9 +1,11 @@
 import * as assert from 'assert';
 import * as fs from 'fs';
+import * as os from 'os';
 import * as path from 'path';
 import type { ConfigEntry } from '../../domain/Configuration';
 import { buildMetadataCacheSnapshot, type MetadataCacheNode } from '../../infra/cache/MetadataCache';
 import { getObjectLocationFromXml } from '../../infra/fs/MetaPathResolver';
+import { MetadataXmlCreator } from '../../infra/xml';
 
 const EXAMPLE_CFE = path.resolve(process.cwd(), 'example/src/cfe/EVOLC');
 
@@ -41,6 +43,42 @@ suite('MetadataCache', () => {
     });
 
     assert.deepStrictEqual(collectMissingFlatObjectTargets(snapshot.root), []);
+  });
+
+  test('Текстовые макеты получают команду открытия содержимого по клику', () => {
+    const configRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'v8vscedit-template-cache-'));
+    fs.writeFileSync(path.join(configRoot, 'Configuration.xml'), buildConfigXml(), 'utf-8');
+
+    const creator = new MetadataXmlCreator();
+    assert.strictEqual(creator.addRootObject({ configRoot, kind: 'DataProcessor', name: 'Обработка' }).success, true);
+    assert.strictEqual(creator.addRootObject({
+      configRoot,
+      kind: 'CommonTemplate',
+      name: 'ОбщийТекст',
+      templateType: 'TextDocument',
+    }).success, true);
+    const ownerXmlPath = path.join(configRoot, 'DataProcessors', 'Обработка.xml');
+    assert.strictEqual(creator.addChildElement({
+      ownerObjectXmlPath: ownerXmlPath,
+      childTag: 'Template',
+      name: 'Текст',
+      templateType: 'TextDocument',
+    }).success, true);
+    assert.strictEqual(creator.addChildElement({
+      ownerObjectXmlPath: ownerXmlPath,
+      childTag: 'Template',
+      name: 'Таблица',
+      templateType: 'SpreadsheetDocument',
+    }).success, true);
+
+    const snapshot = buildMetadataCacheSnapshot('test-text-template-click', { rootPath: configRoot, kind: 'cf' });
+    const textTemplate = findNode(snapshot.root, (node) => node.type === 'Template' && node.name === 'Текст');
+    const spreadsheetTemplate = findNode(snapshot.root, (node) => node.type === 'Template' && node.name === 'Таблица');
+    const commonTemplate = findNode(snapshot.root, (node) => node.type === 'CommonTemplate' && node.name === 'ОбщийТекст');
+
+    assert.strictEqual(textTemplate?.singleClickAction, 'openTemplateContent');
+    assert.strictEqual(commonTemplate?.singleClickAction, 'openTemplateContent');
+    assert.strictEqual(spreadsheetTemplate?.singleClickAction, undefined);
   });
 });
 
@@ -84,4 +122,17 @@ function collectMissingFlatObjectTargets(node: MetadataCacheNode): string[] {
   }
 
   return result;
+}
+
+function buildConfigXml(): string {
+  return `<?xml version="1.0" encoding="utf-8"?>
+<MetaDataObject>
+  <Configuration>
+    <Properties>
+      <Name>ТестоваяКонфигурация</Name>
+      <Synonym/>
+    </Properties>
+    <ChildObjects/>
+  </Configuration>
+</MetaDataObject>`;
 }
