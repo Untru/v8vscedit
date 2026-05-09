@@ -109,6 +109,37 @@ suite('configurationXmlEditor', () => {
     assert.ok(saved.includes('<Owners/>'));
   });
 
+  test('Изменяет список ввода по строке через xr:Field', () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'v8vscedit-catalog-'));
+    const catalogPath = path.join(dir, 'Клиенты.xml');
+    fs.writeFileSync(
+      catalogPath,
+      `<?xml version="1.0" encoding="utf-8"?>
+<MetaDataObject>
+  <Catalog>
+    <Properties>
+      <Name>Клиенты</Name>
+      <InputByString/>
+    </Properties>
+  </Catalog>
+</MetaDataObject>`,
+      'utf-8'
+    );
+    const editor = new ConfigurationXmlEditor();
+    const result = editor.modifyObjectProperty(catalogPath, {
+      targetKind: 'Self',
+      targetName: 'Клиенты',
+      propertyKey: 'InputByString',
+      valueKind: 'metadataFieldList',
+      value: ['Catalog.Клиенты.StandardAttribute.Code', 'Catalog.Клиенты.StandardAttribute.Description'],
+    });
+    assert.strictEqual(result.success, true);
+    const saved = fs.readFileSync(catalogPath, 'utf-8');
+    assert.ok(saved.includes('<xr:Field>Catalog.Клиенты.StandardAttribute.Code</xr:Field>'));
+    assert.ok(saved.includes('<xr:Field>Catalog.Клиенты.StandardAttribute.Description</xr:Field>'));
+    assert.ok(!saved.includes('<xr:Item'));
+  });
+
   test('Переименовывает корневой объект и обновляет Configuration.xml', () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'v8vscedit-cfg-'));
     const catalogs = path.join(dir, 'Catalogs');

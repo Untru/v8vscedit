@@ -1,6 +1,7 @@
 import * as assert from 'assert';
 import * as fs from 'fs';
 import * as path from 'path';
+import { ensureStandardAttributeXml, parseObjectXml } from '../../infra/xml';
 import { buildRootMetaObjectProperties } from '../../ui/views/properties/PropertyBuilder';
 import type { EnumPropertyValue, LocalizedStringValue, MetadataReferenceListValue } from '../../ui/views/properties/_types';
 
@@ -42,10 +43,19 @@ suite('Properties — справочник', () => {
 
     const inputByString = props.find((item) => item.key === 'InputByString');
     assert.ok(inputByString, 'InputByString не найден');
-    assert.strictEqual(inputByString.readonly, true);
+    assert.strictEqual(inputByString.readonly, false);
     assert.strictEqual(inputByString.section, 'Поле ввода');
-    assert.ok(typeof inputByString.value === 'string' && inputByString.value.includes('StandardAttribute.Code'));
-    assert.ok(typeof inputByString.value === 'string' && inputByString.value.includes('StandardAttribute.Description'));
+    assert.strictEqual(inputByString.kind, 'metadataReferenceList');
+    assert.deepStrictEqual((inputByString.value as MetadataReferenceListValue).items, [
+      {
+        canonical: 'Catalog.ев_КлиентыПартнеров.StandardAttribute.Code',
+        display: 'Код',
+      },
+      {
+        canonical: 'Catalog.ев_КлиентыПартнеров.StandardAttribute.Description',
+        display: 'Наименование',
+      },
+    ]);
 
     const basedOn = props.find((item) => item.key === 'BasedOn');
     assert.ok(basedOn, 'BasedOn не найден');
@@ -66,5 +76,57 @@ suite('Properties — справочник', () => {
     assert.strictEqual(listPresentation.title, 'Представление списка');
     assert.strictEqual(listPresentation.section, 'Основные');
     assert.strictEqual((listPresentation.value as LocalizedStringValue).presentation, 'Клиенты партнеров');
+  });
+
+  test('Показывает стандартные реквизиты корневого объекта с русскими представлениями', () => {
+    const objectInfo = parseObjectXml(path.join(process.cwd(), 'example/src/cf/Catalogs/ПачкаДокументовДСВ_1ПрисоединенныеФайлы.xml'));
+
+    const standardAttributes = objectInfo?.children.filter((item) => item.tag === 'StandardAttribute') ?? [];
+    assert.ok(standardAttributes.length > 0, 'Стандартные реквизиты не найдены');
+    assert.deepStrictEqual(
+      standardAttributes.slice(0, 3).map((item) => ({ name: item.name, presentation: item.presentation })),
+      [
+        { name: 'PredefinedDataName', presentation: 'Имя предопределенных данных' },
+        { name: 'Predefined', presentation: 'Предопределенный' },
+        { name: 'Ref', presentation: 'Ссылка' },
+      ]
+    );
+  });
+
+  test('Выводит стандартные реквизиты из поля ввода по строке, если блока StandardAttributes нет', () => {
+    const objectInfo = parseObjectXml(path.join(EXAMPLE_CFE, 'Catalogs', 'ев_КлиентыПартнеров.xml'));
+
+    const standardAttributes = objectInfo?.children.filter((item) => item.tag === 'StandardAttribute') ?? [];
+    assert.deepStrictEqual(
+      standardAttributes.map((item) => ({ name: item.name, presentation: item.presentation })),
+      [
+        { name: 'PredefinedDataName', presentation: 'Имя предопределенных данных' },
+        { name: 'Predefined', presentation: 'Предопределенный' },
+        { name: 'Ref', presentation: 'Ссылка' },
+        { name: 'DeletionMark', presentation: 'Пометка удаления' },
+        { name: 'IsFolder', presentation: 'Это группа' },
+        { name: 'Owner', presentation: 'Владелец' },
+        { name: 'Parent', presentation: 'Родитель' },
+        { name: 'Description', presentation: 'Наименование' },
+        { name: 'Code', presentation: 'Код' },
+      ]
+    );
+  });
+
+  test('Материализует стандартный реквизит при открытии свойств', () => {
+    const filePath = path.join(EXAMPLE_CFE, 'Catalogs', 'ев_КлиентыПартнеров.xml');
+    const original = fs.readFileSync(filePath, 'utf-8');
+    try {
+      assert.ok(!original.includes('<StandardAttributes>'), 'Фикстура уже содержит StandardAttributes');
+      const materialized = ensureStandardAttributeXml(filePath, 'Code', 'Catalog');
+      assert.ok(materialized, 'XML стандартного реквизита не создан');
+
+      const saved = fs.readFileSync(filePath, 'utf-8');
+      assert.ok(saved.includes('<StandardAttributes>'));
+      assert.ok(saved.includes('<xr:StandardAttribute name="Code">'));
+      assert.ok(saved.includes('<xr:Indexing>Index</xr:Indexing>'));
+    } finally {
+      fs.writeFileSync(filePath, original, 'utf-8');
+    }
   });
 });

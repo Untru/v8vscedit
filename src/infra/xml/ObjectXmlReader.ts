@@ -2,9 +2,14 @@ import * as fs from 'fs';
 import { XMLParser } from 'fast-xml-parser';
 import type { MetaChild, MetaObject } from '../../domain/MetaObject';
 import {
+  getStandardAttributesForKind,
+  getStandardAttributePresentation,
+} from '../../domain/StandardAttribute';
+import {
   extractChildMetaElementXml,
   extractColumnXmlFromTabularSection,
   extractSimpleTag,
+  extractStandardAttributeXml,
   extractSynonym,
   writeTextFilePreservingBomAndEol,
 } from './XmlUtils';
@@ -14,6 +19,7 @@ interface XmlTextNode { '#text': string }
 type XmlElementNode = Record<string, XmlNodeList>;
 type XmlNode = XmlTextNode | XmlElementNode;
 type XmlNodeList = XmlNode[];
+type XmlAttributes = Record<string, string | undefined>;
 
 const parser = new XMLParser({
   preserveOrder: true,
@@ -64,6 +70,25 @@ function findDirectChildren(nodes: XmlNodeList, tagName: string): XmlElementNode
   return nodes.filter((node): node is XmlElementNode => getElementName(node) === tagName);
 }
 
+function findDirectChildrenByLocalName(nodes: XmlNodeList, tagName: string): XmlElementNode[] {
+  return nodes.filter((node): node is XmlElementNode => {
+    const name = getElementName(node);
+    return name === tagName || name?.endsWith(`:${tagName}`) === true;
+  });
+}
+
+function getAttribute(element: XmlElementNode, name: string): string | undefined {
+  const attrs = (element as Record<string, unknown>)[':@'];
+  if (!isXmlAttributes(attrs)) {
+    return undefined;
+  }
+  return attrs[`@_${name}`];
+}
+
+function isXmlAttributes(value: unknown): value is XmlAttributes {
+  return typeof value === 'object' && value !== null;
+}
+
 /**
  * Читает XML объекта метаданных и возвращает имя, синоним и дочерние элементы.
  */
@@ -92,12 +117,14 @@ export class ObjectXmlReader {
       tag: rootTag,
       name: extractSimpleTag(xml, 'Name') ?? '',
       synonym: extractSynonym(xml),
-      children: this.parseChildren(rootElement as XmlElementNode),
+      children: this.parseChildren(rootElement as XmlElementNode, rootTag),
     };
   }
 
-  private parseChildren(rootElement: XmlNode): MetaChild[] {
+  private parseChildren(rootElement: XmlNode, rootTag: string): MetaChild[] {
     const result: MetaChild[] = [];
+    result.push(...this.parseRootStandardAttributes(rootElement, rootTag));
+
     const childObjects = findFirstElement(getElementChildren(rootElement), 'ChildObjects');
     if (!childObjects) {
       return result;
@@ -167,6 +194,39 @@ export class ObjectXmlReader {
     };
   }
 
+  private parseRootStandardAttributes(rootElement: XmlNode, rootTag: string): MetaChild[] {
+    const possible = getStandardAttributesForKind(rootTag);
+    const properties = findDirectChildren(getElementChildren(rootElement), 'Properties').at(0);
+    if (!properties) {
+      return possible.map((item) => ({
+        tag: 'StandardAttribute',
+        name: item.name,
+        presentation: item.presentation,
+        synonym: item.presentation,
+      }));
+    }
+    const standardAttributes = findDirectChildren(getElementChildren(properties), 'StandardAttributes').at(0);
+    if (!standardAttributes) {
+      return mergeStandardAttributes(possible, collectStandardAttributeNamesFromFieldRefs(properties));
+    }
+    const explicit = findDirectChildrenByLocalName(getElementChildren(standardAttributes), 'StandardAttribute')
+      .map((element): MetaChild | null => {
+        const name = getAttribute(element, 'name') ?? '';
+        if (!name) {
+          return null;
+        }
+        const presentation = getStandardAttributePresentation(name);
+        return {
+          tag: 'StandardAttribute',
+          name,
+          presentation,
+          synonym: extractLocalizedStringFromElement(element, 'Synonym') || presentation,
+        };
+      })
+      .filter((item): item is MetaChild => Boolean(item));
+    return mergeStandardAttributes(possible, collectStandardAttributeNamesFromFieldRefs(properties), explicit);
+  }
+
   updateTypeInObject(
     xmlPath: string,
     options: {
@@ -230,11 +290,11 @@ export class ObjectXmlReader {
   updatePropertyInObject(
     xmlPath: string,
     options: {
-      targetKind: 'Self' | 'Attribute' | 'AddressingAttribute' | 'Dimension' | 'Resource' | 'Column' | 'TabularSection' | 'Command' | 'EnumValue';
+      targetKind: 'Self' | 'StandardAttribute' | 'Attribute' | 'AddressingAttribute' | 'Dimension' | 'Resource' | 'Column' | 'TabularSection' | 'Command' | 'EnumValue';
       targetName: string;
       tabularSectionName?: string;
       propertyKey: string;
-      valueKind: 'string' | 'boolean' | 'localizedString' | 'metadataReferenceList';
+      valueKind: 'string' | 'boolean' | 'localizedString' | 'metadataReferenceList' | 'metadataFieldList';
       value: string | boolean | string[];
     }
   ): boolean {
@@ -253,6 +313,8 @@ export class ObjectXmlReader {
         return false;
       }
       targetXml = extractColumnXmlFromTabularSection(xml, options.tabularSectionName, options.targetName);
+    } else if (options.targetKind === 'StandardAttribute') {
+      targetXml = extractStandardAttributeXml(xml, options.targetName, options.tabularSectionName);
     } else {
       targetXml = extractChildMetaElementXml(xml, options.targetKind, options.targetName);
     }
@@ -286,12 +348,34 @@ function extractSimpleTagFromElement(element: XmlElementNode, tagName: string): 
 }
 
 function extractSynonymFromElement(element: XmlElementNode): string {
+  return extractLocalizedStringFromElement(element, 'Synonym');
+}
+
+function extractLocalizedStringFromElement(element: XmlElementNode, tagName: string): string {
   const synonym = findFirstElement(getElementChildren(element), 'Synonym');
-  if (!synonym) {
+  const target = synonym ?? findFirstElementByLocalName(getElementChildren(element), tagName);
+  if (!target) {
     return '';
   }
-  const content = findFirstElement(getElementChildren(synonym), 'v8:content');
+  const content = findFirstElement(getElementChildren(target), 'v8:content');
   return content ? collectDirectText(getElementChildren(content)) : '';
+}
+
+function findFirstElementByLocalName(nodes: XmlNodeList, tagName: string): XmlElementNode | null {
+  for (const node of nodes) {
+    const name = getElementName(node);
+    if (!name) {
+      continue;
+    }
+    if (name === tagName || name.endsWith(`:${tagName}`)) {
+      return node as XmlElementNode;
+    }
+    const found = findFirstElementByLocalName(getElementChildren(node), tagName);
+    if (found) {
+      return found;
+    }
+  }
+  return null;
 }
 
 function collectDirectText(nodes: XmlNodeList): string {
@@ -302,6 +386,76 @@ function collectDirectText(nodes: XmlNodeList): string {
     }
   }
   return result.trim();
+}
+
+function collectStandardAttributeNamesFromFieldRefs(element: XmlElementNode): string[] {
+  const result: string[] = [];
+  const seen = new Set<string>();
+  visitFieldRefs(getElementChildren(element), (ref) => {
+    const name = /\.StandardAttribute\.([A-Za-z][A-Za-z0-9]*)$/.exec(ref)?.[1];
+    if (!name || seen.has(name)) {
+      return;
+    }
+    seen.add(name);
+    result.push(name);
+  });
+  return result;
+}
+
+function mergeStandardAttributes(
+  possible: { name: string; presentation: string }[],
+  inferredNames: string[],
+  explicit: MetaChild[] = []
+): MetaChild[] {
+  const byName = new Map<string, MetaChild>();
+  for (const item of explicit) {
+    byName.set(item.name, item);
+  }
+  for (const item of possible) {
+    if (!byName.has(item.name)) {
+      byName.set(item.name, {
+        tag: 'StandardAttribute',
+        name: item.name,
+        presentation: item.presentation,
+        synonym: item.presentation,
+      });
+    }
+  }
+  for (const name of inferredNames) {
+    if (!byName.has(name)) {
+      const presentation = getStandardAttributePresentation(name);
+      byName.set(name, {
+        tag: 'StandardAttribute',
+        name,
+        presentation,
+        synonym: presentation,
+      });
+    }
+  }
+  const possibleNames = new Set(possible.map((item) => item.name));
+  const explicitNames = new Set(explicit.map((item) => item.name));
+  return [
+    ...possible.map((item) => byName.get(item.name)).filter((item): item is MetaChild => Boolean(item)),
+    ...explicit.filter((item) => !possibleNames.has(item.name)),
+    ...inferredNames
+      .filter((name) => !possibleNames.has(name) && !explicitNames.has(name))
+      .map((name) => byName.get(name))
+      .filter((item): item is MetaChild => Boolean(item)),
+  ];
+}
+
+function visitFieldRefs(nodes: XmlNodeList, visitor: (ref: string) => void): void {
+  for (const node of nodes) {
+    const name = getElementName(node);
+    if (!name) {
+      continue;
+    }
+    if (name === 'Field' || name.endsWith(':Field')) {
+      visitor(collectDirectText(getElementChildren(node)));
+      continue;
+    }
+    visitFieldRefs(getElementChildren(node), visitor);
+  }
 }
 
 function updateTypeInElement(
@@ -376,7 +530,7 @@ function indentTypeInner(typeInnerXml: string): string {
 function updatePropertyInElement(
   elementXml: string,
   propertyKey: string,
-  valueKind: 'string' | 'boolean' | 'localizedString' | 'metadataReferenceList',
+  valueKind: 'string' | 'boolean' | 'localizedString' | 'metadataReferenceList' | 'metadataFieldList',
   value: string | boolean | string[]
 ): string {
   const propertiesMatch = /<Properties>([\s\S]*?)<\/Properties>/.exec(elementXml);
@@ -409,7 +563,7 @@ function updatePropertyInElement(
 
 function buildPropertyValueBlock(
   propertyKey: string,
-  valueKind: 'string' | 'boolean' | 'localizedString' | 'metadataReferenceList',
+  valueKind: 'string' | 'boolean' | 'localizedString' | 'metadataReferenceList' | 'metadataFieldList',
   value: string | boolean | string[]
 ): string {
   if (valueKind === 'boolean') {
@@ -423,6 +577,17 @@ function buildPropertyValueBlock(
     return [
       `<${propertyKey}>`,
       ...items.map((item) => `\t\t\t\t<xr:Item xsi:type="xr:MDObjectRef">${escapeXmlText(item)}</xr:Item>`),
+      `\t\t\t</${propertyKey}>`,
+    ].join('\n');
+  }
+  if (valueKind === 'metadataFieldList') {
+    const items = Array.isArray(value) ? value : [];
+    if (items.length === 0) {
+      return `<${propertyKey}/>`;
+    }
+    return [
+      `<${propertyKey}>`,
+      ...items.map((item) => `\t\t\t\t<xr:Field>${escapeXmlText(item)}</xr:Field>`),
       `\t\t\t</${propertyKey}>`,
     ].join('\n');
   }

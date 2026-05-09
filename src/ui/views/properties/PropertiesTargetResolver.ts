@@ -92,14 +92,15 @@ export function resolveTypeRegistryFilter(key: string): TypeRegistryFilter {
 
 export function resolvePropertyTarget(node: MetadataNode): {
   xmlPath: string;
-  targetKind: 'Self' | 'Attribute' | 'AddressingAttribute' | 'Dimension' | 'Resource' | 'Column' | 'TabularSection' | 'Command' | 'EnumValue';
+  targetKind: 'Self' | 'StandardAttribute' | 'Attribute' | 'AddressingAttribute' | 'Dimension' | 'Resource' | 'Column' | 'TabularSection' | 'Command' | 'EnumValue';
   targetName: string;
   tabularSectionName?: string;
 } | null {
   if (!node.xmlPath) {
     return null;
   }
-  const directKinds: Partial<Record<string, 'Attribute' | 'AddressingAttribute' | 'Dimension' | 'Resource' | 'Column' | 'TabularSection' | 'Command' | 'EnumValue'>> = {
+  const directKinds: Partial<Record<string, 'StandardAttribute' | 'Attribute' | 'AddressingAttribute' | 'Dimension' | 'Resource' | 'Column' | 'TabularSection' | 'Command' | 'EnumValue'>> = {
+    StandardAttribute: 'StandardAttribute',
     Attribute: 'Attribute',
     AddressingAttribute: 'AddressingAttribute',
     Dimension: 'Dimension',
@@ -114,7 +115,9 @@ export function resolvePropertyTarget(node: MetadataNode): {
     return {
       xmlPath: node.metaContext?.ownerObjectXmlPath ?? node.xmlPath,
       targetKind: mapped,
-      targetName: node.textLabel,
+      targetName: mapped === 'StandardAttribute'
+        ? node.metaContext?.standardAttributeName ?? node.textLabel
+        : node.textLabel,
       tabularSectionName: node.metaContext?.tabularSectionName,
     };
   }
@@ -177,7 +180,7 @@ export function isValidMetadataName(value: string): boolean {
 
 export function isRootObjectNode(
   node: MetadataNode,
-  target: { targetKind: 'Self' | 'Attribute' | 'AddressingAttribute' | 'Dimension' | 'Resource' | 'Column' | 'TabularSection' | 'Command' | 'EnumValue' }
+  target: { targetKind: 'Self' | 'StandardAttribute' | 'Attribute' | 'AddressingAttribute' | 'Dimension' | 'Resource' | 'Column' | 'TabularSection' | 'Command' | 'EnumValue' }
 ): boolean {
   if (target.targetKind !== 'Self') {
     return false;

@@ -4,3 +4,4 @@ export * from './MetaTypes';
 export * from './MetaObject';
 export * from './Configuration';
 export * from './Ownership';
+export * from './StandardAttribute';

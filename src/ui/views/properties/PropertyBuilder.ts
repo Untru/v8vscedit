@@ -23,6 +23,7 @@ import {
   formatXmlPropertyDisplay,
   getPropertyTitle,
 } from './PropertyPresentationRegistry';
+import { getStandardAttributePresentation } from '../../../domain/StandardAttribute';
 
 /** Теги со строкой локализации (v8:item) */
 const LOCALIZED_PROPERTY_TAGS = new Set([
@@ -721,7 +722,6 @@ const CATALOG_ROOT_META_PROPERTY_KEYS: string[] = [
 ];
 
 const CATALOG_READONLY_COMPLEX_PROPERTIES = new Set([
-  'InputByString',
   'DataLockFields',
   'Characteristics',
 ]);
@@ -877,6 +877,8 @@ const TYPED_FIELD_PROPERTY_KEYS: string[] = [
   'RoundingMode',
   'ShowInTotal',
 ];
+
+const STANDARD_ATTRIBUTE_PROPERTY_KEYS: string[] = TYPED_FIELD_PROPERTY_KEYS.filter((key) => key !== 'Type');
 
 /** Поля табличной части */
 const TABULAR_SECTION_PROPERTY_KEYS: string[] = [
@@ -1231,6 +1233,19 @@ export function buildPropertyItemsForKeys(
       continue;
     }
 
+    if (key === 'InputByString') {
+      if (!propsInner.includes('<InputByString')) {
+        continue;
+      }
+      items.push({
+        key,
+        title: propertyTitle(key),
+        kind: 'metadataReferenceList',
+        value: buildMetadataReferenceListValue(childrenByTag.get(key) ?? '', 'Field', formatMetadataFieldDisplay),
+      });
+      continue;
+    }
+
     if (key === 'BasedOn') {
       if (!propsInner.includes('<BasedOn')) {
         continue;
@@ -1553,16 +1568,62 @@ function formatReadonlyXmlProperty(key: string, innerXml: string): string {
   return formatXmlPropertyDisplay(key, innerXml);
 }
 
-function buildMetadataReferenceListValue(innerXml: string): MetadataReferenceListValue {
+function buildMetadataReferenceListValue(
+  innerXml: string,
+  itemLocalName = 'Item',
+  formatDisplay: (canonical: string) => string = formatPropertyDisplayValue
+): MetadataReferenceListValue {
+  const tagPattern = itemLocalName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   return {
-    items: Array.from(innerXml.matchAll(/<xr:Item\b[^>]*>([^<]+)<\/xr:Item>/g))
+    items: Array.from(innerXml.matchAll(new RegExp(`<(?:[A-Za-z_][\\w.-]*:)?${tagPattern}\\b[^>]*>([^<]+)<\\/(?:[A-Za-z_][\\w.-]*:)?${tagPattern}>`, 'g')))
       .map((match) => match[1].trim())
       .filter((value) => value.length > 0)
       .map((canonical) => ({
         canonical,
-        display: formatPropertyDisplayValue(canonical),
+        display: formatDisplay(canonical),
       })),
   };
+}
+
+function formatMetadataFieldDisplay(canonical: string): string {
+  const standardAttribute = /\.StandardAttribute\.([A-Za-z][A-Za-z0-9]*)$/.exec(canonical);
+  if (standardAttribute) {
+    return getStandardAttributePresentation(standardAttribute[1]);
+  }
+  const namedField = /\.(?:Attribute|Dimension|Resource)\.([^.]+)$/.exec(canonical);
+  if (namedField) {
+    return namedField[1];
+  }
+  return canonical.split('.').at(-1) ?? canonical;
+}
+
+export function buildStandardAttributeProperties(
+  elementXml: string,
+  inheritedElementXml?: string | null
+): ObjectPropertiesCollection {
+  const local = normalizeStandardAttributeElementXml(elementXml);
+  const inherited = inheritedElementXml ? normalizeStandardAttributeElementXml(inheritedElementXml) : null;
+  return buildEffectivePropertyItemsForKeys(local, inherited, STANDARD_ATTRIBUTE_PROPERTY_KEYS, {
+    includeExtraKeys: true,
+  });
+}
+
+function normalizeStandardAttributeElementXml(elementXml: string): string {
+  if (!elementXml.trim()) {
+    return '';
+  }
+  const name = /<[^>]*\bStandardAttribute\b[^>]*\bname="([^"]+)"/.exec(elementXml)?.[1] ?? '';
+  const inner = /^<[^>]+>([\s\S]*)<\/[^>]+>\s*$/.exec(elementXml.trim())?.[1] ?? '';
+  const normalizedInner = inner.replace(/<(\/?)(?:[A-Za-z_][\w.-]*:)([A-Za-z_][\w.-]*)([^>]*)>/g, '<$1$2$3>');
+  const displayName = escapeXmlText(getStandardAttributePresentation(name));
+  return `<StandardAttribute><Properties><Name>${displayName}</Name>${normalizedInner}</Properties></StandardAttribute>`;
+}
+
+function escapeXmlText(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
 }
 
 function getTypedFieldPropertyKeyOrder(elementFullXml: string): string[] {

@@ -17,6 +17,8 @@ export interface MetaTreeNodeContext {
   rootMetaKind: NodeKind;
   /** Имя табличной части для колонки */
   tabularSectionName?: string;
+  /** Техническое имя стандартного реквизита, если в дереве показано русское представление */
+  standardAttributeName?: string;
   /** XML корневого объекта, если текущий узел ссылается на вложенный файл */
   ownerObjectXmlPath?: string;
 }

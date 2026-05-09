@@ -373,6 +373,9 @@ function buildChildFragment(
   ownerKind?: string,
   ownerName?: string
 ): string {
+  if (tag === 'StandardAttribute') {
+    throw new Error('Стандартные реквизиты создаются платформой 1С и не добавляются вручную.');
+  }
   if (tag === 'Attribute' || tag === 'AddressingAttribute' || tag === 'Dimension' || tag === 'Resource') {
     return buildTypedFieldFragment(tag, name, indent);
   }

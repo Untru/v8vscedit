@@ -4,6 +4,8 @@ import type { MetadataNode, NodeKind } from '../TreeNode';
 import {
   extractChildMetaElementXml,
   extractColumnXmlFromTabularSection,
+  ensureStandardAttributeXml,
+  extractStandardAttributeXml,
 } from '../../../infra/xml';
 import { getObjectLocationFromXml } from '../../../infra/fs/MetaPathResolver';
 import type { ObjectHandler, ObjectPropertiesCollection } from './_types';
@@ -11,6 +13,7 @@ import {
   buildCommandProperties,
   buildEnumValueProperties,
   buildFormLikeProperties,
+  buildStandardAttributeProperties,
   buildTabularSectionProperties,
   buildTemplateMetaProperties,
   buildTypedFieldProperties,
@@ -24,6 +27,7 @@ import { enrichCommandInterfaceGroupOptions } from '../../views/properties/Comma
 /** Виды дочерних узлов, для которых есть общий разбор свойств из XML */
 const SUPPORTED_CHILD_KINDS = new Set<NodeKind>([
   'Attribute',
+  'StandardAttribute',
   'AddressingAttribute',
   'Dimension',
   'Resource',
@@ -73,6 +77,16 @@ export const structuredMetaChildHandler: ObjectHandler = {
             'typed',
             inheritedObjectXml ? extractChildMetaElementXml(inheritedObjectXml, 'Attribute', label) : null
           );
+        case 'StandardAttribute': {
+          const standardAttributeName = node.metaContext.standardAttributeName ?? label;
+          const localXml = tsName
+            ? extractStandardAttributeXml(objectXml, standardAttributeName, tsName)
+            : ensureStandardAttributeXml(objectMainXmlPath, standardAttributeName, node.metaContext.rootMetaKind);
+          const inheritedXml = inheritedObjectXml
+            ? extractStandardAttributeXml(inheritedObjectXml, standardAttributeName, tsName)
+            : null;
+          return propsFromElementXml(localXml, 'standardAttribute', inheritedXml);
+        }
         case 'AddressingAttribute':
           return propsFromElementXml(
             extractChildMetaElementXml(objectXml, 'AddressingAttribute', label),
@@ -157,7 +171,7 @@ export const structuredMetaChildHandler: ObjectHandler = {
 
 function propsFromElementXml(
   elementXml: string | null,
-  mode: 'typed' | 'tabular' | 'enumValue' = 'typed',
+  mode: 'typed' | 'tabular' | 'enumValue' | 'standardAttribute' = 'typed',
   inheritedElementXml: string | null = null
 ): ObjectPropertiesCollection {
   if (!elementXml && !inheritedElementXml) {
@@ -168,6 +182,9 @@ function propsFromElementXml(
   }
   if (mode === 'enumValue') {
     return buildEnumValueProperties(elementXml ?? '', inheritedElementXml);
+  }
+  if (mode === 'standardAttribute') {
+    return buildStandardAttributeProperties(elementXml ?? '', inheritedElementXml);
   }
   return buildTypedFieldProperties(elementXml ?? '', inheritedElementXml);
 }

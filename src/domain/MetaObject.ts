@@ -8,6 +8,8 @@ export interface MetaChild {
   /** Тег XML — соответствует одному из значений {@link ChildTag}; для обратной совместимости — строка */
   tag: string;
   name: string;
+  /** Представление для UI, если техническое имя отличается от пользовательского */
+  presentation?: string;
   synonym: string;
   /** Для табличной части — список её колонок (Attribute) */
   columns?: MetaChild[];

@@ -25,6 +25,7 @@ export interface MetadataCacheNode {
   metaContext?: {
     rootMetaKind: MetaKind;
     tabularSectionName?: string;
+    standardAttributeName?: string;
     ownerObjectXmlPath?: string;
   };
   addMetadataTarget?: MetadataCacheAddTarget;
@@ -49,7 +50,7 @@ export type MetadataCacheAddTarget =
   };
 
 export interface MetadataCacheSnapshot {
-  schemaVersion: 12;
+  schemaVersion: 13;
   scopeKey: string;
   generatedAt: string;
   rootPath: string;
@@ -63,7 +64,7 @@ export interface MetadataCacheUpdateResult {
 }
 
 const METADATA_CACHE_DIR = path.join('.v8vscedit', 'meta');
-const CACHE_SCHEMA_VERSION = 12;
+const CACHE_SCHEMA_VERSION = 13;
 
 /**
  * Строит полный снимок дерева метаданных без ленивых загрузчиков, чтобы UI мог восстановить дерево из JSON.
@@ -422,6 +423,9 @@ function buildStructuredChildren(
 ): MetadataCacheNode[] {
   return childTags.map((tag) => {
     const items = children.filter((item) => item.tag === tag);
+    if (tag === 'StandardAttribute' && items.length === 0) {
+      return null;
+    }
     const tagCfg = CHILD_TAG_CONFIG[tag];
     return node({
       type: 'group-type',
@@ -441,14 +445,14 @@ function buildStructuredChildren(
           paths: resolveChildGroupDecorationPaths(objectXmlPath, tag),
         },
       hidePropertiesCommand: true,
-      addMetadataTarget: {
+      addMetadataTarget: tag === 'StandardAttribute' ? undefined : {
         kind: 'child',
         ownerObjectXmlPath: objectXmlPath,
         childTag: tag,
       },
       children: buildLeavesForTag(objectXmlPath, rootMetaKind, tag, items),
     });
-  });
+  }).filter((item): item is MetadataCacheNode => Boolean(item));
 }
 
 function buildLeavesForTag(
@@ -467,7 +471,7 @@ function buildLeavesForTag(
     return node({
       type,
       name: item.name,
-      label: item.name,
+      label: item.presentation ?? item.name,
       xmlPath,
       decorationPath: undefined,
       gitDecorationTarget: isEmbeddedChildTag(tag)
@@ -488,8 +492,9 @@ function buildLeavesForTag(
       metaContext: {
         rootMetaKind,
         ownerObjectXmlPath: objectXmlPath,
+        standardAttributeName: tag === 'StandardAttribute' ? item.name : undefined,
       },
-      canRemoveMetadata: true,
+      canRemoveMetadata: tag !== 'StandardAttribute',
       singleClickAction: resolveLeafSingleClickAction(tag, xmlPath),
       children: [],
     });

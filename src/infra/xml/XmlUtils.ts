@@ -1,5 +1,6 @@
 import { XMLParser } from 'fast-xml-parser';
 import * as fs from 'fs';
+import { getDefaultStandardAttributeIndexing } from '../../domain/StandardAttribute';
 
 interface XmlTextNode { '#text': string }
 type XmlElementNode = Record<string, XmlNodeList>;
@@ -302,6 +303,137 @@ export function extractColumnXmlFromTabularSection(
   }
 
   return findChildElementFullXmlInBlock(childObjectsInner, 'Attribute', columnName);
+}
+
+/** Извлекает XML стандартного реквизита из корня объекта или табличной части. */
+export function extractStandardAttributeXml(
+  objectXml: string,
+  attributeName: string,
+  tabularSectionName?: string
+): string | null {
+  const sourceXml = tabularSectionName
+    ? extractChildMetaElementXml(objectXml, 'TabularSection', tabularSectionName)
+    : extractRootObjectElementXml(objectXml);
+  if (!sourceXml) {
+    return null;
+  }
+  const propertiesInner = extractNestingAwareBlock(sourceXml, 'Properties');
+  if (!propertiesInner) {
+    return null;
+  }
+  const standardAttributesInner = extractNestingAwareBlock(propertiesInner, 'StandardAttributes');
+  if (!standardAttributesInner) {
+    return `<xr:StandardAttribute name="${escapeXmlAttribute(attributeName)}"/>`;
+  }
+  const nameAttr = escapeRegExp(attributeName);
+  const re = new RegExp(
+    `<(?:[A-Za-z_][\\w.-]*:)?StandardAttribute\\b[^>]*\\bname="${nameAttr}"[^>]*>[\\s\\S]*?<\\/(?:[A-Za-z_][\\w.-]*:)?StandardAttribute>`,
+    'm'
+  );
+  return re.exec(standardAttributesInner)?.[0] ?? null;
+}
+
+/** Создаёт описание стандартного реквизита в XML объекта, если оно ещё не было материализовано. */
+export function ensureStandardAttributeXml(
+  objectXmlPath: string,
+  attributeName: string,
+  rootKind: string
+): string | null {
+  let xml: string;
+  try {
+    xml = fs.readFileSync(objectXmlPath, 'utf-8');
+  } catch {
+    return null;
+  }
+  const existing = extractExistingStandardAttributeXml(xml, attributeName);
+  if (existing) {
+    return existing;
+  }
+
+  const propertiesMatch = /<Properties>([\s\S]*?)<\/Properties>/.exec(xml);
+  if (!propertiesMatch) {
+    return null;
+  }
+  const propsInner = propertiesMatch[1];
+  const standardAttributeXml = buildDefaultStandardAttributeXml(rootKind, attributeName, '\t\t\t\t');
+  const standardAttributesMatch = /<StandardAttributes>([\s\S]*?)<\/StandardAttributes>/.exec(propsInner);
+  const selfClosingStandardAttributesMatch = /<StandardAttributes\s*\/>/.exec(propsInner);
+
+  const nextPropsInner = standardAttributesMatch
+    ? propsInner.replace(
+        standardAttributesMatch[0],
+        `<StandardAttributes>${standardAttributesMatch[1]}\n${standardAttributeXml}\n\t\t\t</StandardAttributes>`
+      )
+    : selfClosingStandardAttributesMatch
+    ? propsInner.replace(
+        selfClosingStandardAttributesMatch[0],
+        `<StandardAttributes>\n${standardAttributeXml}\n\t\t\t</StandardAttributes>`
+      )
+    : insertStandardAttributesBlock(propsInner, standardAttributeXml);
+
+  if (nextPropsInner === propsInner) {
+    return null;
+  }
+  const nextXml = xml.replace(propsInner, nextPropsInner);
+  writeTextFilePreservingBomAndEol(objectXmlPath, xml, nextXml);
+  return extractExistingStandardAttributeXml(nextXml, attributeName);
+}
+
+function extractExistingStandardAttributeXml(objectXml: string, attributeName: string): string | null {
+  const rootXml = extractRootObjectElementXml(objectXml);
+  if (!rootXml) {
+    return null;
+  }
+  const propertiesInner = extractNestingAwareBlock(rootXml, 'Properties');
+  if (!propertiesInner) {
+    return null;
+  }
+  const standardAttributesInner = extractNestingAwareBlock(propertiesInner, 'StandardAttributes');
+  if (!standardAttributesInner) {
+    return null;
+  }
+  const nameAttr = escapeRegExp(attributeName);
+  const re = new RegExp(
+    `<(?:[A-Za-z_][\\w.-]*:)?StandardAttribute\\b[^>]*\\bname="${nameAttr}"[^>]*>[\\s\\S]*?<\\/(?:[A-Za-z_][\\w.-]*:)?StandardAttribute>`,
+    'm'
+  );
+  return re.exec(standardAttributesInner)?.[0] ?? null;
+}
+
+function insertStandardAttributesBlock(propsInner: string, standardAttributeXml: string): string {
+  const block = `\t\t\t<StandardAttributes>\n${standardAttributeXml}\n\t\t\t</StandardAttributes>`;
+  const inputByStringIndex = propsInner.search(/\n\t\t\t<InputByString\b/);
+  if (inputByStringIndex >= 0) {
+    return `${propsInner.slice(0, inputByStringIndex)}\n${block}${propsInner.slice(inputByStringIndex)}`;
+  }
+  return `${propsInner.trimEnd()}\n${block}\n\t\t`;
+}
+
+function buildDefaultStandardAttributeXml(rootKind: string, attributeName: string, indent: string): string {
+  const indexing = getDefaultStandardAttributeIndexing(rootKind, attributeName);
+  return [
+    `${indent}<xr:StandardAttribute name="${escapeXmlAttribute(attributeName)}">`,
+    indexing ? `${indent}\t<xr:Indexing>${indexing}</xr:Indexing>` : undefined,
+    `${indent}</xr:StandardAttribute>`,
+  ].filter((line): line is string => Boolean(line)).join('\n');
+}
+
+function escapeXmlAttribute(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
+function extractRootObjectElementXml(fullXml: string): string | null {
+  const rootMatch = /<MetaDataObject[^>]*>\s*<([A-Za-z][A-Za-z0-9]*)\b/.exec(fullXml);
+  const rootTag = rootMatch?.[1];
+  if (!rootTag) {
+    return null;
+  }
+  const range = findFirstElementRange(fullXml, rootTag);
+  return range ? fullXml.slice(range.start, range.end) : null;
 }
 
 /** Возвращает все колонки табличной части по имени ТЧ. */

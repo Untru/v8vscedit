@@ -1,4 +1,5 @@
 import { META_TYPES } from '../../../domain/MetaTypes';
+import { getStandardAttributePresentation } from '../../../domain/StandardAttribute';
 
 /** Описание представления XML-ссылки на объект метаданных. */
 interface MetadataReferencePresentation {
@@ -312,7 +313,17 @@ function compactTypeLabel(label: string): string {
 }
 
 function formatMetadataReferences(value: string): string {
-  return value.replace(/\b([A-Za-z][A-Za-z0-9]*Ref?|[A-Za-z][A-Za-z0-9]*)\.([A-Za-zА-Яа-яЁё_][\wА-Яа-яЁё]*)/g, (full: string, type: string, name: string) => {
+  const withStandardAttributes = value.replace(
+    /\b([A-Za-z][A-Za-z0-9]*)\.([A-Za-zА-Яа-яЁё_][\wА-Яа-яЁё]*)\.StandardAttribute\.([A-Za-z][A-Za-z0-9]*)\b/g,
+    (full: string, type: string, objectName: string, attributeName: string) => {
+      const presentation = referencePresentationByXmlType.get(type);
+      if (!presentation) {
+        return full;
+      }
+      return `${presentation.ruType}.${objectName}.Стандартные реквизиты.${getStandardAttributePresentation(attributeName)}`;
+    }
+  );
+  return withStandardAttributes.replace(/\b([A-Za-z][A-Za-z0-9]*Ref?|[A-Za-z][A-Za-z0-9]*)\.([A-Za-zА-Яа-яЁё_][\wА-Яа-яЁё]*)/g, (full: string, type: string, name: string) => {
     const presentation = referencePresentationByXmlType.get(type);
     return presentation ? `${presentation.ruType}.${name}` : full;
   });

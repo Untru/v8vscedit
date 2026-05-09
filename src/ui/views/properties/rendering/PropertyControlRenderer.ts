@@ -19,12 +19,15 @@ export class PropertyControlRenderer {
     const valueHtml = this.renderPropertyValue(property, isEditLocked);
     const noteHtml = this.renderPropertyNote(property);
     if (property.kind === 'metadataReferenceList') {
-      const disabledAttr = isEditLocked || property.readonly === true ? 'disabled' : '';
+      const isLocked = isEditLocked || property.readonly === true;
+      const actionHtml = isLocked
+        ? ''
+        : `<button class="icon-btn" type="button" title="${escapeHtml(getReferencePickerTitle(property.key))}" data-reference-add="${escapeHtml(property.key)}">+</button>`;
       return `
         <div class="row">
           <div class="property-label-row">
             <label class="label" title="${escapeHtml(property.key)}">${escapeHtml(property.title)}</label>
-            <button class="icon-btn" type="button" title="${escapeHtml(getReferencePickerTitle(property.key))}" data-reference-add="${escapeHtml(property.key)}" ${disabledAttr}>+</button>
+            ${actionHtml}
           </div>
           <div class="control">${valueHtml}${noteHtml}</div>
         </div>
@@ -115,7 +118,7 @@ export class PropertyControlRenderer {
       case 'metadataType':
         return this.renderMetadataTypeControl(property, isEditLocked || property.readonly === true);
       case 'metadataReferenceList':
-        return this.renderMetadataReferenceList(property, isEditLocked || property.readonly === true);
+        return this.renderListControl(property, isEditLocked || property.readonly === true);
       case 'string': {
         if (typeof property.value !== 'string') {
           return `<input class="input" data-prop-key="${escapeHtml(property.key)}" data-prop-kind="string" type="text" value="" ${readonlyAttr} />`;
@@ -129,20 +132,30 @@ export class PropertyControlRenderer {
     }
   }
 
-  private renderMetadataReferenceList(property: ObjectPropertyItem, isLocked: boolean): string {
+  private renderListControl(property: ObjectPropertyItem, isLocked: boolean): string {
     const value = property.value as MetadataReferenceListValue;
-    const disabledAttr = isLocked ? 'disabled' : '';
     if (value.items.length === 0) {
       return '<div class="empty">Список пуст.</div>';
     }
     return `
       <div class="reference-list">
-        ${value.items.map((item) => `
-          <div class="reference-row">
-            <div class="reference-value" title="${escapeHtml(item.canonical)}">${escapeHtml(item.display)}</div>
-            <button class="icon-btn reference-remove" type="button" title="Удалить владельца" data-reference-remove="${escapeHtml(property.key)}" data-reference-value="${escapeHtml(item.canonical)}" ${disabledAttr}>×</button>
-          </div>
-        `).join('')}
+        ${value.items.map((item) => this.renderListRow(property, item, isLocked)).join('')}
+      </div>
+    `;
+  }
+
+  private renderListRow(
+    property: ObjectPropertyItem,
+    item: MetadataReferenceListValue['items'][number],
+    isLocked: boolean
+  ): string {
+    const removeHtml = isLocked
+      ? ''
+      : `<button class="icon-btn reference-remove" type="button" title="Удалить из списка" data-reference-remove="${escapeHtml(property.key)}" data-reference-value="${escapeHtml(item.canonical)}">×</button>`;
+    return `
+      <div class="reference-row">
+        <div class="reference-value" title="${escapeHtml(item.canonical)}">${escapeHtml(item.display)}</div>
+        ${removeHtml}
       </div>
     `;
   }

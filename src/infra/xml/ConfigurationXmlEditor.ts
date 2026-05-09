@@ -5,7 +5,7 @@ import { getObjectLocationFromXml } from '../fs/ObjectLocation';
 import { ObjectXmlReader } from './ObjectXmlReader';
 import { writeTextFilePreservingBomAndEol } from './XmlUtils';
 
-type PropertyValueKind = 'string' | 'boolean' | 'localizedString' | 'metadataReferenceList';
+type PropertyValueKind = 'string' | 'boolean' | 'localizedString' | 'metadataReferenceList' | 'metadataFieldList';
 type RootPropertyKind = 'scalar' | 'localized' | 'reference' | 'boolean' | 'multiEnum';
 
 export interface EditResult {
@@ -22,7 +22,7 @@ export class ConfigurationXmlEditor {
   modifyObjectProperty(
     xmlPath: string,
     options: {
-      targetKind: 'Self' | 'Attribute' | 'AddressingAttribute' | 'Dimension' | 'Resource' | 'Column' | 'TabularSection' | 'Command' | 'EnumValue';
+      targetKind: 'Self' | 'StandardAttribute' | 'Attribute' | 'AddressingAttribute' | 'Dimension' | 'Resource' | 'Column' | 'TabularSection' | 'Command' | 'EnumValue';
       targetName: string;
       tabularSectionName?: string;
       propertyKey: string;

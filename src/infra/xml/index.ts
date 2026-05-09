@@ -72,11 +72,11 @@ export function updateObjectTypeProperty(
 export function updateObjectProperty(
   xmlPath: string,
   options: {
-    targetKind: 'Self' | 'Attribute' | 'AddressingAttribute' | 'Dimension' | 'Resource' | 'Column' | 'TabularSection' | 'Command' | 'EnumValue';
+    targetKind: 'Self' | 'StandardAttribute' | 'Attribute' | 'AddressingAttribute' | 'Dimension' | 'Resource' | 'Column' | 'TabularSection' | 'Command' | 'EnumValue';
     targetName: string;
     tabularSectionName?: string;
     propertyKey: string;
-    valueKind: 'string' | 'boolean' | 'localizedString' | 'metadataReferenceList';
+    valueKind: 'string' | 'boolean' | 'localizedString' | 'metadataReferenceList' | 'metadataFieldList';
     value: string | boolean | string[];
   }
 ): boolean {

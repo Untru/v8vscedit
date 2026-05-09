@@ -3,6 +3,7 @@
  * Имена совпадают с XML-тегами, в которых эти элементы встречаются внутри `<ChildObjects>`.
  */
 export type ChildTag =
+  | 'StandardAttribute'
   | 'Attribute'
   | 'AddressingAttribute'
   | 'TabularSection'
@@ -22,6 +23,7 @@ export interface ChildTagConfig {
 }
 
 export const CHILD_TAG_CONFIG: Readonly<Record<ChildTag, ChildTagConfig>> = {
+  StandardAttribute: { tag: 'StandardAttribute', label: 'Стандартные реквизиты', kind: 'StandardAttribute' },
   Attribute: { tag: 'Attribute', label: 'Реквизиты', kind: 'Attribute' },
   AddressingAttribute: { tag: 'AddressingAttribute', label: 'Реквизиты адресации', kind: 'AddressingAttribute' },
   TabularSection: { tag: 'TabularSection', label: 'Табличные части', kind: 'TabularSection' },

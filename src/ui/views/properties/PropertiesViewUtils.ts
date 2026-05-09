@@ -38,6 +38,9 @@ export function extractFormNameFromReference(value: string): string {
 }
 
 export function getReferencePickerTitle(key: string): string {
+  if (key === 'InputByString') {
+    return 'Добавить поле ввода по строке';
+  }
   if (key === 'BasedOn') {
     return 'Добавить основание';
   }
@@ -48,6 +51,9 @@ export function getReferencePickerTitle(key: string): string {
 }
 
 export function getEmptyReferencePickerMessage(key: string): string {
+  if (key === 'InputByString') {
+    return 'Все доступные поля уже добавлены во ввод по строке.';
+  }
   if (key === 'BasedOn' || key === 'BasedFor') {
     return 'Все доступные справочники и документы уже добавлены.';
   }

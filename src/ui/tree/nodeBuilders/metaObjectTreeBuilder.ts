@@ -168,6 +168,9 @@ export function buildGroupNodes(
 
   for (const tag of plannedChildTags) {
     const items = byTag.get(tag) ?? [];
+    if (tag === 'StandardAttribute' && items.length === 0) {
+      continue;
+    }
 
     const tagCfg = CHILD_TAG_CONFIG[tag];
     /** Без дочерних элементов — лист без шеврона раскрытия (как в стандартном дереве VS Code) */
@@ -210,9 +213,10 @@ export function buildLeavesForTag(
     const metaContext: MetaTreeNodeContext = {
       rootMetaKind,
       ownerObjectXmlPath: objectXmlPath,
+      standardAttributeName: tag === 'StandardAttribute' ? item.name : undefined,
     };
     const node = buildNode(leafDesc, {
-      label: item.name,
+      label: item.presentation ?? item.name,
       kind: CHILD_TAG_CONFIG[tag].kind,
       collapsibleState: vscode.TreeItemCollapsibleState.None,
       xmlPath,

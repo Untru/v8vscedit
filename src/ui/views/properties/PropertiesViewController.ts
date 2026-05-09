@@ -23,6 +23,8 @@ import {
   BasedOnXmlService,
   type BasedOnMetaKind,
   ConfigurationXmlEditor,
+  extractSimpleTag,
+  extractStandardAttributeXml,
   parseConfigXml,
   parseObjectXml,
 } from '../../../infra/xml';
@@ -31,6 +33,7 @@ import type { RepositoryService } from '../../../infra/repository/RepositoryServ
 import { type SupportInfoService, SupportMode } from '../../../infra/support/SupportInfoService';
 import { getObjectLocationFromXml } from '../../../infra/fs';
 import { META_TYPES } from '../../../domain/MetaTypes';
+import { getDefaultStandardAttributeIndexing } from '../../../domain/StandardAttribute';
 import type {
   SubsystemMembershipSnapshot,
   SubsystemMembershipTreeNode,
@@ -443,6 +446,9 @@ export class PropertiesViewController {
     if (key === 'Owners') {
       return this.getCatalogReferenceOptions();
     }
+    if (key === 'InputByString') {
+      return this.getInputByStringFieldOptions();
+    }
     if (key === 'BasedOn' || key === 'BasedFor') {
       return this.getBasedOnReferenceOptions();
     }
@@ -489,6 +495,42 @@ export class PropertiesViewController {
     }
   }
 
+  private getInputByStringFieldOptions(): { canonical: string; display: string }[] {
+    if (!this.activeNode?.xmlPath) {
+      return [];
+    }
+    try {
+      const objectInfo = parseObjectXml(this.activeNode.xmlPath);
+      const objectXml = fs.readFileSync(this.activeNode.xmlPath, 'utf-8');
+      const objectKind = this.activeNode.nodeKind;
+      const objectName = objectInfo?.name ?? this.activeNode.textLabel;
+      return (objectInfo?.children ?? [])
+        .filter((item) => item.tag === 'StandardAttribute' || item.tag === 'Attribute' || item.tag === 'Dimension' || item.tag === 'Resource')
+        .filter((item) => this.isInputByStringFieldIndexed(objectXml, objectKind, item.tag, item.name))
+        .map((item) => ({
+          canonical: `${objectKind}.${objectName}.${item.tag}.${item.name}`,
+          display: item.presentation ?? item.name,
+        }));
+    } catch {
+      return [];
+    }
+  }
+
+  private isInputByStringFieldIndexed(objectXml: string, objectKind: string, tag: string, name: string): boolean {
+    const elementXml = tag === 'StandardAttribute'
+      ? extractStandardAttributeXml(objectXml, name)
+      : extractChildMetaElementXml(objectXml, tag, name);
+    const indexing = elementXml ? extractSimpleTag(elementXml, tag === 'StandardAttribute' ? 'xr:Indexing' : 'Indexing') : undefined;
+    if (indexing) {
+      return indexing !== 'DontIndex';
+    }
+    if (tag === 'StandardAttribute') {
+      const defaultIndexing = getDefaultStandardAttributeIndexing(objectKind, name);
+      return defaultIndexing !== undefined && defaultIndexing !== 'DontIndex';
+    }
+    return false;
+  }
+
   private setMetadataReferenceList(key: string, values: string[]): void {
     if (!this.activeNode) {
       return;
@@ -507,7 +549,7 @@ export class PropertiesViewController {
       targetName: propertyTarget.targetName,
       tabularSectionName: propertyTarget.tabularSectionName,
       propertyKey: key,
-      valueKind: 'metadataReferenceList',
+      valueKind: key === 'InputByString' ? 'metadataFieldList' : 'metadataReferenceList',
       value: values,
     });
     if (!saved.success) {

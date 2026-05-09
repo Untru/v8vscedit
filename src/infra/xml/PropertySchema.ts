@@ -295,6 +295,8 @@ const TYPED_FIELD_KEYS = [
   'ShowInTotal',
 ] as const;
 
+const STANDARD_ATTRIBUTE_KEYS = TYPED_FIELD_KEYS.filter((key) => key !== 'Type');
+
 const TABULAR_SECTION_KEYS = [
   'Name',
   'Synonym',
@@ -336,6 +338,7 @@ export const PROPERTY_SCHEMAS: Readonly<Record<string, PropertySchema>> = {
   enumRoot: { id: 'enumRoot', keys: ENUM_ROOT_KEYS, source: 'propertiesInner' },
 
   typedField: { id: 'typedField', keys: TYPED_FIELD_KEYS, source: 'element' },
+  standardAttribute: { id: 'standardAttribute', keys: STANDARD_ATTRIBUTE_KEYS, source: 'element' },
   tabularSection: { id: 'tabularSection', keys: TABULAR_SECTION_KEYS, source: 'element' },
   form: { id: 'form', keys: FORM_KEYS, source: 'element' },
   command: { id: 'command', keys: COMMAND_KEYS, source: 'element' },
