@@ -1,3 +1,4 @@
+import type { ExchangePlanContentSnapshot } from '../../../../infra/xml/ExchangePlanContentService';
 import type { SubsystemMembershipSnapshot } from '../../../../infra/xml/SubsystemXmlService';
 import type { MetadataNode } from '../../../tree/TreeNode';
 import type { ObjectPropertiesCollection } from '../_types';
@@ -15,6 +16,7 @@ export interface PropertiesRenderContext {
   isEditLockedBySupport: boolean;
   isEditLockedByRepository: boolean;
   subsystemSnapshot: SubsystemMembershipSnapshot | null;
+  exchangePlanContentSnapshot: ExchangePlanContentSnapshot | null;
 }
 
 export interface ObjectPropertiesView {

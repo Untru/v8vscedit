@@ -21,14 +21,22 @@ export class MetadataObjectPropertiesView extends GenericPropertiesView {
   }
 
   protected override getExtraSections(context: PropertiesRenderContext): RenderedPropertySection[] {
-    if (!context.subsystemSnapshot) {
-      return [];
+    const sections: RenderedPropertySection[] = [];
+    if (context.subsystemSnapshot) {
+      sections.push(
+        this.sectionsRenderer.renderSubsystemMembershipSection(
+          context.subsystemSnapshot,
+          context.isEditLocked
+        )
+      );
     }
-    return [
-      this.sectionsRenderer.renderSubsystemMembershipSection(
-        context.subsystemSnapshot,
-        context.isEditLocked
-      ),
-    ];
+    if (context.exchangePlanContentSnapshot) {
+      sections.push(
+        this.sectionsRenderer.renderExchangePlanContentSection(
+          context.exchangePlanContentSnapshot
+        )
+      );
+    }
+    return sections;
   }
 }

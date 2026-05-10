@@ -109,7 +109,7 @@ suite('configurationXmlEditor', () => {
     assert.ok(saved.includes('<Owners/>'));
   });
 
-  test('Изменяет список ввода по строке через xr:Field', () => {
+  test('Изменяет списки полей через xr:Field', () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'v8vscedit-catalog-'));
     const catalogPath = path.join(dir, 'Клиенты.xml');
     fs.writeFileSync(
@@ -120,6 +120,7 @@ suite('configurationXmlEditor', () => {
     <Properties>
       <Name>Клиенты</Name>
       <InputByString/>
+      <DataLockFields/>
     </Properties>
   </Catalog>
 </MetaDataObject>`,
@@ -134,9 +135,22 @@ suite('configurationXmlEditor', () => {
       value: ['Catalog.Клиенты.StandardAttribute.Code', 'Catalog.Клиенты.StandardAttribute.Description'],
     });
     assert.strictEqual(result.success, true);
-    const saved = fs.readFileSync(catalogPath, 'utf-8');
+    let saved = fs.readFileSync(catalogPath, 'utf-8');
     assert.ok(saved.includes('<xr:Field>Catalog.Клиенты.StandardAttribute.Code</xr:Field>'));
     assert.ok(saved.includes('<xr:Field>Catalog.Клиенты.StandardAttribute.Description</xr:Field>'));
+    assert.ok(!saved.includes('<xr:Item'));
+
+    const lockResult = editor.modifyObjectProperty(catalogPath, {
+      targetKind: 'Self',
+      targetName: 'Клиенты',
+      propertyKey: 'DataLockFields',
+      valueKind: 'metadataFieldList',
+      value: ['Catalog.Клиенты.Attribute.Организация'],
+    });
+    assert.strictEqual(lockResult.success, true);
+    saved = fs.readFileSync(catalogPath, 'utf-8');
+    assert.ok(saved.includes('<DataLockFields>'));
+    assert.ok(saved.includes('<xr:Field>Catalog.Клиенты.Attribute.Организация</xr:Field>'));
     assert.ok(!saved.includes('<xr:Item'));
   });
 

@@ -11,7 +11,7 @@ import { PropertiesViewProvider } from './ui/views/PropertiesViewProvider';
 import { SubsystemEditorViewProvider } from './ui/views/subsystem/SubsystemEditorViewProvider';
 import { TreeSearchViewProvider } from './ui/views/search/TreeSearchViewProvider';
 import { SupportInfoService } from './infra/support/SupportInfoService';
-import { MetadataXmlCreator, MetadataXmlRemover } from './infra/xml';
+import { ExchangePlanContentService, MetadataXmlCreator, MetadataXmlRemover } from './infra/xml';
 import { SubsystemXmlService } from './infra/xml/SubsystemXmlService';
 import { RepositoryService } from './infra/repository/RepositoryService';
 import { GitMetadataStatusService } from './infra/git/GitMetadataStatusService';
@@ -64,6 +64,7 @@ export class Container {
   readonly aiSkillsInstaller: AiSkillsInstaller;
   readonly metadataXmlCreator: MetadataXmlCreator;
   readonly metadataXmlRemover: MetadataXmlRemover;
+  readonly exchangePlanContentService: ExchangePlanContentService;
   readonly subsystemXmlService: SubsystemXmlService;
   readonly treeSearchViewProvider: TreeSearchViewProvider;
   readonly universalPanelViewProvider: UniversalPanelViewProvider;
@@ -116,8 +117,10 @@ export class Container {
       this.repositoryService
     );
     this.subsystemXmlService = new SubsystemXmlService();
+    this.exchangePlanContentService = new ExchangePlanContentService();
     this.propertiesProvider = new PropertiesViewProvider(
       this.subsystemXmlService,
+      this.exchangePlanContentService,
       this.supportService,
       this.repositoryService,
       (configRoot, oldXmlPath, newXmlPath) => this.handleAfterRename(configRoot, oldXmlPath, newXmlPath),

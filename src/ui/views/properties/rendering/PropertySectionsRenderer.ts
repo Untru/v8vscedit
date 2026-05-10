@@ -1,3 +1,4 @@
+import type { ExchangePlanContentSnapshot } from '../../../../infra/xml/ExchangePlanContentService';
 import type { SubsystemMembershipSnapshot, SubsystemMembershipTreeNode } from '../../../../infra/xml/SubsystemXmlService';
 import type { ObjectPropertiesCollection } from '../_types';
 import { escapeHtml } from '../PropertiesViewUtils';
@@ -55,6 +56,19 @@ export class PropertySectionsRenderer {
     };
   }
 
+  renderExchangePlanContentSection(snapshot: ExchangePlanContentSnapshot): RenderedPropertySection {
+    return {
+      order: 140,
+      preferredColumn: 'right',
+      html: `
+        <section class="property-section">
+          <h2 class="section-title">Обмен данными</h2>
+          ${this.renderExchangePlanContentComponent(snapshot)}
+        </section>
+      `,
+    };
+  }
+
   private renderSectionColumns(sections: RenderedPropertySection[]): string {
     const sortedSections = [...sections].sort((left, right) => left.order - right.order);
     const left: string[] = [];
@@ -100,7 +114,7 @@ export class PropertySectionsRenderer {
         }
         return {
           order: this.getSectionOrder(items),
-          preferredColumn: title === 'Ввод на основании' ? 'right' : undefined,
+          preferredColumn: title === 'Ввод на основании' || title === 'Прочее' ? 'right' : undefined,
           html: `
             <section class="property-section">
               <h2 class="section-title">${escapeHtml(title)}</h2>
@@ -169,6 +183,26 @@ export class PropertySectionsRenderer {
           <div class="reference-row">
             <div class="reference-value" title="${escapeHtml(node.name)}">${escapeHtml(node.label)}</div>
             <button class="icon-btn reference-remove" type="button" title="Убрать из подсистемы" data-subsystem-remove="${escapeHtml(node.xmlPath)}" ${disabledAttr}>×</button>
+          </div>
+        `).join('')}
+      </div>
+    `;
+  }
+
+  private renderExchangePlanContentComponent(snapshot: ExchangePlanContentSnapshot): string {
+    if (snapshot.items.length === 0) {
+      return '<div class="empty">Объект не входит ни в один план обмена.</div>';
+    }
+    return `
+      <div class="reference-table" role="table" aria-label="Обмен данными">
+        <div class="reference-table-header" role="row">
+          <div role="columnheader">План обмена</div>
+          <div role="columnheader">Авторегистрация</div>
+        </div>
+        ${snapshot.items.map((item) => `
+          <div class="reference-table-row" role="row">
+            <div class="reference-table-cell" role="cell" title="${escapeHtml(item.exchangePlanName)}">${escapeHtml(item.exchangePlanLabel)}</div>
+            <div class="reference-table-cell" role="cell" title="${escapeHtml(item.autoRecord)}">${escapeHtml(item.autoRecordLabel)}</div>
           </div>
         `).join('')}
       </div>

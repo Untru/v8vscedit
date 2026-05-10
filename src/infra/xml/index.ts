@@ -20,6 +20,7 @@ export * from './MetadataXmlCreator';
 export * from './MetadataXmlRemover';
 export * from './PropertySchema';
 export * from './SubsystemXmlService';
+export * from './ExchangePlanContentService';
 export * from './TemplateXml';
 export * from './TypedFieldPropertyRules';
 export type { ConfigInfo } from '../../domain/Configuration';

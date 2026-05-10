@@ -39,6 +39,8 @@ import type {
   SubsystemMembershipTreeNode,
   SubsystemXmlService,
 } from '../../../infra/xml/SubsystemXmlService';
+import type { ExchangePlanContentSnapshot } from '../../../infra/xml/ExchangePlanContentService';
+import type { ExchangePlanContentService } from '../../../infra/xml/ExchangePlanContentService';
 import type { PropertiesRenderContext } from './rendering/_types';
 import {
   arePropertyEditValuesEqual,
@@ -74,6 +76,7 @@ export class PropertiesViewController {
 
   constructor(
     private readonly subsystemXmlService: SubsystemXmlService,
+    private readonly exchangePlanContentService: ExchangePlanContentService,
     private readonly host: PropertiesViewControllerHost,
     private readonly supportService?: SupportInfoService,
     private readonly repositoryService?: RepositoryService,
@@ -95,6 +98,7 @@ export class PropertiesViewController {
     this.activeNode = node;
     this.activeProperties = enrichedProperties;
     const subsystemSnapshot = this.resolveSubsystemMembershipSnapshot(node);
+    const exchangePlanContentSnapshot = this.resolveExchangePlanContentSnapshot(node);
     const editLockReason = this.resolveEditLockReason(node);
     const isEditLocked = editLockReason !== undefined;
     return {
@@ -104,6 +108,7 @@ export class PropertiesViewController {
       isEditLockedBySupport: editLockReason === 'support',
       isEditLockedByRepository: editLockReason === 'repository',
       subsystemSnapshot,
+      exchangePlanContentSnapshot,
     };
   }
 
@@ -449,6 +454,9 @@ export class PropertiesViewController {
     if (key === 'InputByString') {
       return this.getInputByStringFieldOptions();
     }
+    if (key === 'DataLockFields') {
+      return this.getDataLockFieldOptions();
+    }
     if (key === 'BasedOn' || key === 'BasedFor') {
       return this.getBasedOnReferenceOptions();
     }
@@ -516,6 +524,29 @@ export class PropertiesViewController {
     }
   }
 
+  private getDataLockFieldOptions(): { canonical: string; display: string }[] {
+    return this.getCurrentObjectFieldOptions();
+  }
+
+  private getCurrentObjectFieldOptions(): { canonical: string; display: string }[] {
+    if (!this.activeNode?.xmlPath) {
+      return [];
+    }
+    try {
+      const objectInfo = parseObjectXml(this.activeNode.xmlPath);
+      const objectKind = this.activeNode.nodeKind;
+      const objectName = objectInfo?.name ?? this.activeNode.textLabel;
+      return (objectInfo?.children ?? [])
+        .filter((item) => item.tag === 'StandardAttribute' || item.tag === 'Attribute' || item.tag === 'Dimension' || item.tag === 'Resource')
+        .map((item) => ({
+          canonical: `${objectKind}.${objectName}.${item.tag}.${item.name}`,
+          display: item.presentation ?? item.name,
+        }));
+    } catch {
+      return [];
+    }
+  }
+
   private isInputByStringFieldIndexed(objectXml: string, objectKind: string, tag: string, name: string): boolean {
     const elementXml = tag === 'StandardAttribute'
       ? extractStandardAttributeXml(objectXml, name)
@@ -549,7 +580,7 @@ export class PropertiesViewController {
       targetName: propertyTarget.targetName,
       tabularSectionName: propertyTarget.tabularSectionName,
       propertyKey: key,
-      valueKind: key === 'InputByString' ? 'metadataFieldList' : 'metadataReferenceList',
+      valueKind: key === 'InputByString' || key === 'DataLockFields' ? 'metadataFieldList' : 'metadataReferenceList',
       value: values,
     });
     if (!saved.success) {
@@ -852,6 +883,21 @@ export class PropertiesViewController {
     try {
       const location = getObjectLocationFromXml(node.xmlPath);
       return this.subsystemXmlService.readMembershipSnapshot(
+        location.configRoot,
+        `${node.nodeKind}.${node.textLabel}`
+      );
+    } catch {
+      return null;
+    }
+  }
+
+  private resolveExchangePlanContentSnapshot(node: MetadataNode): ExchangePlanContentSnapshot | null {
+    if (node.nodeKind !== 'Catalog' || !this.isSubsystemMembershipNode(node) || !node.xmlPath) {
+      return null;
+    }
+    try {
+      const location = getObjectLocationFromXml(node.xmlPath);
+      return this.exchangePlanContentService.readObjectContentSnapshot(
         location.configRoot,
         `${node.nodeKind}.${node.textLabel}`
       );

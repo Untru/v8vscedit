@@ -307,6 +307,40 @@ export function renderPropertiesHtmlDocument(content: string): string {
       right: 6px;
       transform: translateY(-50%);
     }
+    .reference-table {
+      display: grid;
+      border: 1px solid var(--vscode-input-border, transparent);
+      border-radius: 6px;
+      overflow: hidden;
+      background: var(--vscode-input-background);
+    }
+    .reference-table-header,
+    .reference-table-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(120px, 0.45fr);
+      min-width: 0;
+    }
+    .reference-table-header {
+      color: var(--vscode-descriptionForeground);
+      background: var(--vscode-sideBar-background);
+      font-weight: 600;
+    }
+    .reference-table-header + .reference-table-row,
+    .reference-table-row + .reference-table-row {
+      border-top: 1px solid var(--vscode-input-border, transparent);
+    }
+    .reference-table-cell,
+    .reference-table-header > div {
+      min-width: 0;
+      padding: 7px 10px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .reference-table-cell + .reference-table-cell,
+    .reference-table-header > div + div {
+      border-left: 1px solid var(--vscode-input-border, transparent);
+    }
     .type-row {
       display: grid;
       grid-template-columns: minmax(0, 1fr) auto;
@@ -344,6 +378,10 @@ export function renderPropertiesHtmlDocument(content: string): string {
       }
       .section-column {
         display: contents;
+      }
+      .reference-table-header,
+      .reference-table-row {
+        grid-template-columns: minmax(0, 1fr) minmax(96px, 0.55fr);
       }
     }
   </style>

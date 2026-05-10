@@ -21,6 +21,7 @@ suite('Properties — справочник', () => {
     assert.ok(keys.includes('UseStandardCommands'), 'UseStandardCommands не найден');
     assert.ok(keys.includes('BasedOn'), 'BasedOn не найден');
     assert.ok(keys.includes('PredefinedDataUpdate'), 'PredefinedDataUpdate не найден');
+    assert.ok(!keys.includes('Characteristics'), 'Characteristics не должен выводиться в свойствах справочника');
 
     const owners = props.find((item) => item.key === 'Owners');
     assert.ok(owners, 'Owners не найден');
@@ -62,6 +63,28 @@ suite('Properties — справочник', () => {
     assert.strictEqual(basedOn.section, 'Ввод на основании');
     assert.strictEqual(basedOn.readonly, false);
     assert.strictEqual(basedOn.kind, 'metadataReferenceList');
+
+    const dataLockFields = props.find((item) => item.key === 'DataLockFields');
+    assert.ok(dataLockFields, 'DataLockFields не найден');
+    assert.strictEqual(dataLockFields.section, 'Прочее');
+    assert.strictEqual(dataLockFields.readonly, false);
+    assert.strictEqual(dataLockFields.kind, 'metadataReferenceList');
+
+    const dataLockControlMode = props.find((item) => item.key === 'DataLockControlMode');
+    assert.ok(dataLockControlMode, 'DataLockControlMode не найден');
+    assert.strictEqual(dataLockControlMode.section, 'Служебное');
+
+    const editType = props.find((item) => item.key === 'EditType');
+    assert.ok(editType, 'EditType не найден');
+    assert.strictEqual(editType.section, 'Данные');
+
+    const fullTextSearch = props.find((item) => item.key === 'FullTextSearch');
+    assert.ok(fullTextSearch, 'FullTextSearch не найден');
+    assert.strictEqual(fullTextSearch.section, 'Прочее');
+
+    const dataHistory = props.find((item) => item.key === 'DataHistory');
+    assert.ok(dataHistory, 'DataHistory не найден');
+    assert.strictEqual(dataHistory.section, 'Прочее');
 
     const objectPresentation = props.find((item) => item.key === 'ObjectPresentation');
     assert.ok(objectPresentation, 'ObjectPresentation не найден');

@@ -3,6 +3,7 @@ import type { MetadataNode } from '../tree/TreeNode';
 import { getHandlerForNode } from '../tree/nodeBuilders/index';
 import type { RepositoryService } from '../../infra/repository/RepositoryService';
 import type { SupportInfoService } from '../../infra/support/SupportInfoService';
+import type { ExchangePlanContentService } from '../../infra/xml/ExchangePlanContentService';
 import type { SubsystemXmlService } from '../../infra/xml/SubsystemXmlService';
 import { PropertiesViewController } from './properties/PropertiesViewController';
 import { PropertyViewRegistry } from './properties/rendering/PropertyViewRegistry';
@@ -20,6 +21,7 @@ export class PropertiesViewProvider implements vscode.Disposable {
 
   constructor(
     subsystemXmlService: SubsystemXmlService,
+    exchangePlanContentService: ExchangePlanContentService,
     supportService?: SupportInfoService,
     repositoryService?: RepositoryService,
     /** Вызывается сразу после успешного переименования до срабатывания файлового watcher'а */
@@ -28,6 +30,7 @@ export class PropertiesViewProvider implements vscode.Disposable {
   ) {
     this.controller = new PropertiesViewController(
       subsystemXmlService,
+      exchangePlanContentService,
       {
         refreshActiveView: () => this.refreshActiveView(),
         replaceActiveNode: (node) => {
@@ -99,7 +102,11 @@ export class PropertiesViewProvider implements vscode.Disposable {
     }
 
     const renderContext = this.controller.buildRenderContext(node, handler.getProperties(node));
-    if (renderContext.properties.length === 0 && !renderContext.subsystemSnapshot) {
+    if (
+      renderContext.properties.length === 0 &&
+      !renderContext.subsystemSnapshot &&
+      !renderContext.exchangePlanContentSnapshot
+    ) {
       return renderNoPropertiesState(node);
     }
 

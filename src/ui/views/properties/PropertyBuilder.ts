@@ -721,13 +721,14 @@ const CATALOG_ROOT_META_PROPERTY_KEYS: string[] = [
   'IncludeHelpInContents',
 ];
 
-const CATALOG_READONLY_COMPLEX_PROPERTIES = new Set([
-  'DataLockFields',
+const CATALOG_HIDDEN_PROPERTIES = new Set([
   'Characteristics',
 ]);
 
+const CATALOG_READONLY_COMPLEX_PROPERTIES = new Set<string>();
+
 const CATALOG_PROPERTY_SECTIONS: Readonly<Record<string, { title: string; order: number }>> = {
-  _other: { title: 'Прочее', order: 90 },
+  _other: { title: 'Прочее', order: 900 },
   Name: { title: 'Основные', order: 10 },
   Synonym: { title: 'Основные', order: 10 },
   Comment: { title: 'Основные', order: 10 },
@@ -748,6 +749,7 @@ const CATALOG_PROPERTY_SECTIONS: Readonly<Record<string, { title: string; order:
   CodeType: { title: 'Данные', order: 60 },
   CodeAllowedLength: { title: 'Данные', order: 60 },
   DefaultPresentation: { title: 'Данные', order: 60 },
+  EditType: { title: 'Данные', order: 60 },
   CodeSeries: { title: 'Нумерация', order: 70 },
   CheckUnique: { title: 'Нумерация', order: 70 },
   Autonumbering: { title: 'Нумерация', order: 70 },
@@ -771,16 +773,14 @@ const CATALOG_PROPERTY_SECTIONS: Readonly<Record<string, { title: string; order:
   UseStandardCommands: { title: 'Команды', order: 100 },
   BasedOn: { title: 'Ввод на основании', order: 120 },
   BasedFor: { title: 'Ввод на основании', order: 120 },
-  DataLockFields: { title: 'Обмен данными', order: 140 },
-  DataLockControlMode: { title: 'Обмен данными', order: 140 },
-  FullTextSearch: { title: 'Обмен данными', order: 140 },
-  DataHistory: { title: 'Обмен данными', order: 140 },
-  UpdateDataHistoryImmediatelyAfterWrite: { title: 'Обмен данными', order: 140 },
-  ExecuteAfterWriteDataHistoryVersionProcessing: { title: 'Обмен данными', order: 140 },
-  PredefinedDataUpdate: { title: 'Прочее', order: 150 },
-  Characteristics: { title: 'Прочее', order: 150 },
-  EditType: { title: 'Прочее', order: 150 },
-  IncludeHelpInContents: { title: 'Прочее', order: 150 },
+  DataLockFields: { title: 'Прочее', order: 900 },
+  DataLockControlMode: { title: 'Служебное', order: 160 },
+  FullTextSearch: { title: 'Прочее', order: 900 },
+  DataHistory: { title: 'Прочее', order: 900 },
+  UpdateDataHistoryImmediatelyAfterWrite: { title: 'Прочее', order: 900 },
+  ExecuteAfterWriteDataHistoryVersionProcessing: { title: 'Прочее', order: 900 },
+  PredefinedDataUpdate: { title: 'Прочее', order: 900 },
+  IncludeHelpInContents: { title: 'Прочее', order: 900 },
   ObjectBelonging: { title: 'Служебное', order: 160 },
   ExtendedConfigurationObject: { title: 'Служебное', order: 160 },
 };
@@ -1233,8 +1233,8 @@ export function buildPropertyItemsForKeys(
       continue;
     }
 
-    if (key === 'InputByString') {
-      if (!propsInner.includes('<InputByString')) {
+    if (key === 'InputByString' || key === 'DataLockFields') {
+      if (!propsInner.includes(`<${key}`)) {
         continue;
       }
       items.push({
@@ -1394,7 +1394,7 @@ export function buildRootMetaObjectProperties(
 }
 
 function applyCatalogPropertySections(properties: ObjectPropertiesCollection): ObjectPropertiesCollection {
-  return properties.map((property) => {
+  return properties.filter((property) => !CATALOG_HIDDEN_PROPERTIES.has(property.key)).map((property) => {
     const section = CATALOG_PROPERTY_SECTIONS[property.key] ?? CATALOG_PROPERTY_SECTIONS._other;
     return {
       ...property,
